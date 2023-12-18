@@ -1,62 +1,77 @@
-import Fastify, { FastifyInstance, FastifyPluginCallback } from 'fastify'
-import z from 'zod';
-import fp from 'fastify-plugin'
-import dotenv from 'dotenv'
-import { authRoute } from './modules/auth/auth.route'
+import Fastify,
+{
+	FastifyRequest,
+	FastifyReply,
+}
+	from 'fastify';
+import { fastifyEnv } from './plugins/env';
+import { envConfig } from './plugins/env';
+import { authRoute } from './modules/auth/auth.route';
 import fjwt, { JWT } from "@fastify/jwt";
 
-const isProduction = process.env.NODE_ENV === 'production';
-
-const config = dotenv.config({ path: isProduction ? '.env' : '.env.local' })
-
-const envVars = z.object({
-    APP_PORT: z.string(),
-    DB_HOST: z.string(),
-    DB_USER: z.string(),
-    DB_PORT: z.string(),
-    DB_NAME: z.string(),
-    DB_PASS: z.string(),
-    JWT_SECRET: z.string()
-});
-
-const environment = envVars.parse(config.parsed);
-
-const fastifyEnv = fp(async (fastify: FastifyInstance, done: (err?: any) => void): Promise<void> => {
-    fastify.decorate('config', environment)
-}, {
-    name: 'custom-env',
-    fastify: '4.x',
-})
-
 declare module 'fastify' {
-    interface FastifyInstance {
-        config: z.infer<typeof envVars>
-    }
+	interface FastifyRequest {
+		jwt: JWT;
+	}
+	export interface FastifyInstance {
+		authenticate: any;
+		config: envConfig;
+	}
+}
+
+declare module "@fastify/jwt" {
+	interface FastifyJWT {
+		user: {
+			id: string;
+			email: string;
+			name: string;
+		};
+	}
 }
 
 const app = async () => {
-    const fastify = Fastify({
-        logger: true
-    })
+	const fastify = Fastify({
+		logger: true
+	})
 
-    await fastify.register(fastifyEnv);
+	await fastify.register(fastifyEnv);
 
-    fastify.register(fjwt, {
-        secret: fastify.config.JWT_SECRET, // change this
-    });
+	fastify.register(fjwt, {
+		secret: fastify.config.JWT_SECRET,
+	});
 
-    fastify.register(authRoute, { prefix: "api/auth" })
+	fastify.decorate(
+		"authenticate",
+		async (request: FastifyRequest, reply: FastifyReply) => {
+			try {
+				await request.jwtVerify();
+			} catch (e) {
+				return reply.send(e);
+			}
+		}
+	);
 
-    await fastify.ready()
+	fastify.addHook("preHandler", (req, reply, next) => {
+		req.jwt = fastify.jwt;
+		return next();
+	});
 
-    fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err, address) {
-        if (err) {
-            fastify.log.error(err)
-            process.exit(1)
-        }
-    })
+	fastify.register(authRoute, { prefix: "api/auth" })
 
-    return fastify;
+	fastify.get('/', { preHandler: [fastify.authenticate] }, function (request, reply) {
+		reply.send({ Server: 'online' })
+	}) // TEST JWT
+
+	await fastify.ready()
+
+	fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err, address) {
+		if (err) {
+			fastify.log.error(err)
+			process.exit(1)
+		}
+	})
+
+	return fastify;
 };
 
 app();
