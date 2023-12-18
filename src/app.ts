@@ -3,7 +3,7 @@
  */
 
 import Fastify from 'fastify';
-import { authRoute } from './modules/auth/auth.route.js'
+import { authRoute } from './modules/auth/auth.route'
 import fastifyEnv from '@fastify/env';
 import fjwt, { JWT } from "@fastify/jwt";
 import z from 'zod';
@@ -59,7 +59,7 @@ const fastify = Fastify({
 	logger: true
 })
 
-await fastify.register(fastifyEnv, options)
+fastify.register(fastifyEnv, options)
 	.ready((err: any) => {
 		if (err) console.error(err)
 

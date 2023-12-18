@@ -4,7 +4,6 @@
   "main": "index.js",
   "author": "r7s9p9",
   "license": "MIT",
-  "type": "module",
   "scripts": {
     "dev": "nodemon src/app.ts",
     "migrate": "tsnd src/db/migrator.ts"
