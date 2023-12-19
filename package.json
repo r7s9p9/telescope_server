@@ -6,15 +6,13 @@
   "license": "MIT",
   "scripts": {
     "dev": "nodemon src/app.ts",
-    "migrate": "tsnd src/db/migrator.ts"
+    "migrate": "ts-node src/scripts/migrator.ts"
   },
   "dependencies": {
     "@faker-js/faker": "^8.3.1",
-    "@fastify/env": "^4.3.0",
     "@fastify/jwt": "^7.2.4",
     "@fastify/swagger": "^8.12.1",
     "dotenv": "^16.3.1",
-    "env-schema": "^5.2.1",
     "fastify": "^4.24.3",
     "fastify-type-provider-zod": "^1.1.9",
     "kysely": "^0.26.3",

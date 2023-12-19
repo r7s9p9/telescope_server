@@ -1,7 +1,7 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { Migrator, FileMigrationProvider } from 'kysely'
-import { db } from './database'
+import { db } from '../db/database'
 
 async function migrateToLatest() {
 
@@ -11,7 +11,7 @@ async function migrateToLatest() {
             fs,
             path,
             // This needs to be an absolute path.
-            migrationFolder: path.join(__dirname, '/migrations'),
+            migrationFolder: path.join(__dirname, '../db/migrations'),
         }),
     })
 

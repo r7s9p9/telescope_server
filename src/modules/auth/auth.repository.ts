@@ -1,5 +1,5 @@
-import { db } from './database'
-import { UserUpdate, User, NewUser } from './types'
+import { db } from '../../db/database'
+import { UserUpdate, User, NewUser } from '../../db/types'
 
 export async function findUser(criteria: Partial<User>) {
 	let query = db.selectFrom('user')

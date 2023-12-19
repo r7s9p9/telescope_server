@@ -1,4 +1,4 @@
-import { createUser } from "../../db/auth.repository";
+import { createUser } from "./auth.repository";
 import { RegisterBodyType, LoginBodyType } from "./auth.schema";
 import { hashPassword } from "../../utils/hash";
 

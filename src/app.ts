@@ -5,7 +5,6 @@ import Fastify,
 }
 	from 'fastify';
 import { fastifyEnv } from './plugins/env';
-import { envConfig } from './plugins/env';
 import { authRoute } from './modules/auth/auth.route';
 import fjwt, { JWT } from "@fastify/jwt";
 
@@ -15,7 +14,6 @@ declare module 'fastify' {
 	}
 	export interface FastifyInstance {
 		authenticate: any;
-		config: envConfig;
 	}
 }
 
@@ -62,7 +60,7 @@ const app = async () => {
 		reply.send({ Server: 'online' })
 	}) // TEST JWT
 
-	await fastify.ready()
+	// await fastify.ready()
 
 	fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err, address) {
 		if (err) {
@@ -71,7 +69,7 @@ const app = async () => {
 		}
 	})
 
-	return fastify;
+	//return fastify;
 };
 
 app();
