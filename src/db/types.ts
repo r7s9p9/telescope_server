@@ -20,6 +20,5 @@ export interface UserTable {
 // use the `Selectable`, `Insertable` and `Updateable` wrappers. These wrappers
 // make sure that the correct types are used in each operation.
 
-export type User = Selectable<UserTable>
 export type NewUser = Insertable<UserTable>
 export type UserUpdate = Updateable<UserTable>

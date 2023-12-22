@@ -16,7 +16,9 @@ async function authRoute(fastify: FastifyInstance) {
 		schema: registerSchema,
 		handler: async (req, res) => {
 			const result = await registerHandler(req.body);
-			return res.code(result.status).send(result.message);
+			return res
+				.code(result.status)
+				.send(result.message);
 		}
 	});
 
@@ -26,7 +28,9 @@ async function authRoute(fastify: FastifyInstance) {
 		schema: loginSchema,
 		handler: async (req, res) => {
 			const result = await loginHandler(req.body);
-			return res.code(result.status).send(result.message);
+			return res
+				.code(result.status)
+				.send(result.message);
 		}
 	});
 }
