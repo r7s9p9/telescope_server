@@ -1,11 +1,10 @@
 import { FastifyInstance } from "fastify";
+import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
+import { registerSchema, loginSchema } from "./auth.schema";
 import {
 	loginHandler,
 	registerHandler,
 } from "./auth.controller";
-import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
-import { registerSchema, loginSchema } from "./auth.schema";
-import { access } from "fs";
 
 interface LoginResult {
 	status: number;
@@ -36,9 +35,14 @@ async function authRoute(fastify: FastifyInstance) {
 		handler: async (req, res) => {
 			const result: LoginResult = await loginHandler(req.body, req.server);
 			if (result.accessToken) {
-				console.log(result.accessToken);
 				return res
-					.header('set-cookie', result.accessToken)
+					.setCookie('accessToken', result.accessToken, {
+						//domain: 'your.domain',
+						//path: '/',
+						secure: true,
+						httpOnly: true,
+						sameSite: true
+					})
 					.code(result.status)
 					.send(result.message)
 			} else {
@@ -47,6 +51,19 @@ async function authRoute(fastify: FastifyInstance) {
 					.send(result.message)
 			}
 		}
+	});
+
+	fastify.withTypeProvider<ZodTypeProvider>().route({
+		method: "GET",
+		url: "/",
+		//schema: loginSchema,
+		preHandler: [fastify.checkToken],
+		handler: async (req, res) => {
+			return res
+				.code(200)
+				.send('Token is valid')
+		}
+
 	});
 }
 

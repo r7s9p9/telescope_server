@@ -6,14 +6,15 @@ import Fastify,
 	from 'fastify';
 import { fastifyEnv } from './plugins/env';
 import { authRoute } from './modules/auth/auth.route';
-import fjwt, { JWT } from "@fastify/jwt";
+import jwt, { JWT } from "@fastify/jwt";
+import fastifyCookie from '@fastify/cookie';
 
 declare module 'fastify' {
 	interface FastifyRequest {
 		jwt: JWT;
 	}
 	export interface FastifyInstance {
-		authenticate: any;
+		checkToken: any;
 	}
 }
 
@@ -34,13 +35,19 @@ const app = async () => {
 
 	await fastify.register(fastifyEnv);
 
-	fastify.register(fjwt, {
+	fastify.register(jwt, {
 		secret: fastify.config.JWT_SECRET,
-		sign: { algorithm: 'HS512' }
+		sign: { algorithm: 'HS512' },
+		cookie: {
+			cookieName: 'accessToken',
+			signed: false
+		}
 	});
 
+	fastify.register(fastifyCookie);
+
 	fastify.decorate(
-		"authenticate",
+		"checkToken",
 		async (request: FastifyRequest, reply: FastifyReply) => {
 			try {
 				await request.jwtVerify();
@@ -50,16 +57,14 @@ const app = async () => {
 		}
 	);
 
-	fastify.addHook("preHandler", (req, reply, next) => {
-		req.jwt = fastify.jwt;
-		return next();
-	});
+	// fastify.addHook("preHandler", (request, reply, next) => { // from prev version
+	// 	request.jwt = fastify.jwt;
+	// 	return next();
+	// });
+
+	//fastify.addHook('preHandler', (request) => request.jwtVerify()) // from fastify/jwt docs
 
 	fastify.register(authRoute, { prefix: "api" })
-
-	fastify.get('/', { preHandler: [fastify.authenticate] }, function (request, reply) {
-		reply.send({ Server: 'online' })
-	}) // TEST JWT
 
 	// await fastify.ready()
 
