@@ -36,6 +36,7 @@ const app = async () => {
 
 	fastify.register(fjwt, {
 		secret: fastify.config.JWT_SECRET,
+		sign: { algorithm: 'HS512' }
 	});
 
 	fastify.decorate(
@@ -54,7 +55,7 @@ const app = async () => {
 		return next();
 	});
 
-	fastify.register(authRoute, { prefix: "api/auth" })
+	fastify.register(authRoute, { prefix: "api" })
 
 	fastify.get('/', { preHandler: [fastify.authenticate] }, function (request, reply) {
 		reply.send({ Server: 'online' })

@@ -5,6 +5,13 @@ import {
 } from "./auth.controller";
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
 import { registerSchema, loginSchema } from "./auth.schema";
+import { access } from "fs";
+
+interface LoginResult {
+	status: number;
+	message: string;
+	accessToken?: string;
+}
 
 async function authRoute(fastify: FastifyInstance) {
 	fastify.setValidatorCompiler(validatorCompiler);
@@ -27,10 +34,18 @@ async function authRoute(fastify: FastifyInstance) {
 		url: "/login",
 		schema: loginSchema,
 		handler: async (req, res) => {
-			const result = await loginHandler(req.body);
-			return res
-				.code(result.status)
-				.send(result.message);
+			const result: LoginResult = await loginHandler(req.body, req.server);
+			if (result.accessToken) {
+				console.log(result.accessToken);
+				return res
+					.header('set-cookie', result.accessToken)
+					.code(result.status)
+					.send(result.message)
+			} else {
+				return res
+					.code(result.status)
+					.send(result.message)
+			}
 		}
 	});
 }

@@ -1,6 +1,7 @@
 import { createUser, selectUserByEmail, selectUserByUsername } from "./auth.repository";
 import { RegisterBodyType, LoginBodyType } from "./auth.schema";
 import { hashPassword, verifyPassword } from "../../utils/hash";
+import { FastifyInstance, FastifyRequest } from "fastify";
 
 const internalError = {
 	status: 500,
@@ -44,7 +45,8 @@ export async function registerHandler(
 }
 
 export async function loginHandler(
-	body: LoginBodyType
+	body: LoginBodyType,
+	server: FastifyInstance,
 ) {
 	try {
 		const user = await selectUserByEmail(body.email);
@@ -59,10 +61,10 @@ export async function loginHandler(
 				const { password, salt, ...rest } = user;
 				return {
 					status: 200,
-					message: "Logged In"
-					//accessToken: Request.jwt.sign(rest) };
+					message: "Logged In",
+					accessToken: server.jwt.sign(rest)
 				}
-			} else { return userError }
+			} else { return userError; };
 		}
 	} catch (e) {
 		console.log(e);
