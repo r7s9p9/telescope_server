@@ -1,30 +1,13 @@
-import Fastify,
-{
-	FastifyRequest,
-	FastifyReply,
-}
-	from 'fastify';
+import Fastify, { FastifyRequest, FastifyReply } from 'fastify';
 import { fastifyEnv } from './plugins/env';
 import { authRoute } from './modules/auth/auth.route';
-import jwt, { JWT } from "@fastify/jwt";
+import { sessionRoute } from './modules/session/session.route';
+import jwt from "@fastify/jwt";
 import fastifyCookie from '@fastify/cookie';
 
 declare module 'fastify' {
-	interface FastifyRequest {
-		jwt: JWT;
-	}
 	export interface FastifyInstance {
-		checkToken: any;
-	}
-}
-
-declare module "@fastify/jwt" {
-	interface FastifyJWT {
-		user: {
-			id: string;
-			email: string;
-			name: string;
-		};
+		checkToken: any; // TODO fix type
 	}
 }
 
@@ -35,38 +18,38 @@ const app = async () => {
 
 	await fastify.register(fastifyEnv);
 
-	fastify.register(jwt, {
+	await fastify.register(jwt, {
 		secret: fastify.config.JWT_SECRET,
-		sign: { algorithm: 'HS512' },
+		sign: {											// creating tokens
+			algorithm: fastify.config.JWT_ALG,
+			expiresIn: fastify.config.JWT_EXPIRATION,	// for client-side logic
+			noTimestamp: true,							// disable iat inserting in token
+		},
+		verify: {										// checking tokens
+			algorithms: [fastify.config.JWT_ALG],		// allow only this alg
+			maxAge: fastify.config.JWT_EXPIRATION,
+		},
 		cookie: {
 			cookieName: 'accessToken',
-			signed: false
-		}
+			signed: false,
+		},
 	});
 
-	fastify.register(fastifyCookie);
+	await fastify.register(fastifyCookie);
 
 	fastify.decorate(
 		"checkToken",
 		async (request: FastifyRequest, reply: FastifyReply) => {
 			try {
-				await request.jwtVerify();
+				await request.jwtVerify({ onlyCookie: true });
 			} catch (e) {
 				return reply.send(e);
 			}
 		}
 	);
 
-	// fastify.addHook("preHandler", (request, reply, next) => { // from prev version
-	// 	request.jwt = fastify.jwt;
-	// 	return next();
-	// });
-
-	//fastify.addHook('preHandler', (request) => request.jwtVerify()) // from fastify/jwt docs
-
-	fastify.register(authRoute, { prefix: "api" })
-
-	// await fastify.ready()
+	await fastify.register(authRoute, { prefix: "api" }) // for login / register
+	await fastify.register(sessionRoute, { prefix: "api" }) // session validation
 
 	fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err, address) {
 		if (err) {
@@ -74,8 +57,6 @@ const app = async () => {
 			process.exit(1)
 		}
 	})
-
-	//return fastify;
 };
 
 app();

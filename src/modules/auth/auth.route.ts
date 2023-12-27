@@ -41,7 +41,7 @@ async function authRoute(fastify: FastifyInstance) {
 						//path: '/',
 						secure: true,
 						httpOnly: true,
-						sameSite: true
+						sameSite: "strict",
 					})
 					.code(result.status)
 					.send(result.message)
@@ -51,19 +51,6 @@ async function authRoute(fastify: FastifyInstance) {
 					.send(result.message)
 			}
 		}
-	});
-
-	fastify.withTypeProvider<ZodTypeProvider>().route({
-		method: "GET",
-		url: "/",
-		//schema: loginSchema,
-		preHandler: [fastify.checkToken],
-		handler: async (req, res) => {
-			return res
-				.code(200)
-				.send('Token is valid')
-		}
-
 	});
 }
 

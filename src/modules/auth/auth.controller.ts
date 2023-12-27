@@ -1,4 +1,4 @@
-import { createUser, selectUserByEmail, selectUserByUsername } from "./auth.repository";
+import { createUser, selectUserByEmail, selectUserById, selectUserByUsername } from "./auth.repository";
 import { RegisterBodyType, LoginBodyType } from "./auth.schema";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyInstance, FastifyRequest } from "fastify";
@@ -58,11 +58,10 @@ export async function loginHandler(
 				hash: user.password,
 			});
 			if (correctPassword) {
-				const { password, salt, ...rest } = user;
 				return {
 					status: 200,
 					message: "Logged In",
-					accessToken: server.jwt.sign(rest)
+					accessToken: server.jwt.sign({ id: user.id })
 				}
 			} else { return userError; };
 		}
