@@ -1,35 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import parser from 'ua-parser-js';
 
-// interface Session {
-//     exp: number,
-//     ua: string,
-// }
-
-//  https://redis.io/commands/expire/
-//													redis -> session = id:userID:token => values
-// 	keys ->		userUUID
-//	exp		 ->	expire (Date)
-//				device (string)
-//				online (bool)
-//				ban (bool?)
-//
-//	Redis имеет запись по ключу id:userUUID:accessToken ->
-//			В значении ban стоит true -> Отправляется ответ о bad auth
-//			В значении ban стоит false -> 
-//											Запись 'user-agent' совпадает с устройством -> Запрос прошел проверку
-//											Запись 'user-agent' не совпадает -> ban меняется на true -> Отправляется ответ о bad auth
-//
-//	Redis НЕ имеет запись по ключу id:userUUID:accessToken ->
-//			В Redis есть другие незабаненные сессии с этим userUUID ->
-//					Отправка запроса на устройство, которое было online раньше всех ...
-//					...
-//					...
-//			В Redis нет других сессий ->
-//					Создать запись с текущим устройством, IP, и тд. -> Запрос прошел проверку 
-//
-//	
-//							
+//  TODO https://redis.io/commands/expire/
+					
 
 const sessionBanned = {
 	status: 403,
