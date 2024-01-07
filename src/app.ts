@@ -2,8 +2,9 @@ import Fastify, { FastifyRequest, FastifyReply } from 'fastify';
 import { fastifyEnv } from './plugins/env';
 import { authRoute } from './modules/auth/auth.route';
 import { sessionRoute } from './modules/session/session.route';
-import jwt from "@fastify/jwt";
+import jwt from '@fastify/jwt';
 import fastifyCookie from '@fastify/cookie';
+import fastifyRedis from '@fastify/redis';
 
 declare module 'fastify' {
 	export interface FastifyInstance {
@@ -14,9 +15,11 @@ declare module 'fastify' {
 const app = async () => {
 	const fastify = Fastify({
 		logger: true
-	})
+	});
 
 	await fastify.register(fastifyEnv);
+
+	await fastify.register(fastifyCookie);
 
 	await fastify.register(jwt, {
 		secret: fastify.config.JWT_SECRET,
@@ -35,10 +38,8 @@ const app = async () => {
 		},
 	});
 
-	await fastify.register(fastifyCookie);
-
 	fastify.decorate(
-		"checkToken",
+		'checkToken',
 		async (request: FastifyRequest, reply: FastifyReply) => {
 			try {
 				await request.jwtVerify({ onlyCookie: true });
@@ -48,15 +49,22 @@ const app = async () => {
 		}
 	);
 
-	await fastify.register(authRoute, { prefix: "api" }) // for login / register
-	await fastify.register(sessionRoute, { prefix: "api" }) // session validation
+	await fastify.register(fastifyRedis, {
+		host: 'localhost',
+		//password: 'your strong password here',
+		//port: 6379,
+		//family: 4   // (IPv4) or 6 (IPv6)
+	});
+
+	await fastify.register(authRoute, { prefix: 'api' }); // for login / register
+	await fastify.register(sessionRoute, { prefix: 'api' }); // session validation
 
 	fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err, address) {
 		if (err) {
-			fastify.log.error(err)
-			process.exit(1)
+			fastify.log.error(err);
+			process.exit(1);
 		}
-	})
+	});
 };
 
 app();
