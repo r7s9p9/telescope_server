@@ -1,10 +1,10 @@
-import { FastifyInstance } from "fastify";
-import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
-import { registerSchema, loginSchema } from "./auth.schema";
+import { FastifyInstance } from 'fastify';
+import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+import { registerSchema, loginSchema } from './auth.schema';
 import {
 	loginHandler,
 	registerHandler,
-} from "./auth.controller";
+} from './auth.controller';
 
 interface LoginResult {
 	status: number;
@@ -17,11 +17,11 @@ async function authRoute(fastify: FastifyInstance) {
 	fastify.setSerializerCompiler(serializerCompiler);
 
 	fastify.withTypeProvider<ZodTypeProvider>().route({
-		method: "POST",
-		url: "/register",
+		method: 'POST',
+		url: '/register',
 		schema: registerSchema,
 		handler: async (req, res) => {
-			const result = await registerHandler(req.body);
+			const result = await registerHandler(fastify, req.body);
 			return res
 				.code(result.status)
 				.send(result.message);
@@ -29,8 +29,8 @@ async function authRoute(fastify: FastifyInstance) {
 	});
 
 	fastify.withTypeProvider<ZodTypeProvider>().route({
-		method: "POST",
-		url: "/login",
+		method: 'POST',
+		url: '/login',
 		schema: loginSchema,
 		handler: async (req, res) => {
 			const result: LoginResult = await loginHandler(req.body, req.server);
@@ -41,14 +41,14 @@ async function authRoute(fastify: FastifyInstance) {
 						//path: '/',
 						secure: true,
 						httpOnly: true,
-						sameSite: "strict",
+						sameSite: 'strict',
 					})
 					.code(result.status)
-					.send(result.message)
+					.send(result.message);
 			} else {
 				return res
 					.code(result.status)
-					.send(result.message)
+					.send(result.message);
 			}
 		}
 	});

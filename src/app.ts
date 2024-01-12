@@ -59,7 +59,7 @@ const app = async () => {
 	await fastify.register(authRoute, { prefix: 'api' }); // for login / register
 	await fastify.register(sessionRoute, { prefix: 'api' }); // session validation
 
-	fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err, address) {
+	fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err) {
 		if (err) {
 			fastify.log.error(err);
 			process.exit(1);

@@ -1,6 +1,6 @@
-import { Database } from './types'
-import { Pool } from 'pg'
-import { Kysely, PostgresDialect } from 'kysely'
+import { Database } from './types';
+import { Pool } from 'pg';
+import { Kysely, PostgresDialect } from 'kysely';
 import dotenv from 'dotenv';
 import z from 'zod';
 
@@ -14,7 +14,7 @@ const envVars = z.object({
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const config = dotenv.config({ path: isProduction ? '.env' : '.env.local' })
+const config = dotenv.config({ path: isProduction ? '.env' : '.env.local' });
 
 const environment = envVars.parse(config.parsed);
 
@@ -27,8 +27,8 @@ const dialect = new PostgresDialect({
 		port: Number(environment.DB_PORT),
 		max: 10,
 	})
-})
+});
 
 export const db = new Kysely<Database>({
 	dialect,
-})
+});

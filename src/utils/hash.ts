@@ -1,10 +1,19 @@
-import crypto from "crypto";
+import crypto from 'crypto';
+
+function createHash(
+	password: string,
+	salt: string
+) {
+	return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+}
+
+function createSalt() {
+	return crypto.randomBytes(16).toString('hex');
+}
 
 export function hashPassword(password: string) {
-	const salt = crypto.randomBytes(16).toString("hex");
-	const hash = crypto
-		.pbkdf2Sync(password, salt, 1000, 64, "sha512")
-		.toString("hex");
+	const salt = createSalt();
+	const hash = createHash(password, salt);
 	return { hash, salt };
 }
 
@@ -17,8 +26,6 @@ export function verifyPassword({
 	salt: string;
 	hash: string;
 }) {
-	const candidateHash = crypto
-		.pbkdf2Sync(candidatePassword, salt, 1000, 64, "sha512")
-		.toString("hex");
+	const candidateHash = createHash(candidatePassword, salt);
 	return candidateHash === hash;
 }

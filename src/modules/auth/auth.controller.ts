@@ -2,6 +2,7 @@ import { createUser, selectUserByEmail, selectUserByUsername } from './auth.repo
 import { RegisterBodyType, LoginBodyType } from './auth.schema';
 import { hashPassword, verifyPassword } from '../../utils/hash';
 import { FastifyInstance } from 'fastify';
+import { createAccount } from '../account/account.actions';
 
 const internalError = {
 	status: 500,
@@ -29,6 +30,7 @@ const userError = {
 };
 
 export async function registerHandler(
+	server: FastifyInstance,
 	body: RegisterBodyType
 ) {
 	try {
@@ -37,6 +39,9 @@ export async function registerHandler(
 		const { email, username, password } = body;
 		const { hash, salt } = hashPassword(password);
 		await createUser({ email, username, salt, password: hash });
+		const user = await selectUserByEmail(body.email);
+		if (!user) { return internalError; }
+		await createAccount(server, user.id);
 		return accountCreated;
 	} catch (e) {
 		console.log(e);
@@ -58,7 +63,6 @@ export async function loginHandler(
 				hash: user.password,
 			});
 			if (correctPassword) {
-				//const result = await sessionRequest(server, user.id)
 				return {
 					status: 200,
 					message: 'Logged In',

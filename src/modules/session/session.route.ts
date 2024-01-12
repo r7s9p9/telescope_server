@@ -4,7 +4,7 @@ import { checkSession } from './session.controller';
 import { sessionSchema } from './session.schema';
 
 interface Token {
-    id?: '${string}-${string}-${string}-${string}-${string}';
+    id?: `${string}-${string}-${string}-${string}-${string}`;
     exp?: number;
 }
 
@@ -27,8 +27,13 @@ async function sessionRoute(fastify: FastifyInstance) {
 					ip: req.ip,
 					ua: req.headers['user-agent']
 				}, fastify);
-
-			} else { return res.code(401).send('Token is invalid'); }
+				if (result) {
+					return res
+						.code(result.status)
+						.send({ data: result.message }); // Shit
+				}
+			}
+			if (!jwt.id || !jwt.exp) { return res.code(401).send('Token is invalid'); }
 	
 			return res.send('Token is valid');
 		}
