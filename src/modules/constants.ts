@@ -28,7 +28,7 @@ export const accountPrivacyRules = {
 };
 
 export const accountStartValues = [
-  accountFields,
+  accountFields.username,
   "empty",
   accountFields.name,
   "empty",
@@ -76,11 +76,11 @@ export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
 
-export const accountKeyPart = ":account";
-export const roomKeyPart = "room:";
-export const userKeyPart = "user:";
-export const allRoomsKeyPart = ":rooms:all";
-export const internalRoomsKeyPart = ":rooms:internal:";
+export const accountKeyPart = "account";
+export const roomKeyPart = "room";
+export const userKeyPart = "user";
+export const allRoomsKeyPart = "rooms:all";
+export const internalRoomsKeyPart = "rooms:internal";
 
 export const userRoomsSetKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${allRoomsKeyPart}`;

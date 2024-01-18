@@ -231,8 +231,8 @@ export async function isUserBlockedByUser(
 
 export async function createAccount(redis: FastifyRedis, userId: UserId) {
   await redis.hmset(accountKey(userId), accountStartValues);
-  await redis.sadd(friendsKey(userId)); // Empty set
-  await redis.sadd(blockedKey(userId)); // Empty set
+  //await redis.sadd(friendsKey(userId)); // Empty set
+  //await redis.sadd(blockedKey(userId)); // Empty set
   await createInternalRooms(redis, userId);
 }
 
