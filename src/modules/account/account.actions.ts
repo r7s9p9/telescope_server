@@ -15,6 +15,7 @@ import {
   blockedKey,
   accountFields,
   accountStartValues,
+  accountPrivacyRules,
 } from "../constants";
 
 export async function accountChecker(redis: FastifyRedis, userId: UserId) {
@@ -141,7 +142,10 @@ export async function readAccountWithId(
   const targetUserPrivacy: AccountPrivacy = {};
 
   const readRule = (privacyRule: string | null, friend: boolean) => {
-    return privacyRule === "everybody" || (privacyRule === "friends" && friend);
+    return (
+      privacyRule === accountPrivacyRules.everybody ||
+      (privacyRule === accountPrivacyRules.friends && friend)
+    );
   };
 
   if (read.name) {
