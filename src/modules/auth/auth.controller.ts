@@ -67,7 +67,7 @@ export async function registerHandler(
     if (!user) {
       return internalError;
     }
-    await createAccount(redis, user.id);
+    await createAccount(redis, user.id, user.username);
     return accountCreated;
   } catch (e) {
     console.log(e);

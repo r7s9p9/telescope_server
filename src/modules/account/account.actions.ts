@@ -22,7 +22,7 @@ export async function accountChecker(redis: FastifyRedis, userId: UserId) {
   // Needed ???
   const accountExists = await accountValidation(redis, userId);
   if (!accountExists) {
-    await createAccount(redis, userId);
+    console.log(`ACCOUNT NOT EXISTS ${userId}`);
   }
 }
 
@@ -229,8 +229,12 @@ export async function isUserBlockedByUser(
   return !!(await redis.sismember(blockedKey(targetUserId), userId));
 }
 
-export async function createAccount(redis: FastifyRedis, userId: UserId) {
-  await redis.hmset(accountKey(userId), accountStartValues);
+export async function createAccount(
+  redis: FastifyRedis,
+  userId: UserId,
+  username: string
+) {
+  await redis.hmset(accountKey(userId), accountStartValues(username));
   //await redis.sadd(friendsKey(userId)); // Empty set
   //await redis.sadd(blockedKey(userId)); // Empty set
   await createInternalRooms(redis, userId);

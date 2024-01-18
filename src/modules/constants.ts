@@ -27,11 +27,11 @@ export const accountPrivacyRules = {
   nobody: "nobody",
 };
 
-export const accountStartValues = [
+export const accountStartValues = (username: string) => [
   accountFields.username,
-  "empty",
+  username,
   accountFields.name,
-  "empty",
+  username,
   accountFields.bio,
   "empty",
   accountFields.lastSeen,
