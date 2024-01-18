@@ -26,6 +26,15 @@ export const sessionSchema = {
 	header: clientHeader,
 	//body: registerBody,
 	response: {
-		200: z.string(),
+		200: z.object({
+			data: z.object({
+				message: z.string().optional()
+			})
+		}),
+		401: z.object({
+			error: z.object({
+				message: z.string()
+			})
+		})
 	},
 };
