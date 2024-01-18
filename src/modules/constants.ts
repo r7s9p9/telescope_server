@@ -1,13 +1,4 @@
 import { UserId, RoomId } from "./types";
-
-export const accountKeyPart = ":account";
-
-export const roomKeyPart = "room:";
-
-export const userKeyPart = "user:";
-export const allRoomsKeyPart = ":rooms:all";
-export const internalRoomsKeyPart = ":rooms:internal:";
-
 export const serviceRoomName = "Telescope";
 export const personalRoomName = "Saved Messages";
 
@@ -30,25 +21,31 @@ export const accountFields = {
   },
 };
 
+export const accountPrivacyRules = {
+  everybody: "everybody",
+  friends: "friends",
+  nobody: "nobody",
+};
+
 export const accountStartValues = [
-  "username",
+  accountFields,
   "empty",
-  "name",
+  accountFields.name,
   "empty",
-  "bio",
+  accountFields.bio,
   "empty",
-  "lastSeen",
+  accountFields.lastSeen,
   Date.now(),
-  "privacyLastSeen",
-  "everybody",
-  "privacyName",
-  "everybody",
-  "privacyBio",
-  "everybody",
-  "privacyFriends",
-  "everybody",
-  "privacyProfilePhotos",
-  "everybody",
+  accountFields.privacy.lastSeen,
+  accountPrivacyRules.everybody,
+  accountFields.privacy.name,
+  accountPrivacyRules.everybody,
+  accountFields.privacy.bio,
+  accountPrivacyRules.everybody,
+  accountFields.privacy.friends,
+  accountPrivacyRules.everybody,
+  accountFields.privacy.profilePhotos,
+  accountPrivacyRules.everybody,
 ];
 
 export const sessionFields = {
@@ -78,6 +75,12 @@ export const sessionStartValues = (ua: string, ip: string) => [
 export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
+
+export const accountKeyPart = ":account";
+export const roomKeyPart = "room:";
+export const userKeyPart = "user:";
+export const allRoomsKeyPart = ":rooms:all";
+export const internalRoomsKeyPart = ":rooms:internal:";
 
 export const userRoomsSetKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${allRoomsKeyPart}`;

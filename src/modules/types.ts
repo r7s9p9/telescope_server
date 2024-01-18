@@ -33,7 +33,7 @@ export interface AccountReadData {
   privacyProfilePhotos?: boolean;
 }
 
-export interface AccountWriteDate {
+export interface AccountWriteData {
   username?: string;
   name?: string;
   bio?: string;

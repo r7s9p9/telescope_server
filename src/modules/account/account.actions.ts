@@ -5,7 +5,7 @@ import { blockedCount, getAllBlocked } from "./account.blocked";
 import {
   AccountReadData,
   AccountReadResult,
-  AccountWriteDate,
+  AccountWriteData,
   AccountPrivacy,
   UserId,
 } from "../types";
@@ -62,8 +62,8 @@ async function accountValidation(redis: FastifyRedis, userId: UserId) {
 
 export async function readAccountWithId(
   redis: FastifyRedis,
-  userId: `${string}-${string}-${string}-${string}-${string}`,
-  targetUserid: `${string}-${string}-${string}-${string}-${string}`,
+  userId: UserId,
+  targetUserid: UserId,
   read: AccountReadData
 ) {
   const result: AccountReadResult = {};
@@ -235,7 +235,7 @@ export async function createAccount(redis: FastifyRedis, userId: UserId) {
 export async function updateAccountWithId(
   redis: FastifyRedis,
   userId: UserId,
-  write: AccountWriteDate
+  write: AccountWriteData
 ) {
   if (write.username) {
     await redis.hset(
