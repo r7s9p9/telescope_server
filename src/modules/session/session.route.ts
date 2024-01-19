@@ -6,7 +6,7 @@ import {
 } from "fastify-type-provider-zod";
 import { sessionSchema } from "./session.schema";
 import { checkSession, refreshSession } from "./session.controller";
-import { createToken, checkToken } from "../../utils/tokenCreator";
+import { createToken, checkToken } from "../../utils/tokenActions";
 import {
   messageAboutServerError,
   messageAboutSessionOK,

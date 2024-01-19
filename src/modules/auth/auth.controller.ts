@@ -12,7 +12,7 @@ import {
   isVerificationCodeRequired,
 } from "../session/session.controller";
 import { FastifyRedis } from "@fastify/redis";
-import { createToken } from "../../utils/tokenCreator";
+import { createToken } from "../../utils/tokenActions";
 import {
   messageAboutServerError,
   messageAboutSessionRefreshed,
