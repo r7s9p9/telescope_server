@@ -1,4 +1,5 @@
 import { UserId, RoomId } from "./types";
+
 export const serviceRoomName = "Telescope";
 export const personalRoomName = "Saved Messages";
 
@@ -48,24 +49,6 @@ export const accountStartValues = (username: string) => [
   accountPrivacyRules.everybody,
 ];
 
-export const sessionFields = {
-  ua: "ua",
-  ip: "ip",
-  ban: "ban",
-  online: "online",
-};
-
-export const sessionStartValues = (ua: string, ip: string) => [
-  "ua",
-  ua,
-  "ip",
-  ip,
-  "ban",
-  "false",
-  "online",
-  Date.now(),
-];
-
 // Session storage is implemented in two records:
 // 1. Redis Set for a list of all sessions of one client.
 // 2. Redis Hash for storing information about each session of one client.
@@ -103,7 +86,29 @@ export const friendsKey = (userId: UserId) => `${accountKey(userId)}:friends`;
 
 export const blockedKey = (userId: UserId) => `${accountKey(userId)}:blocked`;
 
-export interface Token {
-  id: UserId;
-  exp: number;
-}
+export const messageAboutServerError = {
+  status: 500,
+  error: { message: "Internal Server Error" },
+};
+
+export const messageAboutSessionOK = {
+  status: 200,
+  data: {
+    message: "OK",
+  },
+};
+
+export const messageAboutWrongToken = {
+  status: 401,
+  error: { message: "Token is invalid" },
+};
+
+export const messageAboutSessionRefreshed = (token: string) => {
+  return {
+    status: 200,
+    data: {
+      message: "Session Refreshed",
+      accessToken: token,
+    },
+  };
+};

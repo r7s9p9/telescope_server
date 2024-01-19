@@ -1,6 +1,13 @@
-export type UserId = `${string}-${string}-${string}-${string}-${string}`;
-export type UserIdArr = `${string}-${string}-${string}-${string}-${string}`[];
-export type RoomId = `${string}-${string}-${string}-${string}-${string}`;
+import { UUID } from "crypto";
+
+export type UserId = UUID;
+export type UserIdArr = UUID[];
+export type RoomId = UUID;
+
+export interface Token {
+  id: UserId;
+  exp: number;
+}
 
 export interface RoomInfo {
   name: string;

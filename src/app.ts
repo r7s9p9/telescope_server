@@ -1,14 +1,25 @@
 import Fastify, { FastifyRequest, FastifyReply } from "fastify";
-import { fastifyEnv } from "./plugins/env";
-import { authRoute } from "./modules/auth/auth.route";
-import { sessionRoute } from "./modules/session/session.route";
-import jwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
 import fastifyRedis from "@fastify/redis";
+import { fastifyEnv } from "./plugins/env";
+import jwt from "@fastify/jwt";
+import { authRoute } from "./modules/auth/auth.route";
+import {
+  sessionRoute,
+  refreshSessionRoute,
+} from "./modules/session/session.route";
+
+import { Token } from "./modules/types";
 
 declare module "fastify" {
   export interface FastifyInstance {
     checkToken: any; // TODO fix type
+  }
+}
+
+declare module "@fastify/jwt" {
+  export interface fastifyJWT {
+    user: Token;
   }
 }
 
@@ -45,7 +56,7 @@ const app = async () => {
     "checkToken",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        await request.jwtVerify({ onlyCookie: true });
+        await request.jwtVerify<Token>({ onlyCookie: true });
       } catch (e) {
         return reply.send(e);
       }
@@ -61,6 +72,7 @@ const app = async () => {
 
   await fastify.register(authRoute, { prefix: "api" }); // for login / register
   await fastify.register(sessionRoute, { prefix: "api" }); // session validation
+  await fastify.register(refreshSessionRoute, { prefix: "api" });
 
   fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err) {
     if (err) {

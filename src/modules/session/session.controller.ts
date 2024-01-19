@@ -3,40 +3,31 @@ import parser from "ua-parser-js";
 import { verificationCodeRequest } from "./session.security-code";
 import { UserId } from "../types";
 import {
-  sessionFields,
+  messageAboutServerError,
+  messageAboutSessionOK,
   sessionHashKey,
   sessionSetKey,
-  sessionStartValues,
 } from "../constants";
-
-const messageAboutBlockedSession = {
-  status: 403,
-  data: {
-    message: "Your session is banned",
-  },
-};
-
-const messageAboutNothing = {
-  status: 200,
-  data: {
-    message: "",
-  },
-};
-
-const messageAboutNoSession = {
-  status: 401,
-  error: { message: "Session Not Found. Log in." },
-};
+import {
+  messageAboutBadUserAgent,
+  messageAboutBlockedSession,
+  messageAboutNoSession,
+  sessionFields,
+  sessionStartValues,
+} from "./session.constants";
 
 export async function checkSession(
+  redis: FastifyRedis,
   client: {
     id: UserId;
     exp: number;
     ip: string;
-    ua: string;
-  },
-  redis: FastifyRedis
+    ua: string | undefined;
+  }
 ) {
+  if (!client.ua) {
+    return messageAboutBadUserAgent;
+  }
   const sessionFound = await sessionValidation(
     redis,
     sessionHashKey(client.id, client.exp),
@@ -80,7 +71,7 @@ export async function checkSession(
       await updateSession(redis, sessionHashKey(client.id, client.exp), {
         online: Date.now(),
       });
-      return messageAboutNothing;
+      return messageAboutSessionOK;
     }
 
     if (!uaIsHealthy) {
@@ -95,10 +86,10 @@ export async function checkSession(
       return messageAboutBlockedSession;
     }
   }
-
   if (!sessionFound) {
     return messageAboutNoSession;
   }
+  return messageAboutServerError;
 }
 
 export async function isVerificationCodeRequired(
@@ -153,7 +144,7 @@ export async function isVerificationCodeRequired(
       if (sessionGood) {
         const sessionOnlineValue = await redis.hget(
           sessionHashKey(id, selectedExpValue),
-          "online"
+          sessionFields.online
         );
         suitableSessions.set(selectedExpValue, sessionOnlineValue);
       }
@@ -237,8 +228,8 @@ async function sessionValidation(
   if (damagedSession) {
     await removeSession(redis, sessionHashKey, sessionSetKey, sessionExpValue);
     console.log(`DAMAGED SESSION -> ${sessionHashKey}`);
-    return false;
   }
+  return false;
 }
 
 async function checkSessionData(
@@ -259,6 +250,7 @@ async function checkSessionData(
   if (client.ban) {
     return (await redis.hget(sessionHashKey, sessionFields.ban)) === client.ban;
   }
+  return false;
 }
 
 export async function createSession(
@@ -280,6 +272,26 @@ export async function createSession(
     await redis.expireat(sessionSetKey(id), exp, "NX");
   }
   // If session hash expired, but set member isnt -> session will deleted by sessionValidation()
+}
+
+export async function refreshSession(
+  redis: FastifyRedis,
+  id: UserId,
+  oldExp: number, // from old token
+  newExp: number, // from new token
+  ua: string | undefined,
+  ip: string
+) {
+  if (!ua) {
+    return messageAboutBadUserAgent;
+  }
+  await removeSession(
+    redis,
+    sessionHashKey(id, oldExp),
+    sessionSetKey(id),
+    oldExp
+  );
+  await createSession(redis, id, newExp, ua, ip);
 }
 
 async function updateSession(

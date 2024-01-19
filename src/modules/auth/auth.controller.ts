@@ -12,41 +12,54 @@ import {
   isVerificationCodeRequired,
 } from "../session/session.controller";
 import { FastifyRedis } from "@fastify/redis";
-import { Token } from "../constants";
+import { createToken } from "../../utils/tokenCreator";
+import {
+  messageAboutServerError,
+  messageAboutSessionRefreshed,
+} from "../constants";
 
-const internalError = {
-  status: 500,
-  error: {
-    message: "Internal Server Error",
-  },
-};
-
-const usernameExists = {
+const messageAboutUsernameExists = {
   status: 400,
   error: {
     message: "This username already exists",
   },
 };
 
-const emailExists = {
+const messageAboutEmailExists = {
   status: 400,
   error: {
     message: "This account already exists",
   },
 };
 
-const accountCreated = {
+const messageAboutAccountCreated = {
   status: 201,
   data: {
     message: "Account created",
   },
 };
 
-const userError = {
+const messageAboutInvalidEmailOrPassword = {
   status: 401,
   error: {
     message: "Invalid email or password",
   },
+};
+
+const messageAboutVerificationRequired = {
+  status: 200,
+  data: {
+    message: "Enter the verification code from your other device",
+  },
+};
+
+export const messageAboutLoginSuccessful = (token: string) => {
+  return {
+    status: 200,
+    data: {
+      accessToken: token,
+    },
+  };
 };
 
 export async function registerHandler(
@@ -55,23 +68,23 @@ export async function registerHandler(
 ) {
   try {
     if (await selectUserByEmail(body.email)) {
-      return emailExists;
+      return messageAboutEmailExists;
     }
     if (await selectUserByUsername(body.username)) {
-      return usernameExists;
+      return messageAboutUsernameExists;
     }
     const { email, username, password } = body;
     const { hash, salt } = hashPassword(password);
     await createUser({ email, username, salt, password: hash });
     const user = await selectUserByEmail(body.email);
     if (!user) {
-      return internalError;
+      return messageAboutServerError;
     }
     await createAccount(redis, user.id, user.username);
-    return accountCreated;
+    return messageAboutAccountCreated;
   } catch (e) {
     console.log(e);
-    return internalError;
+    return messageAboutServerError;
   }
 }
 
@@ -83,9 +96,8 @@ export async function loginHandler(
 ) {
   try {
     const user = await selectUserByEmail(body.email);
-
     if (!user) {
-      return userError;
+      return messageAboutInvalidEmailOrPassword;
     }
 
     const correctPassword = verifyPassword({
@@ -93,11 +105,10 @@ export async function loginHandler(
       salt: user.salt,
       hash: user.password,
     });
-
     if (!correctPassword) {
-      return userError;
+      return messageAboutInvalidEmailOrPassword;
     }
-
+    //     \/    \/    \/    \/    \/    \/    \/    \/    \/    \/
     const result = await isVerificationCodeRequired(
       server.redis,
       user.id,
@@ -106,32 +117,19 @@ export async function loginHandler(
     );
 
     if (result) {
-      // Сode confirmation message
-      return {
-        status: 200,
-        data: {
-          message: "Enter the verification code from your other device",
-        },
-      };
+      return messageAboutVerificationRequired;
     }
 
-    const token = server.jwt.sign({ id: user.id });
-    const decodedToken = server.jwt.decode<Token>(token);
-    if (decodedToken !== null && decodedToken.exp) {
-      await createSession(server.redis, user.id, decodedToken.exp, ua, ip);
+    const tokenData = await createToken(server.jwt, user.id);
+    if (tokenData) {
+      await createSession(server.redis, tokenData.id, tokenData.exp, ua, ip);
 
-      return {
-        status: 200,
-        data: {
-          message: "Logged In",
-          accessToken: token,
-        },
-      };
-    } else {
-      return internalError;
+      return messageAboutLoginSuccessful(tokenData.token);
     }
+
+    return messageAboutServerError;
   } catch (e) {
     console.log(e);
-    return internalError;
+    return messageAboutServerError;
   }
 }
