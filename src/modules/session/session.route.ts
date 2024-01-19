@@ -49,7 +49,9 @@ async function refreshSessionRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       const oldTokenData = await checkToken(req.user);
       if (!oldTokenData) {
-        return messageAboutWrongToken;
+        return res
+          .code(messageAboutWrongToken.status)
+          .send(messageAboutWrongToken);
       }
       const sessionResult = await checkSession(fastify.redis, {
         id: oldTokenData.id, // token from @fastify/jwt
@@ -79,9 +81,24 @@ async function refreshSessionRoute(fastify: FastifyInstance) {
             req.headers["user-agent"],
             req.ip
           );
-          return messageAboutSessionRefreshed(newTokenData.token);
+          const result = messageAboutSessionRefreshed(newTokenData.token);
+          return (
+            res
+              .setCookie("accessToken", result.data.accessToken, {
+                //domain: 'your.domain',
+                //path: '/',
+                secure: true,
+                httpOnly: true,
+                sameSite: "strict",
+              })
+              .code(result.status)
+              //.send(result.data); // accessToken needed only in cookie
+              .send()
+          );
         }
-        return messageAboutServerError;
+        return res
+          .code(messageAboutServerError.status)
+          .send(messageAboutServerError);
       }
     },
   });
@@ -89,5 +106,5 @@ async function refreshSessionRoute(fastify: FastifyInstance) {
 
 export { sessionRoute, refreshSessionRoute };
 
-// Add /refresh-session
+// Add /refresh-session +
 // Add /code

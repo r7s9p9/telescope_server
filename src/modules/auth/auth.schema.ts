@@ -52,12 +52,12 @@ export const loginSchema = {
   // Headers: z.object({
   //   "user-agent": z.string(),
   // }),
-  response: {
-    200: z.object({
-      message: z.string(),
-    }),
-    401: z.object({
-      message: z.string(),
-    }),
-  },
+  // response: {
+  //   200: z.object({
+  //     message: z.string(),
+  //   }),
+  //   401: z.object({
+  //     message: z.string(),
+  //   }),
+  // },
 };

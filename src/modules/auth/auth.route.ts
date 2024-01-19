@@ -53,17 +53,21 @@ async function authRoute(fastify: FastifyInstance) {
       );
 
       if ("data" in result) {
-        if (result.data.accessToken) {
-          return res
-            .setCookie("accessToken", result.data.accessToken, {
-              //domain: 'your.domain',
-              //path: '/',
-              secure: true,
-              httpOnly: true,
-              sameSite: "strict",
-            })
-            .code(result.status)
-            .send(result.data);
+        if ("accessToken" in result.data) {
+          console.log(result.data.accessToken);
+          return (
+            res
+              .setCookie("accessToken", result.data.accessToken, {
+                //domain: 'your.domain',
+                //path: '/',
+                secure: true,
+                httpOnly: true,
+                sameSite: "strict",
+              })
+              .code(result.status)
+              //.send(result.data); // accessToken needed only in cookie
+              .send()
+          );
         }
         return res.code(result.status).send(result.data);
       }
