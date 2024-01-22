@@ -3,13 +3,13 @@ import parser from "ua-parser-js";
 import { verificationCodeRequest } from "./session.security-code";
 import { UserId } from "../types";
 import {
+  messageAboutBadUserAgent,
   messageAboutServerError,
   messageAboutSessionOK,
   sessionHashKey,
   sessionSetKey,
 } from "../constants";
 import {
-  messageAboutBadUserAgent,
   messageAboutBlockedSession,
   messageAboutNoSession,
   sessionFields,
@@ -64,10 +64,11 @@ export async function checkSession(
 
     if (uaIsHealthy) {
       if (!sameIP) {
+        // Tracking client ip
         await updateSession(redis, sessionHashKey(client.id, client.exp), {
-          ip: client.ip,
+          online: Date.now(),
         });
-      } // Tracking client ip
+      } // Tracking online status for current session
       await updateSession(redis, sessionHashKey(client.id, client.exp), {
         online: Date.now(),
       });

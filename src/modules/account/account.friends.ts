@@ -1,5 +1,4 @@
 import { FastifyRedis } from "@fastify/redis";
-import { accountKey } from "../constants";
 import { UserId } from "../types";
 import { friendsKey } from "../constants";
 

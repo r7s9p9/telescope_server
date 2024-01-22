@@ -13,54 +13,15 @@ import {
 } from "../session/session.controller";
 import { FastifyRedis } from "@fastify/redis";
 import { createToken } from "../../utils/tokenActions";
+import { messageAboutServerError } from "../constants";
 import {
-  messageAboutServerError,
-  messageAboutSessionRefreshed,
-} from "../constants";
-
-const messageAboutUsernameExists = {
-  status: 400,
-  error: {
-    message: "This username already exists",
-  },
-};
-
-const messageAboutEmailExists = {
-  status: 400,
-  error: {
-    message: "This account already exists",
-  },
-};
-
-const messageAboutAccountCreated = {
-  status: 201,
-  data: {
-    message: "Account created",
-  },
-};
-
-const messageAboutInvalidEmailOrPassword = {
-  status: 401,
-  error: {
-    message: "Invalid email or password",
-  },
-};
-
-const messageAboutVerificationRequired = {
-  status: 200,
-  data: {
-    message: "Enter the verification code from your other device",
-  },
-};
-
-export const messageAboutLoginSuccessful = (token: string) => {
-  return {
-    status: 200,
-    data: {
-      accessToken: token,
-    },
-  };
-};
+  messageAboutAccountCreated,
+  messageAboutEmailExists,
+  messageAboutInvalidEmailOrPassword,
+  messageAboutLoginSuccessful,
+  messageAboutUsernameExists,
+  messageAboutVerificationRequired,
+} from "./auth.constants";
 
 export async function registerHandler(
   redis: FastifyRedis,
@@ -108,7 +69,7 @@ export async function loginHandler(
     if (!correctPassword) {
       return messageAboutInvalidEmailOrPassword;
     }
-    //     \/    \/    \/    \/    \/    \/    \/    \/    \/    \/
+
     const result = await isVerificationCodeRequired(
       server.redis,
       user.id,

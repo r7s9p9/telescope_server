@@ -5,27 +5,32 @@ import {
   UserId,
   UserIdArr,
   RoomId,
-  RoomInfo,
+  RoomInfoValues,
   Message,
   MessageContent,
 } from "../types";
 import {
-  userRoomsSetKey,
   personalRoomKey,
-  serviceRoomKey,
-  roomKey,
-  roomInfoKey,
-  roomUsersKey,
-  roomBlockedUsersKey,
-  serviceRoomName,
   personalRoomName,
-  welcomeServiceRoomMessage,
+  roomBlockedUsersKey,
+  roomInfoFields,
+  roomInfoKey,
+  roomInfoStartValues,
+  roomKey,
+  roomUsersKey,
+  serviceRoomKey,
+  serviceRoomName,
+  singleRoomInfoKey,
+  singleRoomKey,
+  userRoomsSetKey,
   welcomePersonalRoomMessage,
-} from "../constants";
+  welcomeServiceRoomMessage,
+} from "./room.constants";
 
-// user:userid:rooms:all                        User rooms              (Set)
-// user:userid:rooms:internal:Telescope         App messages            (Sorted Set)
-// user:userid:rooms:internal:Saved Messages    Self messages           (Sorted Set)
+// user:userid:rooms:allRoomsKeyPart            User rooms              (Set)
+// user:userid:rooms:internal:serviceRoomName   App messages            (Sorted Set)
+// user:userid:rooms:internal:personalRoomName  Self messages           (Sorted Set)
+// room:roomId                                  Room messages           (Sorted Set)
 
 export async function createInternalRooms(redis: FastifyRedis, userId: UserId) {
   async function createServiceRoom(redis: FastifyRedis, userId: UserId) {
@@ -70,39 +75,56 @@ export async function createInternalRooms(redis: FastifyRedis, userId: UserId) {
 
 export async function createRoom(
   redis: FastifyRedis,
+  roomInfo: RoomInfoValues,
   creatorId: UserId,
-  userIdArr: UserIdArr,
-  info: RoomInfo
+  userIdArr?: UserIdArr
 ) {
-  if (!creatorId || !userIdArr[0]) {
-    return false;
+  const roomId = crypto.randomUUID();
+
+  if (roomInfo.type === "single" && !userIdArr) {
+    // room info in Hash user:userId:rooms:internal:roomId
+    await redis.hmset(
+      singleRoomInfoKey(creatorId, roomId),
+      roomInfoStartValues(roomInfo)
+    );
+    // room id in Set user:userId:rooms:all
+    await redis.sadd(
+      userRoomsSetKey(creatorId),
+      singleRoomKey(creatorId, roomId)
+    );
+    return { userCount: 1, roomId: roomId };
   }
+  if (
+    (roomInfo.type === "public" || roomInfo.type === "private") &&
+    userIdArr
+  ) {
+    const usersCount = userIdArr.length;
+    if (usersCount === 0) {
+      return { error: { message: "No users in the room" } };
+    }
+    // room info in Hash room:roomid:info
+    await redis.hmset(roomInfoKey(roomId), roomInfoStartValues(roomInfo));
+    let addedUsersCount = 0;
+    for (const userId of userIdArr) {
+      // Did the user ban the creator?
+      if (!(await isUserBlockedByUser(redis, creatorId, userId))) {
+        // room:roomid:users
+        await redis.sadd(roomUsersKey(roomId), userId);
 
-  const roomid = crypto.randomUUID();
-
-  await redis.hmset(
-    roomInfoKey(roomid),
-    "name",
-    info.name,
-    "creator",
-    creatorId,
-    "type",
-    info.type,
-    "about",
-    info.about
-  );
-
-  for (const userId of userIdArr) {
-    // Did the user ban the creator?
-    if (
-      userId === creatorId ||
-      !(await isUserBlockedByUser(redis, creatorId, userId))
-    ) {
-      // room:roomid:users
-      await redis.sadd(roomUsersKey(roomid), userId);
-
-      // user:userid:rooms:all:roomid
-      await redis.sadd(userRoomsSetKey(userId), roomid);
+        // user:userid:rooms:all:roomid
+        await redis.sadd(userRoomsSetKey(userId), roomId);
+        addedUsersCount++;
+      }
+    }
+    if (usersCount === addedUsersCount) {
+      return { userCount: usersCount, roomId: roomId };
+    }
+    if (usersCount !== addedUsersCount) {
+      return {
+        userCount: usersCount,
+        skippedUsersCount: usersCount - addedUsersCount,
+        roomId: roomId,
+      };
     }
   }
 }
@@ -126,17 +148,17 @@ export async function updateRoom(
   redis: FastifyRedis,
   userId: UserId,
   roomId: RoomId,
-  info: RoomInfo
+  roomInfo: RoomInfoValues
 ) {
   if (await isCreator(redis, userId, roomId)) {
-    if (info.name) {
-      await redis.hset(roomKey(roomId), info.name);
+    if (roomInfo.name) {
+      await redis.hset(roomKey(roomId), roomInfo.name);
     }
-    if (info.type) {
-      await redis.hset(roomKey(roomId), info.type);
+    if (roomInfo.type) {
+      await redis.hset(roomKey(roomId), roomInfo.type);
     }
-    if (info.about) {
-      await redis.hset(roomKey(roomId), info.about);
+    if (roomInfo.about) {
+      await redis.hset(roomKey(roomId), roomInfo.about);
     }
     return true;
   }
@@ -151,10 +173,10 @@ export async function readRoomInfo(
   if (await checkAccessToRoom(redis, userId, roomId)) {
     const roomInfo = await redis.hmget(
       roomInfoKey(roomId),
-      "name",
-      "creator",
-      "type",
-      "about"
+      roomInfoFields.name,
+      roomInfoFields.creator,
+      roomInfoFields.type,
+      roomInfoFields.about
     );
     return roomInfo;
   }

@@ -1,31 +1,32 @@
 import { UserId, RoomId } from "./types";
 
-export const serviceRoomName = "Telescope";
-export const personalRoomName = "Saved Messages";
-
-export const welcomeServiceRoomMessage =
-  "Welcome to Telescope messenger! Here you will learn about new features and functionality, and receive security notifications.";
-export const welcomePersonalRoomMessage =
-  "This is a message store. They are not visible to anyone except you.";
-
 export const accountFields = {
-  username: "username",
-  name: "name",
-  bio: "bio",
-  lastSeen: "lastSeen",
+  username: "username" as const,
+  name: "name" as const,
+  bio: "bio" as const,
+  profilePhotos: "profilePhotos" as const,
+  lastSeen: "lastSeen" as const,
+  rooms: "rooms" as const,
+  roomCount: "roomCount" as const,
+  friends: "friends" as const,
+  friendCount: "friendCount" as const,
+  blocked: "blocked" as const,
+  blockedCount: "blockedCount" as const,
   privacy: {
-    name: "privacyName",
-    bio: "privacyBio",
-    lastSeen: "privacyLastSeen",
-    profilePhotos: "privacyProfilePhotos",
-    friends: "privacyFriends",
+    seeLastSeen: "privacySeeLastSeen" as const,
+    seeName: "privacySeeName" as const,
+    seeBio: "privacySeeBio" as const,
+    addToRoom: "privacyAddToRoom" as const,
+    seeRoomsContainingUser: "privacySeeRoomsContainingUser" as const,
+    seeFriends: "privacySeeFriends" as const,
+    seeProfilePhotos: "privacySeeProfilePhotos" as const,
   },
 };
 
 export const accountPrivacyRules = {
-  everybody: "everybody",
-  friends: "friends",
-  nobody: "nobody",
+  everybody: "everybody" as const,
+  friends: "friends" as const,
+  nobody: "nobody" as const,
 };
 
 export const accountStartValues = (username: string) => [
@@ -37,15 +38,19 @@ export const accountStartValues = (username: string) => [
   "empty",
   accountFields.lastSeen,
   Date.now(),
-  accountFields.privacy.lastSeen,
+  accountFields.privacy.seeLastSeen,
   accountPrivacyRules.everybody,
-  accountFields.privacy.name,
+  accountFields.privacy.seeName,
   accountPrivacyRules.everybody,
-  accountFields.privacy.bio,
+  accountFields.privacy.seeBio,
   accountPrivacyRules.everybody,
-  accountFields.privacy.friends,
+  accountFields.privacy.addToRoom,
   accountPrivacyRules.everybody,
-  accountFields.privacy.profilePhotos,
+  accountFields.privacy.seeRoomsContainingUser,
+  accountPrivacyRules.everybody,
+  accountFields.privacy.seeFriends,
+  accountPrivacyRules.everybody,
+  accountFields.privacy.seeProfilePhotos,
   accountPrivacyRules.everybody,
 ];
 
@@ -60,24 +65,8 @@ export const sessionHashKey = (userId: UserId, tokenExp: number) =>
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
 
 export const accountKeyPart = "account";
-export const roomKeyPart = "room";
+
 export const userKeyPart = "user";
-export const allRoomsKeyPart = "rooms:all";
-export const internalRoomsKeyPart = "rooms:internal";
-
-export const userRoomsSetKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${allRoomsKeyPart}`;
-export const personalRoomKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${personalRoomName}`;
-export const serviceRoomKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${serviceRoomName}`;
-
-export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
-export const roomInfoKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}:info`;
-export const roomUsersKey = (roomId: RoomId) =>
-  `${roomKeyPart}:${roomId}:users`;
-export const roomBlockedUsersKey = (roomId: RoomId) =>
-  `${roomKeyPart}:${roomId}:blockedUsers`;
 
 export const accountKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${accountKeyPart}`;
@@ -101,6 +90,11 @@ export const messageAboutSessionOK = {
 export const messageAboutWrongToken = {
   status: 401,
   error: { message: "Token is invalid" },
+};
+
+export const messageAboutBadUserAgent = {
+  status: 401,
+  error: { message: "User Agent is invalid" },
 };
 
 export const messageAboutSessionRefreshed = (token: string) => {

@@ -10,11 +10,6 @@ export const messageAboutNoSession = {
   error: { message: "Session Not Found. Log in." },
 };
 
-export const messageAboutBadUserAgent = {
-  status: 401,
-  error: { message: "User Agent is invalid" },
-};
-
 export const sessionFields = {
   ua: "ua",
   ip: "ip",
