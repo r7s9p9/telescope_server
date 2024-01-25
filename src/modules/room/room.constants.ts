@@ -56,6 +56,7 @@ export const singleRoomInfoKey = (userId: UserId, roomId: RoomId) =>
   `${singleRoomKey(userId, roomId)}:info`;
 
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
+
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;
 export const roomUsersKey = (roomId: RoomId) => `${roomKey(roomId)}:users`;
 export const roomBlockedUsersKey = (roomId: RoomId) =>

@@ -18,7 +18,7 @@ import {
 } from "./room.constants";
 import { readAccount } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
-import * as model from "./room.model";
+import { model } from "./room.model";
 
 // user:userid:rooms:allRoomsKeyPart            User rooms              (Set)
 // user:userid:rooms:internal:serviceRoomName   App messages            (Sorted Set)
@@ -33,50 +33,34 @@ export async function createInternalRooms(redis: FastifyRedis, userId: UserId) {
         text: welcomeServiceRoomMessage,
       },
     };
-
+    // Add message func ???????
     await redis.zadd(
       serviceRoomKey(userId),
       Date.now(),
       JSON.stringify(appFirstMessage)
     );
   }
+  const roomInfo: RoomInfoValues = {
+    name: serviceRoomName,
+    creatorId: userId,
+    type: "single",
+    about: "Service notifications",
+  };
 
-  async function createPersonalRoom(redis: FastifyRedis, userId: UserId) {
-    const selfRoomFirstMessage = {
-      author: personalRoomName,
-      content: {
-        text: welcomePersonalRoomMessage,
-      },
-    };
-
-    await redis.zadd(
-      personalRoomKey(userId),
-      Date.now(),
-      JSON.stringify(selfRoomFirstMessage)
-    );
-  }
-
-  await redis.sadd(
-    userRoomsSetKey(userId),
-    serviceRoomKey(userId),
-    personalRoomKey(userId)
-  );
-
+  await initRoom(redis, roomInfo);
   await createServiceRoom(redis, userId);
-  await createPersonalRoom(redis, userId);
 }
 
 export async function initRoom(
   redis: FastifyRedis,
   roomInfo: RoomInfoValues,
-  creatorId: UserId,
   userIdArr?: UserIdArr
 ): Promise<{ userCount: number; roomId: RoomId } | { error: string }> {
   const roomId = crypto.randomUUID();
 
   if (roomInfo.type === "single") {
     if (!userIdArr) {
-      await model.createSingleRoom(redis, creatorId, roomId, roomInfo);
+      await model(redis).addRoom(roomInfo.creatorId, roomId, roomInfo);
       return { userCount: 1, roomId: roomId };
     } else {
       return { error: "Wrong room type selected" };
@@ -90,7 +74,7 @@ export async function initRoom(
       const account = await readAccount(
         redis,
         { properties: [accountFields.properties.isCanAddToRoom] },
-        creatorId,
+        roomInfo.creatorId,
         userId
       );
       if (account.get(accountFields.properties.isCanAddToRoom)) {
@@ -98,7 +82,9 @@ export async function initRoom(
       }
     }
     if (suitableUsers.size > 1) {
-      await model.createRoom(redis, suitableUsers, roomId, roomInfo);
+      for (const userId of suitableUsers) {
+        await model(redis).addRoom(userId, roomId, roomInfo);
+      }
       return { userCount: suitableUsers.size, roomId: roomId };
     } else {
       return { error: "No suitable users" };

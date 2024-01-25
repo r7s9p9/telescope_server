@@ -104,6 +104,16 @@ export type AccountReadResult = Map<
   | (typeof accountPrivacyRules)["everybody" | "friends" | "nobody"]
 >;
 
+// export type AccountReadResult = Map<
+//   TargetUserField | TargetUserPrivacyField | TargetUserProperties,
+//   | number
+//   | string
+//   | string[]
+//   | boolean
+//   | null
+//   | (typeof accountPrivacyRules)["everybody" | "friends" | "nobody"]
+// >;
+
 // export interface AcwcountReadResult {
 //   general?:
 //   privacy?:

@@ -17,7 +17,7 @@ async function roomRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["GET", "POST", "PATCH", "DELETE"],
     url: "/room",
-    //schema: sessionSchema,
+    //schema: roomSchema,
     preHandler: [fastify.checkToken],
     handler: async (req, res) => {
       const tokenData = await checkToken(req.user);
@@ -39,7 +39,8 @@ async function roomRoute(fastify: FastifyInstance) {
           about: "nope",
         };
         // Hardcoded !!!!
-        await initRoom(fastify.redis, roomInfo, roomInfo.creatorId);
+        const result = await initRoom(fastify.redis, roomInfo);
+        return res.code(200).send(result);
       } else return res.code(sessionResult.status).send(sessionResult);
     },
   });
