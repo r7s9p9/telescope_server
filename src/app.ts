@@ -10,6 +10,7 @@ import {
 } from "./modules/session/session.route";
 
 import { Token } from "./modules/types";
+import { roomRoute } from "./modules/room/room.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -73,6 +74,8 @@ const app = async () => {
   await fastify.register(authRoute, { prefix: "api" }); // for login / register
   await fastify.register(sessionRoute, { prefix: "api" }); // session validation
   await fastify.register(refreshSessionRoute, { prefix: "api" });
+
+  await fastify.register(roomRoute, { prefix: "api" });
 
   fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err) {
     if (err) {

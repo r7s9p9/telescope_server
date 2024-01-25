@@ -6,7 +6,7 @@ import {
 import { RegisterBodyType, LoginBodyType } from "./auth.schema";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyInstance } from "fastify";
-import { createAccount } from "../account/account.actions";
+import { createAccount } from "../account/account.controller";
 import {
   createSession,
   isVerificationCodeRequired,

@@ -6,6 +6,8 @@ import { UserId } from "./types";
 // The value in the Redis Set corresponds to the last part
 // of the key in the Redis Hash for the same session:
 
+export const userKeyPart = "user";
+
 export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;

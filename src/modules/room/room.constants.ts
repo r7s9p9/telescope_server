@@ -1,5 +1,12 @@
 import { userKeyPart } from "../constants";
-import { RoomId, RoomInfoValues, UserId } from "../types";
+import { RoomId, UserId } from "../types";
+
+export interface RoomInfoValues {
+  name: string;
+  creatorId: UserId;
+  type: "public" | "private" | "single";
+  about: string;
+}
 
 export const roomInfoFields = {
   name: "name",
@@ -46,7 +53,7 @@ export const serviceRoomKey = (userId: UserId) =>
 export const singleRoomKey = (userId: UserId, roomId: RoomId) =>
   `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${roomId}`;
 export const singleRoomInfoKey = (userId: UserId, roomId: RoomId) =>
-  `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${roomId}:info`;
+  `${singleRoomKey(userId, roomId)}:info`;
 
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;

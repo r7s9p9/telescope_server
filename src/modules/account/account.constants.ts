@@ -1,8 +1,7 @@
+import { userKeyPart } from "../constants";
 import { UserId } from "../types";
 
 export const accountKeyPart = "account";
-
-export const userKeyPart = "user";
 
 export const accountKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${accountKeyPart}`;

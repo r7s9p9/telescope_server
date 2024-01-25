@@ -7,68 +7,68 @@ import {
   getGeneralInfo,
   getRoomCount,
   getRooms,
+  initAccount,
   isFriend,
   isUserBlockedByUser,
   readAccountPrivacyValue,
 } from "./account.model";
 import { UserId } from "../types";
-import { createInternalRooms } from "../room/room.actions";
+import { createInternalRooms } from "../room/room.controller";
 import {
   accountFields,
   accountKey,
   accountPrivacyRules,
 } from "./account.constants";
 import {
-  AccountPrivacyRules,
   AccountReadData,
   AccountReadResult,
   TargetUserField,
   TargetUserPrivacyField,
 } from "./account.types";
 
-export async function accountChecker(redis: FastifyRedis, userId: UserId) {
-  // Needed ???
-  const accountExists = await accountValidation(redis, userId);
-  if (!accountExists) {
-    console.log(`ACCOUNT NOT EXISTS ${userId}`);
-  }
-}
+// export async function accountChecker(redis: FastifyRedis, userId: UserId) {
+//   // Needed ???
+//   const accountExists = await accountValidation(redis, userId);
+//   if (!accountExists) {
+//     console.log(`ACCOUNT NOT EXISTS ${userId}`);
+//   }
+// }
 
-async function accountValidation(redis: FastifyRedis, userId: UserId) {
-  const accountExists = await redis.exists(accountKey(userId));
-  const usernameExists = await redis.hexists(
-    accountKey(userId),
-    accountFields.general.username
-  );
-  const nameExists = await redis.hexists(
-    accountKey(userId),
-    accountFields.general.name
-  );
-  const bioExists = await redis.hexists(
-    accountKey(userId),
-    accountFields.general.bio
-  );
+// async function accountValidation(redis: FastifyRedis, userId: UserId) {
+//   const accountExists = await redis.exists(accountKey(userId));
+//   const usernameExists = await redis.hexists(
+//     accountKey(userId),
+//     accountFields.general.username
+//   );
+//   const nameExists = await redis.hexists(
+//     accountKey(userId),
+//     accountFields.general.name
+//   );
+//   const bioExists = await redis.hexists(
+//     accountKey(userId),
+//     accountFields.general.bio
+//   );
 
-  const accountOk = accountExists && usernameExists && nameExists && bioExists;
-  const noAccount = !(
-    accountExists ||
-    usernameExists ||
-    nameExists ||
-    bioExists
-  );
-  const damagedAccount = !accountOk && !noAccount;
+//   const accountOk = accountExists && usernameExists && nameExists && bioExists;
+//   const noAccount = !(
+//     accountExists ||
+//     usernameExists ||
+//     nameExists ||
+//     bioExists
+//   );
+//   const damagedAccount = !accountOk && !noAccount;
 
-  if (accountOk) {
-    return true;
-  }
-  if (noAccount) {
-    return false;
-  }
-  if (damagedAccount) {
-    console.log(`DAMAGED ACCOUNT !!! -> ${accountKey(userId)}`);
-    return false;
-  }
-}
+//   if (accountOk) {
+//     return true;
+//   }
+//   if (noAccount) {
+//     return false;
+//   }
+//   if (damagedAccount) {
+//     console.log(`DAMAGED ACCOUNT !!! -> ${accountKey(userId)}`);
+//     return false;
+//   }
+// }
 
 const accessSolver = (toRead: string) => {
   switch (toRead) {
@@ -234,10 +234,8 @@ export async function createAccount(
   userId: UserId,
   username: string
 ) {
+  await initAccount(redis, userId, username);
   await createInternalRooms(redis, userId);
-  // await redis.hmset(accountKey(userId), accountStartValues(username));
-  //await redis.sadd(friendsKey(userId)); // Empty set
-  //await redis.sadd(blockedKey(userId)); // Empty set
 }
 
 // export async function updateAccountWithId(

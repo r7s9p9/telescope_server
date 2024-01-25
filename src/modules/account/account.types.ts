@@ -1,4 +1,4 @@
-import { Message, RoomId, RoomInfoValues, UserId, UserIdArr } from "../types";
+import { Message, RoomId, UserId, UserIdArr } from "../types";
 import { accountFields, accountPrivacyRules } from "./account.constants";
 
 export type AccountPrivacyRules = "everybody" | "friends" | "nobody";
@@ -37,37 +37,37 @@ export interface AccountWriteData {
   profilePhotos?: string; // TODO
   room?: {
     // This is not actually will be in account, but rooms
-    own?: {
-      addUser?: { roomId: RoomId; userId: UserId | UserIdArr };
-      kickUser?: { roomId: RoomId; userId: UserId | UserIdArr };
-      blockUser?: { roomId: RoomId; userId: UserId | UserIdArr };
-      createRoom?: {
-        roomInfo: RoomInfoValues;
-        userIdArr?: UserIdArr; // Room type can be "single" -> roomInfo.type === "single"
-      };
-      updateRoomInfo?: {
-        roomId: RoomId;
-        roomInfo?: Partial<RoomInfoValues>;
-      };
-      removeRoom?: RoomId | RoomId[];
-    };
-    message?: {
-      postMessage?: {
-        roomId: RoomId;
-        message: Message;
-      };
-      deleteMessage?: {
-        roomId: RoomId;
-        messageDate: Number;
-      };
-      changeMessage?: {
-        roomId: RoomId;
-        messageDate: Number;
-        message: Message;
-      };
-    };
-    joinTheRoom?: RoomId | RoomId[];
-    leaveTheRoom?: RoomId | RoomId[];
+    // own?: {
+    //   addUser?: { roomId: RoomId; userId: UserId | UserIdArr };
+    //   kickUser?: { roomId: RoomId; userId: UserId | UserIdArr };
+    //   blockUser?: { roomId: RoomId; userId: UserId | UserIdArr };
+    //   createRoom?: {
+    //     roomInfo: RoomInfoValues;
+    //     userIdArr?: UserIdArr; // Room type can be "single" -> roomInfo.type === "single"
+    //   };
+    //   updateRoomInfo?: {
+    //     roomId: RoomId;
+    //     roomInfo?: Partial<RoomInfoValues>;
+    //   };
+    //   removeRoom?: RoomId | RoomId[];
+    // };
+    // message?: {
+    //   postMessage?: {
+    //     roomId: RoomId;
+    //     message: Message;
+    //   };
+    //   deleteMessage?: {
+    //     roomId: RoomId;
+    //     messageDate: Number;
+    //   };
+    //   changeMessage?: {
+    //     roomId: RoomId;
+    //     messageDate: Number;
+    //     message: Message;
+    //   };
+    // };
+    // joinTheRoom?: RoomId | RoomId[];
+    // leaveTheRoom?: RoomId | RoomId[];
   }; // ^^^^ This is not actually will be in account, but rooms ^^^^
   friends?: {
     addUser?: UserId | UserIdArr;
