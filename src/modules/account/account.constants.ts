@@ -15,14 +15,19 @@ export const accountFields = {
     username: "username" as const,
     name: "name" as const,
     bio: "bio" as const,
-    profilePhotos: "profilePhotos" as const,
     lastSeen: "lastSeen" as const,
-    rooms: "rooms" as const,
-    roomCount: "roomCount" as const,
-    friends: "friends" as const,
-    friendCount: "friendCount" as const,
-    blocked: "blocked" as const,
-    blockedCount: "blockedCount" as const,
+  },
+  friend: {
+    readFriends: "readFriends" as const,
+    readFriendCount: "readFriendCount" as const,
+  },
+  room: {
+    readRooms: "readRooms" as const,
+    readRoomCount: "readRoomCount" as const,
+  },
+  blocked: {
+    readBlocked: "readBlocked" as const,
+    readBlockedCount: "readBlockedCount" as const,
   },
   properties: {
     isBlockedYou: "isBlockedYou" as const,
@@ -30,13 +35,34 @@ export const accountFields = {
     isCanAddToRoom: "isCanAddToRoom" as const,
   },
   privacy: {
-    seeLastSeen: "privacy.seeLastSeen" as const,
-    seeName: "privacy.seeName" as const,
-    seeBio: "privacy.seeBio" as const,
-    addToRoom: "privacy.addToRoom" as const,
-    seeRoomsContainingUser: "privacy.seeRoomsContainingUser" as const,
-    seeFriends: "privacy.seeFriends" as const,
-    seeProfilePhotos: "privacy.seeProfilePhotos" as const,
+    seeLastSeen: "seeLastSeen" as const,
+    seeName: "seeName" as const,
+    seeBio: "seeBio" as const,
+    addToRoom: "addToRoom" as const,
+    seeRoomsContainingUser: "seeRoomsContainingUser" as const,
+    seeFriends: "seeFriends" as const,
+    seeProfilePhotos: "seeProfilePhotos" as const,
+  },
+};
+
+export const friendField = {
+  friend: {
+    readFriends: "readFriends" as const,
+    readFriendCount: "readFriendCount" as const,
+  },
+};
+
+export const roomField = {
+  room: {
+    readRooms: "readRooms" as const,
+    readRoomCount: "readRoomCount" as const,
+  },
+};
+
+export const blockedField = {
+  blocked: {
+    readBlocked: "readBlocked" as const,
+    readBlockedCount: "readBlockedCount" as const,
   },
 };
 

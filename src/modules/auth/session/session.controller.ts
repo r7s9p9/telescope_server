@@ -1,20 +1,44 @@
 import { FastifyRedis } from "@fastify/redis";
 import parser from "ua-parser-js";
 import { verificationCodeRequest } from "./session.security-code";
-import { UserId } from "../types";
+import { UserId } from "../../types";
 import {
   messageAboutBadUserAgent,
   messageAboutServerError,
   messageAboutSessionOK,
   sessionHashKey,
   sessionSetKey,
-} from "../constants";
+} from "../../constants";
 import {
   messageAboutBlockedSession,
   messageAboutNoSession,
   sessionFields,
   sessionStartValues,
 } from "./session.constants";
+import { messageAboutWrongToken } from "../../constants";
+import { checkToken } from "../../../utils/token";
+
+export async function sessionWrapper(
+  redis: FastifyRedis,
+  token: any,
+  ip: string,
+  ua?: string
+) {
+  const tokenData = await checkToken(token);
+  if (tokenData && tokenData.id && tokenData.exp) {
+    const sessionResult = await checkSession(redis, {
+      id: tokenData.id,
+      exp: tokenData.exp,
+      ip: ip,
+      ua: ua,
+    });
+    if ("data" in sessionResult) {
+      return { token: tokenData };
+    }
+    return sessionResult;
+  }
+  return messageAboutWrongToken;
+}
 
 export async function checkSession(
   redis: FastifyRedis,

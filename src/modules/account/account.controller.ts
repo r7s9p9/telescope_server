@@ -1,123 +1,96 @@
 import { FastifyRedis } from "@fastify/redis";
-import {
-  getBlocked,
-  getBlockedCount,
-  getFriendCount,
-  getFriends,
-  getGeneralInfo,
-  getRoomCount,
-  getRooms,
-  initAccount,
-  isFriend,
-  isUserBlockedByUser,
-  readAccountPrivacyValue,
-} from "./account.model";
+import { model } from "./account.model";
 import { UserId } from "../types";
 import { createInternalRooms } from "../room/room.controller";
-import {
-  accountFields,
-  accountKey,
-  accountPrivacyRules,
-} from "./account.constants";
+import { accountFields, accountPrivacyRules } from "./account.constants";
 import {
   AccountReadData,
   AccountReadResult,
-  TargetUserField,
-  TargetUserPrivacyField,
+  AccountWriteData,
+  AccountWriteResult,
+  ReadTargetUserBlockedField,
+  ReadTargetUserFriendField,
+  ReadTargetUserGeneralField,
+  ReadTargetUserRoomField,
+  ReadTargetUserPrivacyField,
+  WriteTargetUserField,
 } from "./account.types";
 
-// export async function accountChecker(redis: FastifyRedis, userId: UserId) {
-//   // Needed ???
-//   const accountExists = await accountValidation(redis, userId);
-//   if (!accountExists) {
-//     console.log(`ACCOUNT NOT EXISTS ${userId}`);
-//   }
-// }
+type Relationships = {
+  sameUser: boolean;
+  friend: boolean;
+  ban: boolean;
+};
 
-// async function accountValidation(redis: FastifyRedis, userId: UserId) {
-//   const accountExists = await redis.exists(accountKey(userId));
-//   const usernameExists = await redis.hexists(
-//     accountKey(userId),
-//     accountFields.general.username
-//   );
-//   const nameExists = await redis.hexists(
-//     accountKey(userId),
-//     accountFields.general.name
-//   );
-//   const bioExists = await redis.hexists(
-//     accountKey(userId),
-//     accountFields.general.bio
-//   );
-
-//   const accountOk = accountExists && usernameExists && nameExists && bioExists;
-//   const noAccount = !(
-//     accountExists ||
-//     usernameExists ||
-//     nameExists ||
-//     bioExists
-//   );
-//   const damagedAccount = !accountOk && !noAccount;
-
-//   if (accountOk) {
-//     return true;
-//   }
-//   if (noAccount) {
-//     return false;
-//   }
-//   if (damagedAccount) {
-//     console.log(`DAMAGED ACCOUNT !!! -> ${accountKey(userId)}`);
-//     return false;
-//   }
-// }
-
-const accessSolver = (toRead: string) => {
-  switch (toRead) {
-    //
+const accessSolver = (
+  valueToRead:
+    | ReadTargetUserGeneralField
+    | ReadTargetUserFriendField
+    | ReadTargetUserRoomField
+    | ReadTargetUserBlockedField
+    | typeof accountFields.properties.isCanAddToRoom
+) => {
+  switch (valueToRead) {
     case accountFields.general.name:
       return accountFields.privacy.seeName;
     case accountFields.general.bio:
       return accountFields.privacy.seeBio;
     case accountFields.general.lastSeen:
       return accountFields.privacy.seeLastSeen;
-    case accountFields.general.rooms || accountFields.general.roomCount:
-      return accountFields.privacy.seeRoomsContainingUser;
-    case accountFields.general.friends || accountFields.general.friendCount:
+    case accountFields.friend.readFriends ||
+      accountFields.friend.readFriendCount:
       return accountFields.privacy.seeFriends;
+    case accountFields.room.readRooms || accountFields.room.readRoomCount:
+      return accountFields.privacy.seeRoomsContainingUser;
     case accountFields.properties.isCanAddToRoom:
       return accountFields.privacy.addToRoom;
+    default:
+      return false;
   }
 };
 
-async function accessChecker(
-  redis: FastifyRedis,
-  userId: UserId,
+export async function accessChecker(
+  m: ReturnType<typeof model>,
   targetUserId: UserId,
-  fieldToRead:
-    | keyof typeof accountFields.general
+  relationships: Relationships,
+  valueToRead:
+    | ReadTargetUserGeneralField
+    | ReadTargetUserFriendField
+    | ReadTargetUserRoomField
+    | ReadTargetUserBlockedField
     | typeof accountFields.properties.isCanAddToRoom
 ) {
-  // Always true by if same account (userId === targetUserId)
-  if (userId === targetUserId) return true;
-  const typeOfPermissionToCheck = accessSolver(fieldToRead);
-  if (!typeOfPermissionToCheck) return false;
-  const privacyRule = await readAccountPrivacyValue(
-    redis,
+  if (relationships.sameUser) return true; // If same user - give full access
+  if (valueToRead === accountFields.general.username) return true; // Username must always be accessible, even userId is banned
+  if (relationships.ban) return false; // If ban - only username can be readed
+
+  const privacyField = accessSolver(valueToRead); // "everybody" | "friends" | "nobody"
+  if (!privacyField) return false;
+  const privacyValue = await m.readAccountPrivacyValue(
     targetUserId,
-    typeOfPermissionToCheck
+    privacyField
   );
-  let friend: boolean;
-  if (privacyRule === accountPrivacyRules.friends) {
-    // check redis only if type === accountPrivacyRules.friends
-    friend = await isFriend(redis, userId, targetUserId);
-    return friend;
-  }
-  if (privacyRule === accountPrivacyRules.everybody) {
+  if (privacyValue === accountPrivacyRules.everybody) {
     return true;
   }
-  if (privacyRule === accountPrivacyRules.nobody) {
+  if (privacyValue === accountPrivacyRules.friends) {
+    return relationships.friend;
+  }
+  if (privacyValue === accountPrivacyRules.nobody) {
     return false;
   }
   return false;
+}
+
+export async function checkRelationships(
+  m: ReturnType<typeof model>,
+  userId: UserId,
+  targetUserId: UserId
+) {
+  const sameUser = userId === targetUserId;
+  const friend = await m.isFriend(userId, targetUserId);
+  const ban = await m.isUserBlockedByUser(userId, targetUserId);
+  return { sameUser: sameUser, friend: friend, ban: ban };
 }
 
 export async function readAccount(
@@ -126,107 +99,125 @@ export async function readAccount(
   userId: UserId,
   targetUserId: UserId
 ) {
-  const data: AccountReadResult = new Map();
-  const ban = await isUserBlockedByUser(redis, userId, targetUserId);
-  if (toRead.properties) {
-    if (accountFields.properties.isFriend in toRead.properties) {
-      const friend = await isFriend(redis, userId, targetUserId);
-      const value = !ban ? friend : false;
-      data.set(accountFields.properties.isFriend, value);
-    }
-    if (accountFields.properties.isCanAddToRoom in toRead.properties) {
-      const access = await accessChecker(
-        redis,
-        userId,
-        targetUserId,
-        accountFields.properties.isCanAddToRoom
-      );
-      const value = !ban ? access : false;
-      data.set(accountFields.properties.isCanAddToRoom, value);
-    }
-    if (accountFields.properties.isBlockedYou in toRead.properties) {
-      data.set(accountFields.properties.isBlockedYou, ban);
-    }
-  }
+  const m = model(redis);
+  const result: AccountReadResult = Object.create(null);
+  const relationships = await checkRelationships(m, userId, targetUserId);
+  await readAccountProperties(
+    m,
+    targetUserId,
+    relationships,
+    toRead.properties,
+    result
+  );
+  await readAllowedGeneralField(
+    m,
+    targetUserId,
+    relationships,
+    toRead.general,
+    result
+  );
+  await readAccountPrivacyField(
+    m,
+    targetUserId,
+    relationships,
+    toRead.privacy,
+    result
+  );
+  return result;
+}
 
-  if (toRead.general) {
-    // Username must always be accessible, even userId is banned
-    if (accountFields.general.username in toRead.general) {
-      const username = await getGeneralInfo(
-        redis,
-        targetUserId,
-        accountFields.general.username
-      );
-      data.set(accountFields.general.username, username);
-    }
-    if (!ban) {
-      // Properties to which access should be restricted due to privacy rules.
-      let item: TargetUserField;
-      for (item of toRead.general) {
-        const fieldToRead = accountFields.general[item];
-        // Access will be checked for each key separately in this cycle!
-        const access = await accessChecker(
-          redis,
-          userId,
-          targetUserId,
-          fieldToRead
-        );
-        if (access) {
-          if (
-            fieldToRead === accountFields.general.name ||
-            fieldToRead === accountFields.general.bio ||
-            fieldToRead === accountFields.general.lastSeen
-          ) {
-            const value = await getGeneralInfo(
-              redis,
-              targetUserId,
-              fieldToRead
-            );
-            data.set(fieldToRead, value);
-          }
-          if (fieldToRead === accountFields.general.friends) {
-            const value = await getFriends(redis, targetUserId);
-            data.set(fieldToRead, value);
-          }
-          if (fieldToRead === accountFields.general.friendCount) {
-            const value = await getFriendCount(redis, targetUserId);
-            data.set(fieldToRead, value);
-          }
-          if (fieldToRead === accountFields.general.rooms) {
-            const value = await getRooms(redis, targetUserId);
-            data.set(fieldToRead, value);
-          }
-          if (fieldToRead === accountFields.general.roomCount) {
-            const value = await getRoomCount(redis, targetUserId);
-            data.set(fieldToRead, value);
-          }
-          // Will only be available for reading by the same account
-          if (fieldToRead === accountFields.general.blocked) {
-            const value = await getBlocked(redis, targetUserId);
-            data.set(fieldToRead, value);
-          }
-          if (fieldToRead === accountFields.general.blockedCount) {
-            const value = await getBlockedCount(redis, targetUserId);
-            data.set(fieldToRead, value);
-          }
-        } else {
-          data.set(fieldToRead, null);
-        }
+async function readAccountProperties(
+  m: ReturnType<typeof model>,
+  targetUserId: UserId,
+  relationships: Relationships,
+  fieldToRead: AccountReadData["properties"],
+  result: AccountReadResult
+) {
+  if (fieldToRead) {
+    result.properties = {};
+    let value: string;
+    for (value of fieldToRead) {
+      if (accountFields.properties.isFriend === value) {
+        result.properties.isFriend = relationships.friend && !relationships.ban;
+
+        console.log(result.properties.isFriend);
       }
-    }
-    if (toRead.privacy && userId === targetUserId) {
-      let privacyKey: TargetUserPrivacyField;
-      for (privacyKey of toRead.privacy) {
-        const privacyValue = await readAccountPrivacyValue(
-          redis,
-          userId,
-          privacyKey
+
+      if (accountFields.properties.isCanAddToRoom === value) {
+        result.properties.isCanAddToRoom = await accessChecker(
+          m,
+          targetUserId,
+          relationships,
+          accountFields.properties.isCanAddToRoom
         );
-        data.set(privacyKey, privacyValue);
+
+        console.log(result.properties.isCanAddToRoom);
+      }
+      if (accountFields.properties.isBlockedYou === value) {
+        result.properties.isBlockedYou = relationships.ban;
+
+        console.log(result.properties.isBlockedYou);
       }
     }
   }
-  return data;
+}
+
+async function readAllowedGeneralField(
+  m: ReturnType<typeof model>,
+  targetUserId: UserId,
+  relationships: Relationships,
+  fieldToRead: AccountReadData["general"],
+  result: AccountReadResult
+) {
+  if (fieldToRead) {
+    result.general = {};
+    let value: ReadTargetUserGeneralField;
+    for (value of fieldToRead) {
+      result.general[value] = await readAllowedGeneralValue(
+        m,
+        targetUserId,
+        relationships,
+        value
+      );
+    }
+  }
+}
+
+async function readAllowedGeneralValue(
+  m: ReturnType<typeof model>,
+  targetUserId: UserId,
+  relationships: Relationships,
+  valueToRead: ReadTargetUserGeneralField
+) {
+  const access = await accessChecker(
+    m,
+    targetUserId,
+    relationships,
+    valueToRead
+  );
+  if (access) {
+    return await m.readAccountGeneralValue(targetUserId, valueToRead);
+  }
+}
+
+async function readAccountPrivacyField(
+  m: ReturnType<typeof model>,
+  targetUserId: UserId,
+  relationships: Relationships,
+  fieldToRead: AccountReadData["privacy"],
+  result: AccountReadResult
+) {
+  if (fieldToRead && relationships.sameUser) {
+    result.privacy = {};
+    let item: ReadTargetUserPrivacyField;
+    for (item of fieldToRead) {
+      const privacyRule = accountFields.privacy[item];
+      result.privacy[privacyRule] = await m.readAccountPrivacyValue(
+        targetUserId,
+        privacyRule
+      );
+    }
+  }
 }
 
 export async function createAccount(
@@ -234,9 +225,59 @@ export async function createAccount(
   userId: UserId,
   username: string
 ) {
-  await initAccount(redis, userId, username);
+  const m = model(redis);
+  await m.initAccount(userId, username);
   await createInternalRooms(redis, userId);
 }
 
-// export async function updateAccountWithId(
-// export async function deleteAccountWithId() {}
+export async function updateAccount(
+  redis: FastifyRedis,
+  toWrite: AccountWriteData,
+  userId: UserId
+) {
+  const m = model(redis);
+  const result: AccountWriteResult = Object.create(null);
+  await writeAccountGeneralField(m, userId, toWrite.general, result);
+  await writeAccountPrivacyField(m, userId, toWrite.privacy, result);
+  return result;
+}
+
+async function writeAccountGeneralField(
+  m: ReturnType<typeof model>,
+  userId: UserId,
+  fieldToWrite: AccountWriteData["general"],
+  result: AccountWriteResult
+) {
+  if (fieldToWrite) {
+    result.general = {};
+    let key: WriteTargetUserField;
+    for (key in fieldToWrite) {
+      const value = fieldToWrite[key];
+      result.general[key] = await m.writeAccountGeneralValue(
+        userId,
+        key,
+        value
+      );
+    }
+  }
+}
+
+async function writeAccountPrivacyField(
+  m: ReturnType<typeof model>,
+  userId: UserId,
+  fieldToWrite: AccountWriteData["privacy"],
+  result: AccountWriteResult
+) {
+  if (fieldToWrite) {
+    result.privacy = {};
+    let key: ReadTargetUserPrivacyField;
+    for (key in fieldToWrite) {
+      const value = fieldToWrite[key];
+      result.privacy[key] = await m.writeAccountPrivacyValue(
+        userId,
+        key,
+        value
+      );
+    }
+  }
+}

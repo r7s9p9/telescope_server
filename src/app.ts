@@ -7,10 +7,11 @@ import { authRoute } from "./modules/auth/auth.route";
 import {
   sessionRoute,
   refreshSessionRoute,
-} from "./modules/session/session.route";
+} from "./modules/auth/session/session.route";
 
 import { Token } from "./modules/types";
 import { roomRoute } from "./modules/room/room.route";
+import { accountReadRoute } from "./modules/account/account.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -74,6 +75,8 @@ const app = async () => {
   await fastify.register(authRoute, { prefix: "api" }); // for login / register
   await fastify.register(sessionRoute, { prefix: "api" }); // session validation
   await fastify.register(refreshSessionRoute, { prefix: "api" });
+
+  await fastify.register(accountReadRoute);
 
   await fastify.register(roomRoute, { prefix: "api" });
 

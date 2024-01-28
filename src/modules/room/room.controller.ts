@@ -3,17 +3,8 @@ import crypto from "crypto";
 import { UserId, UserIdArr, RoomId, Message, MessageContent } from "../types";
 import {
   RoomInfoValues,
-  personalRoomKey,
-  personalRoomName,
-  roomBlockedUsersKey,
-  roomInfoFields,
-  roomInfoKey,
-  roomKey,
-  roomUsersKey,
   serviceRoomKey,
   serviceRoomName,
-  userRoomsSetKey,
-  welcomePersonalRoomMessage,
   welcomeServiceRoomMessage,
 } from "./room.constants";
 import { readAccount } from "../account/account.controller";
@@ -77,7 +68,7 @@ export async function initRoom(
         roomInfo.creatorId,
         userId
       );
-      if (account.get(accountFields.properties.isCanAddToRoom)) {
+      if (account.properties && account.properties.isCanAddToRoom === true) {
         suitableUsers.add(userId);
       }
     }

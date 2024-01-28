@@ -6,13 +6,13 @@ import {
 } from "fastify-type-provider-zod";
 import { sessionSchema } from "./session.schema";
 import { checkSession, refreshSession } from "./session.controller";
-import { createToken, checkToken } from "../../utils/tokenActions";
+import { createToken, checkToken } from "../../../utils/token";
 import {
   messageAboutServerError,
   messageAboutSessionOK,
   messageAboutSessionRefreshed,
   messageAboutWrongToken,
-} from "../constants";
+} from "../../constants";
 
 async function sessionRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);

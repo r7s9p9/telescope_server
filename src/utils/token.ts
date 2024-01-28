@@ -25,4 +25,5 @@ export async function checkToken(tokenObj: any) {
       return { id: tokenObj.id, exp: tokenObj.exp };
     }
   }
+  return false;
 }

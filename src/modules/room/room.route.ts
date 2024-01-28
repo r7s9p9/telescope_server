@@ -4,10 +4,7 @@ import {
   validatorCompiler,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-
-import { checkSession } from "../session/session.controller";
-import { checkToken } from "../../utils/tokenActions";
-import { messageAboutWrongToken } from "../constants";
+import { sessionWrapper } from "../auth/session/session.controller";
 import { initRoom } from "./room.controller";
 import { RoomInfoValues } from "./room.constants";
 
@@ -20,28 +17,23 @@ async function roomRoute(fastify: FastifyInstance) {
     //schema: roomSchema,
     preHandler: [fastify.checkToken],
     handler: async (req, res) => {
-      const tokenData = await checkToken(req.user);
-      if (!tokenData) {
-        return messageAboutWrongToken;
-      }
-      const sessionResult = await checkSession(fastify.redis, {
-        id: tokenData.id, // token from @fastify/jwt
-        exp: tokenData.exp,
-        ip: req.ip,
-        ua: req.headers["user-agent"],
-      });
-      if ("data" in sessionResult && sessionResult.data.message === "OK") {
-        // Hardcoded !!!!
+      const session = await sessionWrapper(
+        fastify.redis,
+        req.user,
+        req.ip,
+        req.headers["user-agent"]
+      );
+      if ("token" in session) {
         const roomInfo: RoomInfoValues = {
           name: "someRoom",
-          creatorId: tokenData.id,
+          creatorId: session.token.id,
           type: "single",
           about: "nope",
         };
         // Hardcoded !!!!
         const result = await initRoom(fastify.redis, roomInfo);
         return res.code(200).send(result);
-      } else return res.code(sessionResult.status).send(sessionResult);
+      } else return res.code(session.status).send(session);
     },
   });
 }

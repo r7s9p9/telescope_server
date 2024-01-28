@@ -9,13 +9,6 @@ export interface Token {
   exp: number;
 }
 
-export interface RoomInfoValues {
-  name: string;
-  creatorId: UserId;
-  type: "public" | "private" | "single";
-  about: string;
-}
-
 export interface Message {
   author: UserId;
   content: MessageContent;

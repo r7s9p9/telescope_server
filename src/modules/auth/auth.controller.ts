@@ -10,9 +10,9 @@ import { createAccount } from "../account/account.controller";
 import {
   createSession,
   isVerificationCodeRequired,
-} from "../session/session.controller";
+} from "./session/session.controller";
 import { FastifyRedis } from "@fastify/redis";
-import { createToken } from "../../utils/tokenActions";
+import { createToken } from "../../utils/token";
 import { messageAboutServerError } from "../constants";
 import {
   messageAboutAccountCreated,
