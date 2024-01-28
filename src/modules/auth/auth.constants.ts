@@ -33,6 +33,13 @@ export const messageAboutVerificationRequired = {
   },
 };
 
+export const messageAboutWrongCode = {
+  status: 400,
+  data: {
+    message: "The entered code is incorrect",
+  },
+};
+
 export const messageAboutLoginSuccessful = (token: string) => {
   return {
     status: 200,

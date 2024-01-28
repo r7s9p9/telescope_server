@@ -3,19 +3,35 @@ import fastifyCookie from "@fastify/cookie";
 import fastifyRedis from "@fastify/redis";
 import { fastifyEnv } from "./plugins/env";
 import jwt from "@fastify/jwt";
-import { authRoute } from "./modules/auth/auth.route";
-import {
-  sessionRoute,
-  refreshSessionRoute,
-} from "./modules/auth/session/session.route";
+import { authCodeRoute, authRoute } from "./modules/auth/auth.route";
 
 import { Token } from "./modules/types";
 import { roomRoute } from "./modules/room/room.route";
 import { accountReadRoute } from "./modules/account/account.route";
+import { sessionWrapper } from "./modules/auth/session/session.controller";
+
+type Session =
+  | {
+      status: number;
+      error: {
+        message: string;
+      };
+    }
+  | {
+      token: {
+        id: any;
+        exp: any;
+      };
+    };
 
 declare module "fastify" {
   export interface FastifyInstance {
     checkToken: any; // TODO fix type
+    checkSession: any;
+  }
+  export interface FastifyRequest {
+    session: Session;
+    user: string | object | Buffer; // this is token with content from fastify/jwt
   }
 }
 
@@ -55,6 +71,41 @@ const app = async () => {
   });
 
   fastify.decorate(
+    "checkSession",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        await request.jwtVerify<Token>({ onlyCookie: true });
+        const result = await sessionWrapper(
+          fastify.redis,
+          fastify.jwt,
+          fastify.config.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED,
+          request.user, // token from user
+          request.ip,
+          request.headers["user-agent"]
+        );
+        if (result && "token" in result) {
+          request.session = result;
+        }
+        if (result && "newToken" in result) {
+          request.session = {
+            token: { id: result.newToken.id, exp: result.newToken.exp },
+          };
+          reply.setCookie("accessToken", result.newToken.raw, {
+            secure: true,
+            httpOnly: true,
+            sameSite: "strict",
+          });
+        }
+        if (result && "error" in result) {
+          return reply.code(result.status).send(result);
+        }
+      } catch (e) {
+        return reply.send(e);
+      }
+    }
+  );
+
+  fastify.decorate(
     "checkToken",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
@@ -72,9 +123,9 @@ const app = async () => {
     //family: 4   // (IPv4) or 6 (IPv6)
   });
 
-  await fastify.register(authRoute, { prefix: "api" }); // for login / register
-  await fastify.register(sessionRoute, { prefix: "api" }); // session validation
-  await fastify.register(refreshSessionRoute, { prefix: "api" });
+  await fastify.register(authRoute); // for login / register
+
+  await fastify.register(authCodeRoute);
 
   await fastify.register(accountReadRoute);
 

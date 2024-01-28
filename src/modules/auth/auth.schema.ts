@@ -26,9 +26,16 @@ const loginBody = z.object({
   }),
 });
 
+const codeBody = z.object({
+  ...authCore,
+  code: z.string(),
+});
+
 export type RegisterBodyType = z.infer<typeof registerBody>;
 
 export type LoginBodyType = z.infer<typeof loginBody>;
+
+export type CodeBodyType = z.infer<typeof codeBody>;
 
 export const registerSchema = {
   header: z.string(),
@@ -60,4 +67,8 @@ export const loginSchema = {
   //     message: z.string(),
   //   }),
   // },
+};
+
+export const codeSchema = {
+  body: codeBody,
 };

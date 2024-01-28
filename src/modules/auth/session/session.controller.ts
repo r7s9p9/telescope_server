@@ -6,6 +6,7 @@ import {
   messageAboutBadUserAgent,
   messageAboutServerError,
   messageAboutSessionOK,
+  messageAboutSessionRefreshed,
   sessionHashKey,
   sessionSetKey,
 } from "../../constants";
@@ -16,14 +17,20 @@ import {
   sessionStartValues,
 } from "./session.constants";
 import { messageAboutWrongToken } from "../../constants";
-import { checkToken } from "../../../utils/token";
+import { checkToken, createToken, isNeedNewToken } from "../../../utils/token";
+import { JWT } from "@fastify/jwt";
 
 export async function sessionWrapper(
   redis: FastifyRedis,
+  jwt: JWT,
+  daysOfTokenToBeUpdated: string | number,
   token: any,
   ip: string,
   ua?: string
 ) {
+  if (!ua) {
+    return messageAboutBadUserAgent;
+  }
   const tokenData = await checkToken(token);
   if (tokenData && tokenData.id && tokenData.exp) {
     const sessionResult = await checkSession(redis, {
@@ -33,6 +40,10 @@ export async function sessionWrapper(
       ua: ua,
     });
     if ("data" in sessionResult) {
+      const toUpdate = isNeedNewToken(tokenData.exp, daysOfTokenToBeUpdated);
+      if (toUpdate) {
+        return await refreshSession(redis, jwt, tokenData, ip, ua);
+      }
       return { token: tokenData };
     }
     return sessionResult;
@@ -119,9 +130,7 @@ export async function checkSession(
 
 export async function isVerificationCodeRequired(
   redis: FastifyRedis,
-  id: UserId,
-  ip: string,
-  ua: string
+  id: UserId
 ) {
   const numberOfAllSessions = await redis.scard(sessionSetKey(id));
 
@@ -141,11 +150,7 @@ export async function isVerificationCodeRequired(
     );
 
     if (sessionGood) {
-      await verificationCodeRequest(
-        redis,
-        sessionHashKey(id, selectedExpValue),
-        { ip, ua }
-      );
+      await verificationCodeRequest(redis, id, selectedExpValue);
       return true;
     }
     if (!sessionGood) {
@@ -198,11 +203,7 @@ export async function isVerificationCodeRequired(
           sessionExpForCodeReq = sessionExp;
         }
       }
-      await verificationCodeRequest(
-        redis,
-        sessionHashKey(id, sessionExpForCodeReq),
-        { ip, ua }
-      );
+      await verificationCodeRequest(redis, id, sessionExpForCodeReq);
       return true;
     }
   }
@@ -285,38 +286,71 @@ export async function createSession(
   ua: string,
   ip: string
 ) {
-  await redis.hmset(sessionHashKey(id, exp), sessionStartValues(ua, ip));
-  await redis.expireat(sessionSetKey(id), exp);
+  const hashResult = await redis.hmset(
+    sessionHashKey(id, exp),
+    sessionStartValues(ua, ip)
+  );
+  const hashExpireResult = await redis.expireat(sessionHashKey(id, exp), exp);
 
   const setAlreadyExists = (await redis.scard(sessionSetKey(id))) !== 0;
-  await redis.sadd(sessionSetKey(id), exp);
+  const setResult = await redis.sadd(sessionSetKey(id), exp);
+
+  let setExpireResult: number;
   if (setAlreadyExists) {
-    await redis.expireat(sessionSetKey(id), exp, "GT");
+    setExpireResult = await redis.expireat(sessionSetKey(id), exp, "GT");
+  } else {
+    setExpireResult = await redis.expireat(sessionSetKey(id), exp, "NX");
   }
-  if (!setAlreadyExists) {
-    await redis.expireat(sessionSetKey(id), exp, "NX");
+  if (
+    hashResult === "OK" &&
+    hashExpireResult === 1 &&
+    setResult === 1 &&
+    setExpireResult === 1
+  ) {
+    return true;
   }
+  return false;
   // If session hash expired, but set member isnt -> session will deleted by sessionValidation()
+  // Bump session set expire every session refreshing
 }
 
 export async function refreshSession(
   redis: FastifyRedis,
-  id: UserId,
-  oldExp: number, // from old token
-  newExp: number, // from new token
-  ua: string | undefined,
-  ip: string
+  jwt: JWT,
+  oldToken: {
+    id: any;
+    exp: any;
+  },
+  ip: string,
+  ua: string
 ) {
-  if (!ua) {
-    return messageAboutBadUserAgent;
+  const newToken = await createToken(jwt, oldToken.id);
+  if (newToken && newToken.id && newToken.exp && newToken.raw) {
+    if (oldToken.id !== newToken.id) {
+      // When "old" id !== new id
+      return messageAboutServerError;
+    }
+    const removeOldSessionResult = await removeSession(
+      redis,
+      sessionHashKey(oldToken.id, oldToken.exp),
+      sessionSetKey(oldToken.id),
+      oldToken.exp
+    );
+    const createNewSessionResult = await createSession(
+      redis,
+      newToken.id,
+      newToken.exp,
+      ua,
+      ip
+    );
+    if (!removeOldSessionResult || !createNewSessionResult) {
+      return messageAboutServerError;
+    }
+    return {
+      newToken: { raw: newToken.raw, id: newToken.id, exp: newToken.exp },
+    };
   }
-  await removeSession(
-    redis,
-    sessionHashKey(id, oldExp),
-    sessionSetKey(id),
-    oldExp
-  );
-  await createSession(redis, id, newExp, ua, ip);
+  return messageAboutServerError;
 }
 
 async function updateSession(
@@ -349,8 +383,12 @@ async function removeSession(
   sessionSetKey: string,
   sessionSetMember: number
 ) {
-  await redis.del(sessionHashKey);
-  await redis.srem(sessionSetKey, sessionSetMember);
+  const hashResult = await redis.del(sessionHashKey);
+  const setResult = await redis.srem(sessionSetKey, sessionSetMember);
+  if (hashResult === 1 && setResult === 1) {
+    return true;
+  }
+  return false;
 }
 
 async function userAgentValidation(

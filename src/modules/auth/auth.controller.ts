@@ -3,7 +3,7 @@ import {
   selectUserByEmail,
   selectUserByUsername,
 } from "./auth.repository";
-import { RegisterBodyType, LoginBodyType } from "./auth.schema";
+import { RegisterBodyType, LoginBodyType, CodeBodyType } from "./auth.schema";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyInstance } from "fastify";
 import { createAccount } from "../account/account.controller";
@@ -21,7 +21,12 @@ import {
   messageAboutLoginSuccessful,
   messageAboutUsernameExists,
   messageAboutVerificationRequired,
+  messageAboutWrongCode,
 } from "./auth.constants";
+import {
+  checkEnteredCode,
+  checkRecodedCode,
+} from "./session/session.security-code";
 
 export async function registerHandler(
   redis: FastifyRedis,
@@ -70,12 +75,7 @@ export async function loginHandler(
       return messageAboutInvalidEmailOrPassword;
     }
 
-    const result = await isVerificationCodeRequired(
-      server.redis,
-      user.id,
-      ip,
-      ua
-    );
+    const result = await isVerificationCodeRequired(server.redis, user.id);
 
     if (result) {
       return messageAboutVerificationRequired;
@@ -85,7 +85,46 @@ export async function loginHandler(
     if (tokenData) {
       await createSession(server.redis, tokenData.id, tokenData.exp, ua, ip);
 
-      return messageAboutLoginSuccessful(tokenData.token);
+      return messageAboutLoginSuccessful(tokenData.raw);
+    }
+
+    return messageAboutServerError;
+  } catch (e) {
+    console.log(e);
+    return messageAboutServerError;
+  }
+}
+
+export async function codeHandler(
+  server: FastifyInstance,
+  body: CodeBodyType,
+  ip: string,
+  ua: string
+) {
+  try {
+    const user = await selectUserByEmail(body.email);
+    if (!user) {
+      return messageAboutInvalidEmailOrPassword;
+    }
+    const isCodeRecorded = await checkRecodedCode(server.redis, user.id);
+    if (!isCodeRecorded) {
+      return messageAboutWrongCode; /// Need change this
+    }
+    const isCodeCorrect = await checkEnteredCode(
+      server.redis,
+      user.id,
+      body.code
+    );
+    console.log(isCodeCorrect);
+    if (!isCodeCorrect) {
+      return messageAboutWrongCode;
+    }
+
+    const tokenData = await createToken(server.jwt, user.id);
+    if (tokenData) {
+      await createSession(server.redis, tokenData.id, tokenData.exp, ua, ip);
+
+      return messageAboutLoginSuccessful(tokenData.raw);
     }
 
     return messageAboutServerError;

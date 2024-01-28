@@ -17,23 +17,17 @@ async function roomRoute(fastify: FastifyInstance) {
     //schema: roomSchema,
     preHandler: [fastify.checkToken],
     handler: async (req, res) => {
-      const session = await sessionWrapper(
-        fastify.redis,
-        req.user,
-        req.ip,
-        req.headers["user-agent"]
-      );
-      if ("token" in session) {
+      if ("token" in req.session) {
         const roomInfo: RoomInfoValues = {
           name: "someRoom",
-          creatorId: session.token.id,
+          creatorId: req.session.token.id,
           type: "single",
           about: "nope",
         };
         // Hardcoded !!!!
         const result = await initRoom(fastify.redis, roomInfo);
         return res.code(200).send(result);
-      } else return res.code(session.status).send(session);
+      } else return res.code(req.session.status).send(req.session);
     },
   });
 }
