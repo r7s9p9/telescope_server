@@ -37,7 +37,7 @@ declare module "fastify" {
 
 declare module "@fastify/jwt" {
   export interface fastifyJWT {
-    user: Token;
+    user: Token; // Change user to some other naming
   }
 }
 

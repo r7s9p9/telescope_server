@@ -1,10 +1,5 @@
-import { userKeyPart } from "../constants";
+import { accountKey } from "../constants";
 import { UserId } from "../types";
-
-export const accountKeyPart = "account";
-
-export const accountKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${accountKeyPart}`;
 
 export const friendsKey = (userId: UserId) => `${accountKey(userId)}:friends`;
 

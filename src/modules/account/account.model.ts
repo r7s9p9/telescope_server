@@ -1,13 +1,11 @@
 import { FastifyRedis } from "@fastify/redis";
 import {
-  accountFields,
-  accountKey,
   accountPrivacyRules,
   accountStartValues,
   blockedKey,
   friendsKey,
 } from "./account.constants";
-import { userRoomsSetKey } from "../room/room.constants";
+import { accountKey } from "../constants";
 import { UserId } from "../types";
 import {
   AccountPrivacyRules,

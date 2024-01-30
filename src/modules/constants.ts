@@ -8,6 +8,11 @@ import { UserId } from "./types";
 
 export const userKeyPart = "user";
 
+export const accountKeyPart = "account";
+
+export const accountKey = (userId: UserId) =>
+  `${userKeyPart}:${userId}:${accountKeyPart}`;
+
 export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;

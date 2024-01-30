@@ -3,6 +3,9 @@ import { sessionHashKey } from "../../constants";
 import { UserId } from "../../types";
 import { accountKey } from "../../account/account.constants";
 
+// TODO Find best location to keep data
+// Move redis to .model.ts
+
 export async function verificationCodeRequest(
   redis: FastifyRedis,
   id: UserId,
