@@ -6,7 +6,6 @@ import {
   messageAboutBadUserAgent,
   messageAboutServerError,
   messageAboutSessionOK,
-  messageAboutSessionRefreshed,
   sessionHashKey,
   sessionSetKey,
 } from "../../constants";
@@ -19,6 +18,7 @@ import {
 import { messageAboutWrongToken } from "../../constants";
 import { checkToken, createToken, isNeedNewToken } from "../../../utils/token";
 import { JWT } from "@fastify/jwt";
+import { model } from "./session.model";
 
 export async function sessionWrapper(
   redis: FastifyRedis,
@@ -33,7 +33,8 @@ export async function sessionWrapper(
   }
   const tokenData = await checkToken(token);
   if (tokenData && tokenData.id && tokenData.exp) {
-    const sessionResult = await checkSession(redis, {
+    const m = model(redis, token.id).session(token.exp);
+    const sessionResult = await checkSession(m, {
       id: tokenData.id,
       exp: tokenData.exp,
       ip: ip,
@@ -51,8 +52,10 @@ export async function sessionWrapper(
   return messageAboutWrongToken;
 }
 
+type ExtractFunctionReturnType<T extends Function> = T extends (...args: infer A) => infer R ? R : never;
+
 export async function checkSession(
-  redis: FastifyRedis,
+  m: ExtractFunctionReturnType<typeof model>,
   client: {
     id: UserId;
     exp: number;
@@ -60,120 +63,78 @@ export async function checkSession(
     ua: string | undefined;
   }
 ) {
+  // Move this to separated decorator/preValidation?
   if (!client.ua) {
     return messageAboutBadUserAgent;
   }
-  const sessionFound = await sessionValidation(
-    redis,
-    sessionHashKey(client.id, client.exp),
-    sessionSetKey(client.id),
-    client.exp
-  );
+  const sessionFound = await m.session(client.exp).isSessionExist();
 
   if (sessionFound) {
-    const sessionIsNotBlocked = await checkSessionData(
-      redis,
-      sessionHashKey(client.id, client.exp),
-      {
-        ban: "false",
-      }
-    );
-    if (!sessionIsNotBlocked) {
+    const isBlocked = await m.getSessionData().ban();
+    if (isBlocked) {
       return messageAboutBlockedSession;
     }
 
-    const uaIsHealthy = await checkSessionData(
-      redis,
-      sessionHashKey(client.id, client.exp),
-      {
-        ua: client.ua,
-      }
-    );
-    const sameIP = await checkSessionData(
-      redis,
-      sessionHashKey(client.id, client.exp),
-      {
-        ip: client.ip,
-      }
-    );
+    const isEqualIP = await m.isSessionDataEqual().ip(client.ip);
+    if (!isEqualIP) await m.updateSessionData().ip(client.ip);
 
-    if (uaIsHealthy) {
-      if (!sameIP) {
-        // Tracking client ip
-        await updateSession(redis, sessionHashKey(client.id, client.exp), {
-          online: Date.now(),
-        });
-      } // Tracking online status for current session
-      await updateSession(redis, sessionHashKey(client.id, client.exp), {
-        online: Date.now(),
-      });
+    const uaIsGood = await uaChecker(m, client.ua);
+    if (uaIsGood) {
+      await m.updateSessionData().online(Date.now());
       return messageAboutSessionOK;
     }
-
-    if (!uaIsHealthy) {
-      if (!sameIP) {
-        await updateSession(redis, sessionHashKey(client.id, client.exp), {
-          ip: client.ip,
-        });
-      } // Tracking banned ip || TODO list of IPs
-      await updateSession(redis, sessionHashKey(client.id, client.exp), {
-        ban: "true",
-      });
+    if (!uaIsGood) {
+      await m.updateSessionData().ban(true);
       return messageAboutBlockedSession;
     }
   }
-  if (!sessionFound) {
-    return messageAboutNoSession;
-  }
-  return messageAboutServerError;
+  return messageAboutNoSession;
 }
 
 export async function isVerificationCodeRequired(
   redis: FastifyRedis,
-  id: UserId
+  userId: UserId
 ) {
-  const numberOfAllSessions = await redis.scard(sessionSetKey(id));
+  const sessionCount = await redis.scard(sessionSetKey(userId));
 
-  if (numberOfAllSessions === 0) {
+  if (sessionCount === 0) {
     return false;
   }
 
-  const allSessionsArray = await redis.smembers(sessionSetKey(id));
+  const allSessionsArray = await redis.smembers(sessionSetKey(userId));
 
-  if (numberOfAllSessions === 1) {
+  if (sessionCount === 1) {
     const selectedExpValue = Number(allSessionsArray[0]);
-    const sessionGood = await sessionSelector(
-      redis,
-      sessionHashKey(id, selectedExpValue),
-      selectedExpValue,
-      sessionSetKey(id)
-    );
+    const m = model(redis, userId, selectedExpValue);
+    const sessionFound = await m.isSessionExist();
+    const sessionIsblocked = await m.getSessionData().ban();
+    const sessionGood = sessionFound && !sessionIsblocked;
 
-    if (sessionGood) {
-      await verificationCodeRequest(redis, id, selectedExpValue);
-      return true;
-    }
     if (!sessionGood) {
       return false;
     }
+    const recorded = await verificationCodeRequest(redis, userId, selectedExpValue);
+    return true;
   }
 
-  if (numberOfAllSessions > 1) {
+  if (sessionCount > 1) {
     const suitableSessions = new Map();
     let currentSession = 0;
+
+    for (const )
 
     while (currentSession < allSessionsArray.length) {
       const selectedExpValue = Number(allSessionsArray[currentSession]);
       const sessionGood = await sessionSelector(
         redis,
-        sessionHashKey(id, selectedExpValue),
+        sessionHashKey(userId, selectedExpValue),
         selectedExpValue,
-        sessionSetKey(id)
+        sessionSetKey(userId)
       );
 
       if (sessionGood) {
         const sessionOnlineValue = await redis.hget(
-          sessionHashKey(id, selectedExpValue),
+          sessionHashKey(userId, selectedExpValue),
           sessionFields.online
         );
         suitableSessions.set(selectedExpValue, sessionOnlineValue);
@@ -210,19 +171,14 @@ export async function isVerificationCodeRequired(
 }
 
 async function sessionSelector(
-  redis: FastifyRedis,
+  m: ReturnType<typeof model>,
   selectedHashKey: string,
   selectedExpValue: number,
   sessionSet: string
 ) {
-  const sessionIsValid = await sessionValidation(
-    redis,
-    selectedHashKey,
-    sessionSet,
-    selectedExpValue
-  );
+  const sessionIsValid = await m.isSessionExist();
   if (sessionIsValid) {
-    const sessionIsNotBlocked = await checkSessionData(redis, selectedHashKey, {
+    const sessionIsNotBlocked = await checkSessionData(m, selectedHashKey, {
       ban: "false",
     });
 
@@ -235,32 +191,8 @@ async function sessionSelector(
   }
 }
 
-async function sessionValidation(
-  redis: FastifyRedis,
-  sessionHashKey: string,
-  sessionSetKey: string,
-  sessionExpValue: number
-) {
-  const setValueExists = await redis.sismember(sessionSetKey, sessionExpValue);
-
-  const hashKeyExists = await redis.exists(sessionSetKey);
-
-  const sessionOk = setValueExists && hashKeyExists;
-  const noSession = !(setValueExists || hashKeyExists);
-  const damagedSession = !sessionOk && !noSession;
-
-  if (sessionOk) return true;
-  if (noSession) return false;
-  if (damagedSession) {
-    await removeSession(redis, sessionHashKey, sessionSetKey, sessionExpValue);
-    console.log(`DAMAGED SESSION -> ${sessionHashKey}`);
-  }
-  return false;
-}
-
 async function checkSessionData(
-  redis: FastifyRedis,
-  sessionHashKey: string,
+  m: ReturnType<typeof model>,
   client: Partial<{
     ua: string | undefined;
     ip: string | undefined;
@@ -268,13 +200,13 @@ async function checkSessionData(
   }>
 ) {
   if (client.ua) {
-    return await userAgentValidation(redis, sessionHashKey, client.ua);
+    return await userAgentValidation(m, sessionHashKey, client.ua);
   }
   if (client.ip) {
-    return (await redis.hget(sessionHashKey, sessionFields.ip)) === client.ip;
+    return await m.isSessionDataEqual().ua(client.ip);
   }
   if (client.ban) {
-    return (await redis.hget(sessionHashKey, sessionFields.ban)) === client.ban;
+    return await m.isSessionDataEqual().ban(client.ban);
   }
   return false;
 }
@@ -353,30 +285,6 @@ export async function refreshSession(
   return messageAboutServerError;
 }
 
-async function updateSession(
-  redis: FastifyRedis,
-  sessionHashKey: string,
-  newInfo: Partial<{
-    ua: string | undefined;
-    ip: string | undefined;
-    ban: string | undefined;
-    online: number | undefined;
-  }>
-) {
-  if (newInfo.ua) {
-    await redis.hset(sessionHashKey, sessionFields.ua, newInfo.ua);
-  }
-  if (newInfo.ip) {
-    await redis.hset(sessionHashKey, sessionFields.ip, newInfo.ip);
-  }
-  if (newInfo.ban) {
-    await redis.hset(sessionHashKey, sessionFields.ban, newInfo.ban);
-  }
-  if (newInfo.online) {
-    await redis.hset(sessionHashKey, sessionFields.online, newInfo.online);
-  }
-}
-
 async function removeSession(
   redis: FastifyRedis,
   sessionHashKey: string,
@@ -391,78 +299,78 @@ async function removeSession(
   return false;
 }
 
-async function userAgentValidation(
-  redis: FastifyRedis,
-  sessionHash: string,
-  clientUA: string
-) {
-  const redisUA = await redis.hget(sessionHash, sessionFields.ua);
+async function uaChecker(m: ReturnType<typeof model>, clientUA: string) {
+  const storedUA = await m.getSessionData().ua();
 
-  if (redisUA === null) {
+  if (storedUA === null) {
+    // Change alg when data in redis is bad!
     return false;
-  } // If redis faulted || TODO
-  if (clientUA === redisUA) {
+  }
+  if (clientUA === storedUA) {
     return true;
   }
-  if (userAgentComparator(clientUA, redisUA)) {
+  if (uaComparator(clientUA, storedUA)) {
     //
     // Update the user agent if its change is not associated
     // with significant (bad) changes on the client user agent
     //
-    await updateSession(redis, sessionHash, { ua: clientUA });
+    const recorded = await m.updateSessionData().ua(clientUA);
+    if (!recorded) {
+      console.log(`New UA not recorded! UA: ${clientUA}`);
+    }
     return true;
   }
   return false;
 }
 
-function userAgentComparator(clientUA: string, redisUA: string) {
+function uaComparator(clientUA: string, storedUA: string) {
   const parsedClientUA = parser(clientUA);
-  const parsedRedisUA = parser(redisUA);
+  const parsedStoredUA = parser(storedUA);
 
-  if (parsedClientUA.browser.name !== parsedRedisUA.browser.name) {
+  if (parsedClientUA.browser.name !== parsedStoredUA.browser.name) {
     return false;
   }
   if (
     parsedClientUA.browser.version === undefined ||
-    (parsedRedisUA.browser.version &&
-      parsedClientUA.browser.version < parsedRedisUA.browser.version)
+    (parsedStoredUA.browser.version &&
+      parsedClientUA.browser.version < parsedStoredUA.browser.version)
   ) {
     return false;
   }
   if (
     parsedClientUA.engine.name === undefined ||
-    parsedClientUA.engine.name !== parsedRedisUA.engine.name
+    parsedClientUA.engine.name !== parsedStoredUA.engine.name
   ) {
     return false;
   }
   if (
     parsedClientUA.engine.version === undefined ||
-    (parsedRedisUA.engine.version &&
-      parsedClientUA.engine.version < parsedRedisUA.engine.version)
+    (parsedStoredUA.engine.version &&
+      parsedClientUA.engine.version < parsedStoredUA.engine.version)
   ) {
     return false;
   }
   if (
     parsedClientUA.os.name === undefined ||
-    parsedClientUA.os.name !== parsedRedisUA.os.name
+    parsedClientUA.os.name !== parsedStoredUA.os.name
   ) {
     return false;
   }
   if (parsedClientUA.os.version === undefined) {
     return false;
   }
-  if (parsedClientUA.device.model !== parsedRedisUA.device.model) {
+  if (parsedClientUA.device.model !== parsedStoredUA.device.model) {
     return false;
   }
-  if (parsedClientUA.device.type !== parsedRedisUA.device.type) {
+  if (parsedClientUA.device.type !== parsedStoredUA.device.type) {
     return false;
   }
-  if (parsedClientUA.device.vendor !== parsedRedisUA.device.vendor) {
+  if (parsedClientUA.device.vendor !== parsedStoredUA.device.vendor) {
     return false;
   }
   if (
     parsedClientUA.cpu.architecture === undefined ||
-    parsedClientUA.cpu.architecture !== parsedRedisUA.cpu.architecture
+    parsedClientUA.cpu.architecture !== parsedStoredUA.cpu.architecture
   ) {
     return false;
   }

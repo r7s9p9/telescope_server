@@ -70,6 +70,8 @@ const app = async () => {
     },
   });
 
+  // Separate `await request.jwtVerify<Token>({ onlyCookie: true });`
+
   fastify.decorate(
     "checkSession",
     async (request: FastifyRequest, reply: FastifyReply) => {

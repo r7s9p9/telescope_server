@@ -4,7 +4,6 @@ import {
   validatorCompiler,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { sessionWrapper } from "../auth/session/session.controller";
 import { initRoom } from "./room.controller";
 import { RoomInfoValues } from "./room.constants";
 

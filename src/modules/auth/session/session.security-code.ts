@@ -1,7 +1,7 @@
 import { FastifyRedis } from "@fastify/redis";
 import { sessionHashKey } from "../../constants";
 import { UserId } from "../../types";
-import { accountKey } from "../../account/account.constants";
+import { accountKey } from "../../constants";
 
 // TODO Find best location to keep data
 // Move redis to .model.ts
