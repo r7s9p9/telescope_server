@@ -2,7 +2,6 @@ import { FastifyRedis } from "@fastify/redis";
 import crypto from "crypto";
 import { UserId, UserIdArr, RoomId, Message, MessageContent } from "../types";
 import {
-  RoomInfoValues,
   serviceRoomKey,
   serviceRoomName,
   welcomeServiceRoomMessage,
@@ -10,6 +9,7 @@ import {
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
 import { model } from "./room.model";
+import { RoomInfoValues } from "./room.types";
 
 // user:userid:rooms:allRoomsKeyPart            User rooms              (Set)
 // user:userid:rooms:internal:serviceRoomName   App messages            (Sorted Set)
@@ -36,17 +36,17 @@ export const room = (redis: FastifyRedis) => {
     }
     const roomInfo: RoomInfoValues = {
       name: serviceRoomName,
-      creatorId: userId,
       type: "single",
       about: "Service notifications",
     };
 
-    await initRoom(redis, roomInfo);
+    await initRoom(redis, userId, roomInfo);
     await createServiceRoom(redis, userId);
   }
 
   async function initRoom(
     redis: FastifyRedis,
+    creatorId: UserId,
     roomInfo: RoomInfoValues,
     userIdArr?: UserIdArr
   ): Promise<{ userCount: number; roomId: RoomId } | { error: string }> {
@@ -54,7 +54,7 @@ export const room = (redis: FastifyRedis) => {
 
     if (roomInfo.type === "single") {
       if (!userIdArr) {
-        await model(redis).addRoom(roomInfo.creatorId, roomId, roomInfo);
+        await model(redis).addRoom(creatorId, roomId, roomInfo);
         return { userCount: 1, roomId: roomId };
       } else {
         return { error: "Wrong room type selected" };
@@ -67,7 +67,7 @@ export const room = (redis: FastifyRedis) => {
       for (const userId of userIdArr) {
         const account = await a.readAccount(
           { properties: [accountFields.properties.isCanAddToRoom] },
-          roomInfo.creatorId,
+          creatorId,
           userId
         );
         if (account.properties && account.properties.isCanAddToRoom === true) {

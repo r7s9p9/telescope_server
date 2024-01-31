@@ -7,7 +7,7 @@ import {
 import { account } from "./account.controller";
 import { readAccountSchema, writeAccountSchema } from "./account.schema";
 
-async function accountReadRoute(fastify: FastifyInstance) {
+export async function accountReadRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
@@ -28,13 +28,13 @@ async function accountReadRoute(fastify: FastifyInstance) {
   });
 }
 
-async function accountUpdateRoute(fastify: FastifyInstance) {
+export async function accountUpdateRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/account/update",
-    schema: writeAccountSchema, // Need fix schema
+    schema: writeAccountSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
       if ("token" in req.session) {
@@ -47,5 +47,3 @@ async function accountUpdateRoute(fastify: FastifyInstance) {
     },
   });
 }
-
-export { accountReadRoute, accountUpdateRoute };

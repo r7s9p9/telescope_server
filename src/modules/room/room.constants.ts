@@ -1,34 +1,36 @@
 import { userKeyPart } from "../constants";
 import { RoomId, UserId } from "../types";
+import { RoomInfoValues } from "./room.types";
 
-export interface RoomInfoValues {
-  name: string;
-  creatorId: UserId;
-  type: "public" | "private" | "single";
-  about: string;
-}
+export const roomTypeValues = {
+  public: "public",
+  private: "private",
+  single: "single",
+};
 
 export const roomInfoFields = {
   name: "name",
-  creator: "creatorId",
+  creatorId: "creatorId",
   type: "type",
   about: "about",
 };
 
-export const roomInfoStartValues = (roomInfoValues: {
-  name: RoomInfoValues["name"];
-  creatorId: RoomInfoValues["creatorId"];
-  type: RoomInfoValues["type"];
-  about: RoomInfoValues["about"];
-}) => [
+export const roomInfoStartValues = (
+  roomInfoValues: {
+    name: RoomInfoValues["name"];
+    type: (typeof roomTypeValues)["public" | "private" | "single"];
+    about: RoomInfoValues["about"];
+  },
+  creatorId: UserId
+) => [
   roomInfoFields.name,
   roomInfoValues.name,
-  roomInfoFields.creator,
-  roomInfoValues.creatorId,
   roomInfoFields.type,
   roomInfoValues.type,
   roomInfoFields.about,
   roomInfoValues.about,
+  roomInfoFields.creatorId,
+  creatorId,
 ];
 
 export const serviceRoomName = "Telescope";

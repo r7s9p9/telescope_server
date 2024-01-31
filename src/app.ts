@@ -3,18 +3,22 @@ import fastifyCookie from "@fastify/cookie";
 import fastifyRedis from "@fastify/redis";
 import { fastifyEnv } from "./plugins/env";
 import jwt from "@fastify/jwt";
-import { Token } from "./modules/types";
-import { roomRoute } from "./modules/room/room.route";
-import {
-  accountReadRoute,
-  accountUpdateRoute,
-} from "./modules/account/account.route";
+import { Token, UserId } from "./modules/types";
 import { session } from "./modules/auth/session/session.controller";
 import {
   authCodeRoute,
   authLoginRoute,
   authRegisterRoute,
 } from "./modules/auth/auth.route";
+import {
+  accountReadRoute,
+  accountUpdateRoute,
+} from "./modules/account/account.route";
+import {
+  roomCreateRoute,
+  roomDeleteRoute,
+  roomUpdateRoute,
+} from "./modules/room/room.route";
 
 type Session =
   | {
@@ -25,7 +29,7 @@ type Session =
     }
   | {
       token: {
-        id: any;
+        id: UserId;
         exp: any;
       };
     };
@@ -140,7 +144,9 @@ const app = async () => {
   await fastify.register(accountReadRoute);
   await fastify.register(accountUpdateRoute);
 
-  await fastify.register(roomRoute);
+  await fastify.register(roomCreateRoute);
+  await fastify.register(roomUpdateRoute);
+  await fastify.register(roomDeleteRoute);
 
   fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err) {
     if (err) {

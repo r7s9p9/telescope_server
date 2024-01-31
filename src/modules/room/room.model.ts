@@ -1,7 +1,6 @@
 import { FastifyRedis } from "@fastify/redis";
 import { RoomId, UserId } from "../types";
 import {
-  RoomInfoValues,
   roomBlockedUsersKey,
   roomInfoFields,
   roomInfoKey,
@@ -12,6 +11,7 @@ import {
   singleRoomKey,
   userRoomsSetKey,
 } from "./room.constants";
+import { RoomInfoValues } from "./room.types";
 
 // async function createSingleRoom(
 //   redis: FastifyRedis,
@@ -57,7 +57,7 @@ const model = (redis: FastifyRedis) => {
     roomInfo: RoomInfoValues
   ) {
     const addResult = await writeRoomKey(userId, roomId, roomInfo.type);
-    const infoResult = await writeRoomInfo(roomId, roomInfo);
+    const infoResult = await writeRoomInfo(roomId, userId, roomInfo);
   }
 
   async function writeRoomKey(
@@ -81,18 +81,22 @@ const model = (redis: FastifyRedis) => {
     }
   }
 
-  async function writeRoomInfo(roomId: RoomId, roomInfo: RoomInfoValues) {
+  async function writeRoomInfo(
+    roomId: RoomId,
+    creatorId: UserId,
+    roomInfo: RoomInfoValues
+  ) {
     let result: "OK" | undefined;
     if (roomInfo.type === "single") {
       result = await redis.hmset(
-        singleRoomInfoKey(roomInfo.creatorId, roomId),
-        roomInfoStartValues(roomInfo)
+        singleRoomInfoKey(creatorId, roomId),
+        roomInfoStartValues(roomInfo, creatorId)
       );
     }
     if (roomInfo.type === "public" || roomInfo.type === "private") {
       result = await redis.hmset(
         roomInfoKey(roomId),
-        roomInfoStartValues(roomInfo)
+        roomInfoStartValues(roomInfo, creatorId)
       );
     }
     if (result === "OK") {
@@ -106,7 +110,7 @@ const model = (redis: FastifyRedis) => {
       const name = await redis.hget(roomInfoKey(roomId), roomInfoFields.name);
       const creator = await redis.hget(
         roomInfoKey(roomId),
-        roomInfoFields.creator
+        roomInfoFields.creatorId
       );
       const type = await redis.hget(roomInfoKey(roomId), roomInfoFields.type);
       const about = await redis.hget(roomInfoKey(roomId), roomInfoFields.about);

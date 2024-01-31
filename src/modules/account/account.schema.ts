@@ -1,12 +1,10 @@
-import z, { ZodLiteral } from "zod";
+import z from "zod";
 import { accountFields, accountPrivacyRules } from "./account.constants";
 import { UserId } from "../types";
 import {
   ReadTargetUserGeneralField,
   ReadTargetUserProperties,
   ReadTargetUserPrivacyField,
-  WriteTargetUserField,
-  AccountWriteData,
 } from "./account.types";
 
 const userId = z
@@ -67,7 +65,7 @@ const readDataPrivacyArray = z
   .optional();
 
 const readBody = z.object({
-  readUserId: userId,
+  readUserId: userId.or(z.literal("self")),
   readData: z.object({
     general: readDataGeneralArray,
     properties: readDataPropertiesArray,
@@ -83,11 +81,13 @@ const writeDataGeneralObject = z
   })
   .optional();
 
-const privacyRule = z.union([
-  z.literal(accountPrivacyRules.everybody),
-  z.literal(accountPrivacyRules.friends),
-  z.literal(accountPrivacyRules.nobody),
-]);
+const privacyRule = z
+  .union([
+    z.literal(accountPrivacyRules.everybody),
+    z.literal(accountPrivacyRules.friends),
+    z.literal(accountPrivacyRules.nobody),
+  ])
+  .optional();
 
 const writeDataPrivacyObject = z
   .object({
@@ -102,7 +102,6 @@ const writeDataPrivacyObject = z
   .optional();
 
 const writeBody = z.object({
-  writeUserId: userId,
   writeData: z.object({
     general: writeDataGeneralObject,
     privacy: writeDataPrivacyObject,

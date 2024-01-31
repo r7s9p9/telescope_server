@@ -3,8 +3,8 @@ import { validate as uuidValidate } from "uuid";
 import { Token, UserId } from "../modules/types";
 
 export const token = () => {
-  async function create(jwt: JWT, id: UserId) {
-    const token = jwt.sign({ id: id });
+  async function create(jwt: JWT, userId: UserId) {
+    const token = jwt.sign({ id: userId });
     const decodedToken = jwt.decode<Token>(token);
 
     if (decodedToken !== null && decodedToken.exp) {

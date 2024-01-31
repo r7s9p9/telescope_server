@@ -94,8 +94,11 @@ export const account = (redis: FastifyRedis) => {
   async function readAccount(
     toRead: AccountReadData,
     userId: UserId,
-    targetUserId: UserId
+    targetUserId: UserId | "self"
   ) {
+    if (targetUserId === "self") {
+      targetUserId = userId;
+    }
     const result: AccountReadResult = Object.create(null);
     const relationships = await checkRelationships(userId, targetUserId);
     await readAccountProperties(

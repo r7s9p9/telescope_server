@@ -45,7 +45,8 @@ const model = (redis: FastifyRedis) => {
         fieldToWrite,
         valueToWrite
       );
-      if (result === 1) {
+      if (result === 0 || result === 1) {
+        // field exist, if not -> result === 1
         return true;
       }
     }
@@ -88,7 +89,9 @@ const model = (redis: FastifyRedis) => {
         ReadtargetUserPrivacyField,
         targetUserPrivacyValue
       );
-      if (result === 1) {
+      console.log(result);
+      if (result === 0 || result === 1) {
+        // field exist, if not -> result === 1
         return true;
       }
     }
