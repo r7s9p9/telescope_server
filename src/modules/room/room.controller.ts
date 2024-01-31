@@ -7,7 +7,7 @@ import {
   serviceRoomName,
   welcomeServiceRoomMessage,
 } from "./room.constants";
-import { readAccount } from "../account/account.controller";
+import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
 import { model } from "./room.model";
 
@@ -16,73 +16,78 @@ import { model } from "./room.model";
 // user:userid:rooms:internal:personalRoomName  Self messages           (Sorted Set)
 // room:roomId                                  Room messages           (Sorted Set)
 
-export async function createInternalRooms(redis: FastifyRedis, userId: UserId) {
-  async function createServiceRoom(redis: FastifyRedis, userId: UserId) {
-    const appFirstMessage = {
-      author: serviceRoomName,
-      content: {
-        text: welcomeServiceRoomMessage,
-      },
-    };
-    // Add message func ???????
-    await redis.zadd(
-      serviceRoomKey(userId),
-      Date.now(),
-      JSON.stringify(appFirstMessage)
-    );
-  }
-  const roomInfo: RoomInfoValues = {
-    name: serviceRoomName,
-    creatorId: userId,
-    type: "single",
-    about: "Service notifications",
-  };
+export const room = (redis: FastifyRedis) => {
+  const a = account(redis);
 
-  await initRoom(redis, roomInfo);
-  await createServiceRoom(redis, userId);
-}
-
-export async function initRoom(
-  redis: FastifyRedis,
-  roomInfo: RoomInfoValues,
-  userIdArr?: UserIdArr
-): Promise<{ userCount: number; roomId: RoomId } | { error: string }> {
-  const roomId = crypto.randomUUID();
-
-  if (roomInfo.type === "single") {
-    if (!userIdArr) {
-      await model(redis).addRoom(roomInfo.creatorId, roomId, roomInfo);
-      return { userCount: 1, roomId: roomId };
-    } else {
-      return { error: "Wrong room type selected" };
-    }
-  } else if (roomInfo.type === "public" || roomInfo.type === "private") {
-    if (!userIdArr || userIdArr.length === 0) {
-      return { error: "No members provided" };
-    }
-    const suitableUsers = new Set<UserId>();
-    for (const userId of userIdArr) {
-      const account = await readAccount(
-        redis,
-        { properties: [accountFields.properties.isCanAddToRoom] },
-        roomInfo.creatorId,
-        userId
+  async function createInternalRooms(redis: FastifyRedis, userId: UserId) {
+    async function createServiceRoom(redis: FastifyRedis, userId: UserId) {
+      const appFirstMessage = {
+        author: serviceRoomName,
+        content: {
+          text: welcomeServiceRoomMessage,
+        },
+      };
+      // Add message func ???????
+      await redis.zadd(
+        serviceRoomKey(userId),
+        Date.now(),
+        JSON.stringify(appFirstMessage)
       );
-      if (account.properties && account.properties.isCanAddToRoom === true) {
-        suitableUsers.add(userId);
-      }
     }
-    if (suitableUsers.size > 1) {
-      for (const userId of suitableUsers) {
-        await model(redis).addRoom(userId, roomId, roomInfo);
-      }
-      return { userCount: suitableUsers.size, roomId: roomId };
-    } else {
-      return { error: "No suitable users" };
-    }
+    const roomInfo: RoomInfoValues = {
+      name: serviceRoomName,
+      creatorId: userId,
+      type: "single",
+      about: "Service notifications",
+    };
+
+    await initRoom(redis, roomInfo);
+    await createServiceRoom(redis, userId);
   }
-  return { error: "Wrong room type selected" };
-}
+
+  async function initRoom(
+    redis: FastifyRedis,
+    roomInfo: RoomInfoValues,
+    userIdArr?: UserIdArr
+  ): Promise<{ userCount: number; roomId: RoomId } | { error: string }> {
+    const roomId = crypto.randomUUID();
+
+    if (roomInfo.type === "single") {
+      if (!userIdArr) {
+        await model(redis).addRoom(roomInfo.creatorId, roomId, roomInfo);
+        return { userCount: 1, roomId: roomId };
+      } else {
+        return { error: "Wrong room type selected" };
+      }
+    } else if (roomInfo.type === "public" || roomInfo.type === "private") {
+      if (!userIdArr || userIdArr.length === 0) {
+        return { error: "No members provided" };
+      }
+      const suitableUsers = new Set<UserId>();
+      for (const userId of userIdArr) {
+        const account = await a.readAccount(
+          { properties: [accountFields.properties.isCanAddToRoom] },
+          roomInfo.creatorId,
+          userId
+        );
+        if (account.properties && account.properties.isCanAddToRoom === true) {
+          suitableUsers.add(userId);
+        }
+      }
+      if (suitableUsers.size > 1) {
+        for (const userId of suitableUsers) {
+          await model(redis).addRoom(userId, roomId, roomInfo);
+        }
+        return { userCount: suitableUsers.size, roomId: roomId };
+      } else {
+        return { error: "No suitable users" };
+      }
+    }
+    return { error: "Wrong room type selected" };
+  }
+
+  return { createInternalRooms, initRoom };
+};
 
 // export async function deleteRoom(
 //   redis: FastifyRedis,

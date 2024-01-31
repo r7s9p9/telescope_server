@@ -5,9 +5,7 @@ import {
 } from "./auth.repository";
 import { RegisterBodyType, LoginBodyType, CodeBodyType } from "./auth.schema";
 import { hashPassword, verifyPassword } from "../../utils/hash";
-import { createAccount } from "../account/account.controller";
 import { FastifyRedis } from "@fastify/redis";
-import { createToken } from "../../utils/token";
 import { messageAboutServerError } from "../constants";
 import {
   messageAboutAccountCreated,
@@ -18,11 +16,15 @@ import {
   messageAboutVerificationRequired,
   messageAboutWrongCode,
 } from "./auth.constants";
+import { account } from "../account/account.controller";
 import { session } from "./session/session.controller";
+import { token } from "../../utils/token";
 import { JWT } from "@fastify/jwt";
 
 export const auth = (redis: FastifyRedis) => {
+  const a = account(redis);
   const s = session(redis);
+  const t = token();
 
   async function registerHandler(body: RegisterBodyType) {
     try {
@@ -39,7 +41,7 @@ export const auth = (redis: FastifyRedis) => {
       if (!user) {
         return messageAboutServerError;
       }
-      await createAccount(redis, user.id, user.username);
+      await a.createAccount(user.id, user.username);
       return messageAboutAccountCreated;
     } catch (e) {
       console.log(e);
@@ -70,7 +72,7 @@ export const auth = (redis: FastifyRedis) => {
       if (result) {
         return messageAboutVerificationRequired;
       }
-      const tokenData = await createToken(jwt, user.id);
+      const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
         await s.initSession(tokenData.id, tokenData.exp, ua, ip);
         return messageAboutLoginSuccessful(tokenData.raw);
@@ -98,7 +100,7 @@ export const auth = (redis: FastifyRedis) => {
       if (!isCodeCorrect) {
         return messageAboutWrongCode;
       }
-      const tokenData = await createToken(jwt, user.id);
+      const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
         await s.initSession(tokenData.id, tokenData.exp, ua, ip);
         return messageAboutLoginSuccessful(tokenData.raw);

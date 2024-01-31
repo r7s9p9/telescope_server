@@ -1,11 +1,9 @@
 import { FastifyRedis } from "@fastify/redis";
 import { UserId } from "../../types";
 import {
-  accountKey,
   messageAboutBadUserAgent,
   messageAboutServerError,
   messageAboutSessionOK,
-  sessionHashKey,
 } from "../../constants";
 import {
   messageAboutBlockedSession,
@@ -13,13 +11,14 @@ import {
   sessionStartValues,
 } from "./session.constants";
 import { messageAboutWrongToken } from "../../constants";
-import { checkToken, createToken, isNeedNewToken } from "../../../utils/token";
 import { JWT } from "@fastify/jwt";
+import { token } from "../../../utils/token";
 import { model } from "./session.model";
 import { uaChecker } from "../../../utils/user-agent";
 
 export const session = (redis: FastifyRedis) => {
   const m = model(redis);
+  const t = token();
 
   async function sessionWrapper(
     jwt: JWT,
@@ -31,7 +30,7 @@ export const session = (redis: FastifyRedis) => {
     if (!ua) {
       return messageAboutBadUserAgent;
     }
-    const tokenData = await checkToken(token);
+    const tokenData = await t.check(token);
     if (tokenData && tokenData.id && tokenData.exp) {
       const sessionResult = await checkSession({
         id: tokenData.id,
@@ -40,7 +39,7 @@ export const session = (redis: FastifyRedis) => {
         ua: ua,
       });
       if ("data" in sessionResult) {
-        const toUpdate = isNeedNewToken(tokenData.exp, daysOfTokenToBeUpdated);
+        const toUpdate = t.isNeedRefresh(tokenData.exp, daysOfTokenToBeUpdated);
         if (toUpdate) {
           return await refreshSession(jwt, tokenData, ip, ua);
         }
@@ -113,7 +112,7 @@ export const session = (redis: FastifyRedis) => {
     ip: string,
     ua: string
   ) {
-    const newToken = await createToken(jwt, oldToken.id);
+    const newToken = await t.create(jwt, oldToken.id);
     if (newToken && newToken.id && newToken.exp && newToken.raw) {
       if (oldToken.id !== newToken.id) {
         // When "old" id !== new id
@@ -193,7 +192,7 @@ export const session = (redis: FastifyRedis) => {
     if (!existResult) {
       return false;
     }
-    const sessionExpWithCode = await m.codeLocation(userId);
+    const sessionExpWithCode = await m.getCodeLocation(userId);
     if (sessionExpWithCode === null) {
       return false;
     }

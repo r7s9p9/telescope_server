@@ -4,8 +4,7 @@ import {
   validatorCompiler,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-
-import { readAccount } from "./account.controller";
+import { account } from "./account.controller";
 import { readAccountSchema, writeAccountSchema } from "./account.schema";
 
 async function accountReadRoute(fastify: FastifyInstance) {
@@ -18,8 +17,7 @@ async function accountReadRoute(fastify: FastifyInstance) {
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
       if ("token" in req.session) {
-        const result = await readAccount(
-          fastify.redis,
+        const result = await account(fastify.redis).readAccount(
           req.body.readData,
           req.session.token.id,
           req.body.readUserId
@@ -40,8 +38,7 @@ async function accountWriteRoute(fastify: FastifyInstance) {
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
       if ("token" in req.session) {
-        const result = await readAccount(
-          fastify.redis,
+        const result = await account(fastify.redis).readAccount(
           req.body.writeData,
           req.session.token.id,
           req.body.writeUserId

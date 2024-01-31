@@ -4,7 +4,6 @@ import {
   validatorCompiler,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { initRoom } from "./room.controller";
 import { RoomInfoValues } from "./room.constants";
 
 async function roomRoute(fastify: FastifyInstance) {
@@ -24,8 +23,8 @@ async function roomRoute(fastify: FastifyInstance) {
           about: "nope",
         };
         // Hardcoded !!!!
-        const result = await initRoom(fastify.redis, roomInfo);
-        return res.code(200).send(result);
+        // const result = await account(fastify.redis).initRoom(fastify.redis, roomInfo);
+        // return res.code(200).send(result);
       } else return res.code(req.session.status).send(req.session);
     },
   });

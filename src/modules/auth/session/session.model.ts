@@ -183,7 +183,7 @@ const model = (redis: FastifyRedis) => {
     return true;
   }
 
-  async function codeLocation(userId: UserId) {
+  async function getCodeLocation(userId: UserId) {
     const result = await redis.hget(accountKey(userId), "codePassedToSession");
     if (result) {
       return Number(result);
@@ -228,7 +228,7 @@ const model = (redis: FastifyRedis) => {
     removeSession,
     writeCode,
     isCodeExist,
-    codeLocation,
+    getCodeLocation,
     readCode,
     removeCode,
   };
