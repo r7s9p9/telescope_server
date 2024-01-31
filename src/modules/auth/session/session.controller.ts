@@ -1,378 +1,215 @@
 import { FastifyRedis } from "@fastify/redis";
-import parser from "ua-parser-js";
-import { verificationCodeRequest } from "./session.security-code";
 import { UserId } from "../../types";
 import {
+  accountKey,
   messageAboutBadUserAgent,
   messageAboutServerError,
   messageAboutSessionOK,
   sessionHashKey,
-  sessionSetKey,
 } from "../../constants";
 import {
   messageAboutBlockedSession,
   messageAboutNoSession,
-  sessionFields,
   sessionStartValues,
 } from "./session.constants";
 import { messageAboutWrongToken } from "../../constants";
 import { checkToken, createToken, isNeedNewToken } from "../../../utils/token";
 import { JWT } from "@fastify/jwt";
 import { model } from "./session.model";
+import { uaChecker } from "../../../utils/user-agent";
 
-export async function sessionWrapper(
-  redis: FastifyRedis,
-  jwt: JWT,
-  daysOfTokenToBeUpdated: string | number,
-  token: any,
-  ip: string,
-  ua?: string
-) {
-  if (!ua) {
-    return messageAboutBadUserAgent;
-  }
-  const tokenData = await checkToken(token);
-  if (tokenData && tokenData.id && tokenData.exp) {
-    const m = model(redis, token.id).session(token.exp);
-    const sessionResult = await checkSession(m, {
-      id: tokenData.id,
-      exp: tokenData.exp,
-      ip: ip,
-      ua: ua,
-    });
-    if ("data" in sessionResult) {
-      const toUpdate = isNeedNewToken(tokenData.exp, daysOfTokenToBeUpdated);
-      if (toUpdate) {
-        return await refreshSession(redis, jwt, tokenData, ip, ua);
-      }
-      return { token: tokenData };
+export const session = (redis: FastifyRedis) => {
+  const m = model(redis);
+
+  async function sessionWrapper(
+    jwt: JWT,
+    daysOfTokenToBeUpdated: string | number,
+    token: any,
+    ip: string,
+    ua?: string
+  ) {
+    if (!ua) {
+      return messageAboutBadUserAgent;
     }
-    return sessionResult;
+    const tokenData = await checkToken(token);
+    if (tokenData && tokenData.id && tokenData.exp) {
+      const sessionResult = await checkSession({
+        id: tokenData.id,
+        exp: tokenData.exp,
+        ip: ip,
+        ua: ua,
+      });
+      if ("data" in sessionResult) {
+        const toUpdate = isNeedNewToken(tokenData.exp, daysOfTokenToBeUpdated);
+        if (toUpdate) {
+          return await refreshSession(jwt, tokenData, ip, ua);
+        }
+        return { token: tokenData };
+      }
+      return sessionResult;
+    }
+    return messageAboutWrongToken;
   }
-  return messageAboutWrongToken;
-}
 
-type ExtractFunctionReturnType<T extends Function> = T extends (...args: infer A) => infer R ? R : never;
-
-export async function checkSession(
-  m: ExtractFunctionReturnType<typeof model>,
-  client: {
+  async function checkSession(client: {
     id: UserId;
     exp: number;
     ip: string;
     ua: string | undefined;
-  }
-) {
-  // Move this to separated decorator/preValidation?
-  if (!client.ua) {
-    return messageAboutBadUserAgent;
-  }
-  const sessionFound = await m.session(client.exp).isSessionExist();
-
-  if (sessionFound) {
-    const isBlocked = await m.getSessionData().ban();
-    if (isBlocked) {
-      return messageAboutBlockedSession;
+  }) {
+    // Move this to separated decorator/preValidation?
+    if (!client.ua) {
+      return messageAboutBadUserAgent;
     }
-
-    const isEqualIP = await m.isSessionDataEqual().ip(client.ip);
-    if (!isEqualIP) await m.updateSessionData().ip(client.ip);
-
-    const uaIsGood = await uaChecker(m, client.ua);
-    if (uaIsGood) {
-      await m.updateSessionData().online(Date.now());
-      return messageAboutSessionOK;
+    const sessionFound = await m.isSessionExist(client.id, client.exp);
+    if (sessionFound) {
+      const isBlocked = await m.getSessionData(client.id, client.exp).ban();
+      if (isBlocked) {
+        return messageAboutBlockedSession;
+      }
+      const isEqualIP = await m
+        .isSessionDataEqual(client.id, client.exp)
+        .ip(client.ip);
+      if (!isEqualIP) {
+        await m.updateSessionData(client.id, client.exp).ip(client.ip);
+      }
+      const uaIsGood = await uaChecker(
+        await m.getSessionData(client.id, client.exp).ua(),
+        client.ua
+      );
+      if (uaIsGood) {
+        await m.updateSessionData(client.id, client.exp).ua(client.ua);
+        await m.updateSessionData(client.id, client.exp).online(Date.now());
+        return messageAboutSessionOK;
+      } else {
+        await m.updateSessionData(client.id, client.exp).ban(true);
+        return messageAboutBlockedSession;
+      }
     }
-    if (!uaIsGood) {
-      await m.updateSessionData().ban(true);
-      return messageAboutBlockedSession;
-    }
+    return messageAboutNoSession;
   }
-  return messageAboutNoSession;
-}
 
-export async function isVerificationCodeRequired(
-  redis: FastifyRedis,
-  userId: UserId
-) {
-  const sessionCount = await redis.scard(sessionSetKey(userId));
-
-  if (sessionCount === 0) {
+  async function initSession(
+    userId: UserId,
+    exp: number,
+    ua: string,
+    ip: string
+  ) {
+    const isCreated = await m.createSession(
+      userId,
+      exp,
+      sessionStartValues(ua, ip)
+    );
+    if (isCreated) return true;
     return false;
   }
 
-  const allSessionsArray = await redis.smembers(sessionSetKey(userId));
-
-  if (sessionCount === 1) {
-    const selectedExpValue = Number(allSessionsArray[0]);
-    const m = model(redis, userId, selectedExpValue);
-    const sessionFound = await m.isSessionExist();
-    const sessionIsblocked = await m.getSessionData().ban();
-    const sessionGood = sessionFound && !sessionIsblocked;
-
-    if (!sessionGood) {
-      return false;
-    }
-    const recorded = await verificationCodeRequest(redis, userId, selectedExpValue);
-    return true;
-  }
-
-  if (sessionCount > 1) {
-    const suitableSessions = new Map();
-    let currentSession = 0;
-
-    for (const )
-
-    while (currentSession < allSessionsArray.length) {
-      const selectedExpValue = Number(allSessionsArray[currentSession]);
-      const sessionGood = await sessionSelector(
-        redis,
-        sessionHashKey(userId, selectedExpValue),
-        selectedExpValue,
-        sessionSetKey(userId)
+  async function refreshSession(
+    jwt: JWT,
+    oldToken: {
+      id: any;
+      exp: any;
+    },
+    ip: string,
+    ua: string
+  ) {
+    const newToken = await createToken(jwt, oldToken.id);
+    if (newToken && newToken.id && newToken.exp && newToken.raw) {
+      if (oldToken.id !== newToken.id) {
+        // When "old" id !== new id
+        return messageAboutServerError;
+      }
+      const removeOldSessionResult = await m.removeSession(
+        oldToken.id,
+        oldToken.exp
       );
 
-      if (sessionGood) {
-        const sessionOnlineValue = await redis.hget(
-          sessionHashKey(userId, selectedExpValue),
-          sessionFields.online
-        );
-        suitableSessions.set(selectedExpValue, sessionOnlineValue);
+      const createNewSessionResult = await initSession(
+        newToken.id,
+        newToken.exp,
+        ua,
+        ip
+      );
+      if (!removeOldSessionResult || !createNewSessionResult) {
+        return messageAboutServerError;
       }
-      currentSession++;
+      return {
+        newToken: { raw: newToken.raw, id: newToken.id, exp: newToken.exp },
+      };
     }
+    return messageAboutServerError;
+  }
 
-    const noSuitableSessions = suitableSessions.size === 0;
-
-    if (noSuitableSessions) {
+  async function isCodeNeeded(userId: UserId) {
+    const sessionCount = await m.getSessionCountFromSet(userId);
+    if (sessionCount === 0) {
       return false;
     }
+    const sessionsArray = await m.getAllSessionsFromSet(userId);
+    if (sessionCount >= 1) {
+      const suitableSessions = new Map<number, number>();
 
-    if (!noSuitableSessions) {
-      //
-      // Now let’s select from the Map object
-      // the session with the latest online date
-      //
-      let sessionExpForCodeReq = 0;
-
+      for (const expValue of sessionsArray) {
+        const expNumber = Number(expValue);
+        const sessionFound = await m.isSessionExist(userId, expNumber);
+        const sessionIsBlocked = await m
+          .getSessionData(userId, expNumber)
+          .ban();
+        const sessionGood = sessionFound && !sessionIsBlocked;
+        if (!sessionGood) continue;
+        // Adding the last access time from this session to Map
+        const online = await m.getSessionData(userId, expNumber).online();
+        suitableSessions.set(expNumber, online);
+      }
+      if (suitableSessions.size === 0) {
+        return false;
+      }
+      // Finding the most recent session from those that are suitable
+      let expResult = 0;
       for (const [sessionExp, sessionOnline] of suitableSessions) {
-        if (sessionExpForCodeReq === 0) {
+        if (expResult === 0) {
           // First run
-          sessionExpForCodeReq = sessionExp;
+          expResult = sessionExp;
+          continue;
         }
-        if (suitableSessions.get(sessionExpForCodeReq) < sessionOnline) {
-          sessionExpForCodeReq = sessionExp;
+        const prevOnline = suitableSessions.get(expResult);
+        if (prevOnline && prevOnline < sessionOnline) {
+          expResult = sessionExp;
         }
       }
-      await verificationCodeRequest(redis, id, sessionExpForCodeReq);
+      await createCode(userId, expResult);
       return true;
     }
+    return false;
   }
-}
 
-async function sessionSelector(
-  m: ReturnType<typeof model>,
-  selectedHashKey: string,
-  selectedExpValue: number,
-  sessionSet: string
-) {
-  const sessionIsValid = await m.isSessionExist();
-  if (sessionIsValid) {
-    const sessionIsNotBlocked = await checkSessionData(m, selectedHashKey, {
-      ban: "false",
-    });
+  async function createCode(userId: UserId, exp: number) {
+    const code = Math.floor(100000 + Math.random() * 900000);
+    return await m.writeCode(userId, exp, code);
+  }
 
-    if (sessionIsNotBlocked) {
-      return true;
-    }
-    if (!sessionIsNotBlocked) {
+  async function checkCode(userId: UserId, code: string) {
+    const existResult = m.isCodeExist(userId);
+    if (!existResult) {
       return false;
     }
-  }
-}
-
-async function checkSessionData(
-  m: ReturnType<typeof model>,
-  client: Partial<{
-    ua: string | undefined;
-    ip: string | undefined;
-    ban: string | undefined;
-  }>
-) {
-  if (client.ua) {
-    return await userAgentValidation(m, sessionHashKey, client.ua);
-  }
-  if (client.ip) {
-    return await m.isSessionDataEqual().ua(client.ip);
-  }
-  if (client.ban) {
-    return await m.isSessionDataEqual().ban(client.ban);
-  }
-  return false;
-}
-
-export async function createSession(
-  redis: FastifyRedis,
-  id: UserId,
-  exp: number,
-  ua: string,
-  ip: string
-) {
-  const hashResult = await redis.hmset(
-    sessionHashKey(id, exp),
-    sessionStartValues(ua, ip)
-  );
-  const hashExpireResult = await redis.expireat(sessionHashKey(id, exp), exp);
-
-  const setAlreadyExists = (await redis.scard(sessionSetKey(id))) !== 0;
-  const setResult = await redis.sadd(sessionSetKey(id), exp);
-
-  let setExpireResult: number;
-  if (setAlreadyExists) {
-    setExpireResult = await redis.expireat(sessionSetKey(id), exp, "GT");
-  } else {
-    setExpireResult = await redis.expireat(sessionSetKey(id), exp, "NX");
-  }
-  if (
-    hashResult === "OK" &&
-    hashExpireResult === 1 &&
-    setResult === 1 &&
-    setExpireResult === 1
-  ) {
-    return true;
-  }
-  return false;
-  // If session hash expired, but set member isnt -> session will deleted by sessionValidation()
-  // Bump session set expire every session refreshing
-}
-
-export async function refreshSession(
-  redis: FastifyRedis,
-  jwt: JWT,
-  oldToken: {
-    id: any;
-    exp: any;
-  },
-  ip: string,
-  ua: string
-) {
-  const newToken = await createToken(jwt, oldToken.id);
-  if (newToken && newToken.id && newToken.exp && newToken.raw) {
-    if (oldToken.id !== newToken.id) {
-      // When "old" id !== new id
-      return messageAboutServerError;
+    const sessionExpWithCode = await m.codeLocation(userId);
+    if (sessionExpWithCode === null) {
+      return false;
     }
-    const removeOldSessionResult = await removeSession(
-      redis,
-      sessionHashKey(oldToken.id, oldToken.exp),
-      sessionSetKey(oldToken.id),
-      oldToken.exp
-    );
-    const createNewSessionResult = await createSession(
-      redis,
-      newToken.id,
-      newToken.exp,
-      ua,
-      ip
-    );
-    if (!removeOldSessionResult || !createNewSessionResult) {
-      return messageAboutServerError;
+    const storedCode = await m.readCode(userId, sessionExpWithCode);
+    if (Number(code) === storedCode) {
+      await m.removeCode(userId, sessionExpWithCode);
+      return true;
     }
-    return {
-      newToken: { raw: newToken.raw, id: newToken.id, exp: newToken.exp },
-    };
+    return false;
   }
-  return messageAboutServerError;
-}
 
-async function removeSession(
-  redis: FastifyRedis,
-  sessionHashKey: string,
-  sessionSetKey: string,
-  sessionSetMember: number
-) {
-  const hashResult = await redis.del(sessionHashKey);
-  const setResult = await redis.srem(sessionSetKey, sessionSetMember);
-  if (hashResult === 1 && setResult === 1) {
-    return true;
-  }
-  return false;
-}
-
-async function uaChecker(m: ReturnType<typeof model>, clientUA: string) {
-  const storedUA = await m.getSessionData().ua();
-
-  if (storedUA === null) {
-    // Change alg when data in redis is bad!
-    return false;
-  }
-  if (clientUA === storedUA) {
-    return true;
-  }
-  if (uaComparator(clientUA, storedUA)) {
-    //
-    // Update the user agent if its change is not associated
-    // with significant (bad) changes on the client user agent
-    //
-    const recorded = await m.updateSessionData().ua(clientUA);
-    if (!recorded) {
-      console.log(`New UA not recorded! UA: ${clientUA}`);
-    }
-    return true;
-  }
-  return false;
-}
-
-function uaComparator(clientUA: string, storedUA: string) {
-  const parsedClientUA = parser(clientUA);
-  const parsedStoredUA = parser(storedUA);
-
-  if (parsedClientUA.browser.name !== parsedStoredUA.browser.name) {
-    return false;
-  }
-  if (
-    parsedClientUA.browser.version === undefined ||
-    (parsedStoredUA.browser.version &&
-      parsedClientUA.browser.version < parsedStoredUA.browser.version)
-  ) {
-    return false;
-  }
-  if (
-    parsedClientUA.engine.name === undefined ||
-    parsedClientUA.engine.name !== parsedStoredUA.engine.name
-  ) {
-    return false;
-  }
-  if (
-    parsedClientUA.engine.version === undefined ||
-    (parsedStoredUA.engine.version &&
-      parsedClientUA.engine.version < parsedStoredUA.engine.version)
-  ) {
-    return false;
-  }
-  if (
-    parsedClientUA.os.name === undefined ||
-    parsedClientUA.os.name !== parsedStoredUA.os.name
-  ) {
-    return false;
-  }
-  if (parsedClientUA.os.version === undefined) {
-    return false;
-  }
-  if (parsedClientUA.device.model !== parsedStoredUA.device.model) {
-    return false;
-  }
-  if (parsedClientUA.device.type !== parsedStoredUA.device.type) {
-    return false;
-  }
-  if (parsedClientUA.device.vendor !== parsedStoredUA.device.vendor) {
-    return false;
-  }
-  if (
-    parsedClientUA.cpu.architecture === undefined ||
-    parsedClientUA.cpu.architecture !== parsedStoredUA.cpu.architecture
-  ) {
-    return false;
-  }
-  return true;
-}
+  return {
+    sessionWrapper,
+    isCodeNeeded,
+    initSession,
+    createCode,
+    checkCode,
+  };
+};

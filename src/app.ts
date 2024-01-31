@@ -8,7 +8,7 @@ import { authCodeRoute, authRoute } from "./modules/auth/auth.route";
 import { Token } from "./modules/types";
 import { roomRoute } from "./modules/room/room.route";
 import { accountReadRoute } from "./modules/account/account.route";
-import { sessionWrapper } from "./modules/auth/session/session.controller";
+import { session } from "./modules/auth/session/session.controller";
 
 type Session =
   | {
@@ -77,8 +77,8 @@ const app = async () => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         await request.jwtVerify<Token>({ onlyCookie: true });
-        const result = await sessionWrapper(
-          fastify.redis,
+        const s = session(fastify.redis);
+        const result = await s.sessionWrapper(
           fastify.jwt,
           fastify.config.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED,
           request.user, // token from user

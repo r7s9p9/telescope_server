@@ -5,7 +5,7 @@ import {
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { registerSchema, loginSchema, codeSchema } from "./auth.schema";
-import { codeHandler, loginHandler, registerHandler } from "./auth.controller";
+import { auth } from "./auth.controller";
 
 const userAgentError = {
   status: 401,
@@ -31,7 +31,7 @@ async function authRoute(fastify: FastifyInstance) {
     url: "/api/auth/register",
     schema: registerSchema,
     handler: async (req, res) => {
-      const result = await registerHandler(fastify.redis, req.body);
+      const result = await auth(fastify.redis).registerHandler(req.body);
       return res.code(result.status).send(result);
     },
   });
@@ -45,8 +45,8 @@ async function authRoute(fastify: FastifyInstance) {
         return res.code(userAgentError.status).send(userAgentError.data);
       }
 
-      const result = await loginHandler(
-        fastify,
+      const result = await auth(fastify.redis).loginHandler(
+        fastify.jwt,
         req.ip,
         req.headers["user-agent"],
         req.body
@@ -89,8 +89,8 @@ async function authCodeRoute(fastify: FastifyInstance) {
       if (!req.headers["user-agent"]) {
         return res.code(userAgentError.status).send(userAgentError.data);
       }
-      const result = await codeHandler(
-        fastify,
+      const result = await auth(fastify.redis).codeHandler(
+        fastify.jwt,
         req.body,
         req.ip,
         req.headers["user-agent"]
