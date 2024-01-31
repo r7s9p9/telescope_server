@@ -1,10 +1,12 @@
 import z, { ZodLiteral } from "zod";
-import { accountFields } from "./account.constants";
+import { accountFields, accountPrivacyRules } from "./account.constants";
 import { UserId } from "../types";
 import {
   ReadTargetUserGeneralField,
   ReadTargetUserProperties,
   ReadTargetUserPrivacyField,
+  WriteTargetUserField,
+  AccountWriteData,
 } from "./account.types";
 
 const userId = z
@@ -73,44 +75,37 @@ const readBody = z.object({
   }),
 });
 
+const writeDataGeneralObject = z
+  .object({
+    username: z.string().optional(),
+    name: z.string().optional(),
+    bio: z.string().optional(),
+  })
+  .optional();
+
+const privacyRule = z.union([
+  z.literal(accountPrivacyRules.everybody),
+  z.literal(accountPrivacyRules.friends),
+  z.literal(accountPrivacyRules.nobody),
+]);
+
+const writeDataPrivacyObject = z
+  .object({
+    seeLastSeen: privacyRule,
+    seeName: privacyRule,
+    seeBio: privacyRule,
+    addToRoom: privacyRule,
+    seeRoomsContainingUser: privacyRule,
+    seeFriends: privacyRule,
+    seeProfilePhotos: privacyRule,
+  })
+  .optional();
+
 const writeBody = z.object({
   writeUserId: userId,
   writeData: z.object({
-    general: z
-      .tuple([
-        z.literal(accountFields.general.name).optional(),
-        z.literal(accountFields.general.username).optional(),
-        z.literal(accountFields.general.bio).optional(),
-        z.literal(accountFields.general.lastSeen).optional(),
-      ])
-      .transform((general) => {
-        return general as Array<ReadTargetUserGeneralField>;
-      })
-      .optional(),
-    properties: z
-      .tuple([
-        z.literal(accountFields.properties.isBlockedYou).optional(),
-        z.literal(accountFields.properties.isCanAddToRoom).optional(),
-        z.literal(accountFields.properties.isFriend).optional(),
-      ])
-      .transform((properties) => {
-        return properties as Array<ReadTargetUserProperties>;
-      })
-      .optional(),
-    privacy: z
-      .tuple([
-        z.literal(accountFields.privacy.addToRoom).optional(),
-        z.literal(accountFields.privacy.seeBio).optional(),
-        z.literal(accountFields.privacy.seeFriends).optional(),
-        z.literal(accountFields.privacy.seeLastSeen).optional(),
-        z.literal(accountFields.privacy.seeName).optional(),
-        z.literal(accountFields.privacy.seeProfilePhotos).optional(),
-        z.literal(accountFields.privacy.seeRoomsContainingUser).optional(),
-      ])
-      .transform((privacy) => {
-        return privacy as Array<ReadTargetUserPrivacyField>;
-      })
-      .optional(),
+    general: writeDataGeneralObject,
+    privacy: writeDataPrivacyObject,
   }),
 });
 

@@ -202,22 +202,18 @@ export const account = (redis: FastifyRedis) => {
       }
     }
   }
-
   async function createAccount(userId: UserId, username: string) {
-    const m = model(redis);
-    const r = room(redis);
     await m.initAccount(userId, username);
-    await r.createInternalRooms(redis, userId);
+    await room(redis).createInternalRooms(redis, userId);
   }
 
   async function updateAccount(toWrite: AccountWriteData, userId: UserId) {
     const result: AccountWriteResult = Object.create(null);
-    await writeAccountGeneralField(userId, toWrite.general, result);
-    await writeAccountPrivacyField(userId, toWrite.privacy, result);
+    await updateAccountGeneralField(userId, toWrite.general, result);
+    await updateAccountPrivacyField(userId, toWrite.privacy, result);
     return result;
   }
-
-  async function writeAccountGeneralField(
+  async function updateAccountGeneralField(
     userId: UserId,
     fieldToWrite: AccountWriteData["general"],
     result: AccountWriteResult
@@ -236,7 +232,7 @@ export const account = (redis: FastifyRedis) => {
     }
   }
 
-  async function writeAccountPrivacyField(
+  async function updateAccountPrivacyField(
     userId: UserId,
     fieldToWrite: AccountWriteData["privacy"],
     result: AccountWriteResult
@@ -254,5 +250,5 @@ export const account = (redis: FastifyRedis) => {
       }
     }
   }
-  return { readAccount, createAccount };
+  return { readAccount, createAccount, updateAccount };
 };

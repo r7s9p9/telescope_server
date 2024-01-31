@@ -3,12 +3,18 @@ import fastifyCookie from "@fastify/cookie";
 import fastifyRedis from "@fastify/redis";
 import { fastifyEnv } from "./plugins/env";
 import jwt from "@fastify/jwt";
-import { authCodeRoute, authRoute } from "./modules/auth/auth.route";
-
 import { Token } from "./modules/types";
 import { roomRoute } from "./modules/room/room.route";
-import { accountReadRoute } from "./modules/account/account.route";
+import {
+  accountReadRoute,
+  accountUpdateRoute,
+} from "./modules/account/account.route";
 import { session } from "./modules/auth/session/session.controller";
+import {
+  authCodeRoute,
+  authLoginRoute,
+  authRegisterRoute,
+} from "./modules/auth/auth.route";
 
 type Session =
   | {
@@ -89,9 +95,11 @@ const app = async () => {
           request.session = result;
         }
         if (result && "newToken" in result) {
+          // Write new token as regular
           request.session = {
             token: { id: result.newToken.id, exp: result.newToken.exp },
           };
+          // Send token in cookie if refreshed
           reply.setCookie("accessToken", result.newToken.raw, {
             secure: true,
             httpOnly: true,
@@ -125,13 +133,14 @@ const app = async () => {
     //family: 4   // (IPv4) or 6 (IPv6)
   });
 
-  await fastify.register(authRoute); // for login / register
-
+  await fastify.register(authRegisterRoute);
+  await fastify.register(authLoginRoute);
   await fastify.register(authCodeRoute);
 
   await fastify.register(accountReadRoute);
+  await fastify.register(accountUpdateRoute);
 
-  await fastify.register(roomRoute, { prefix: "api" });
+  await fastify.register(roomRoute);
 
   fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err) {
     if (err) {

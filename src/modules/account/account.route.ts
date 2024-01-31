@@ -28,20 +28,19 @@ async function accountReadRoute(fastify: FastifyInstance) {
   });
 }
 
-async function accountWriteRoute(fastify: FastifyInstance) {
+async function accountUpdateRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/account/write",
+    url: "/api/account/update",
     schema: writeAccountSchema, // Need fix schema
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
       if ("token" in req.session) {
-        const result = await account(fastify.redis).readAccount(
+        const result = await account(fastify.redis).updateAccount(
           req.body.writeData,
-          req.session.token.id,
-          req.body.writeUserId
+          req.session.token.id
         );
         return res.code(200).send(result);
       } else return res.code(req.session.status).send(req.session);
@@ -49,4 +48,4 @@ async function accountWriteRoute(fastify: FastifyInstance) {
   });
 }
 
-export { accountReadRoute };
+export { accountReadRoute, accountUpdateRoute };
