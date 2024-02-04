@@ -1,3 +1,4 @@
+import { FastifyReply } from "fastify";
 import { UserId } from "./types";
 
 export const userKeyPart = "user";
@@ -36,3 +37,15 @@ export const messageAboutBadUserAgent = {
   success: false as const,
   data: { error: { message: "User Agent is invalid" as const } },
 };
+
+export const setTokenCookie = (
+  response: FastifyReply,
+  token: { raw: string }
+) =>
+  response.setCookie("accessToken", token.raw, {
+    //domain: 'your.domain',
+    //path: '/',
+    secure: true,
+    httpOnly: true,
+    sameSite: "strict",
+  });

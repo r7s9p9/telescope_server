@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyReply } from "fastify";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -6,15 +6,7 @@ import {
 } from "fastify-type-provider-zod";
 import { registerSchema, loginSchema, codeSchema } from "./auth.schema";
 import { auth } from "./auth.controller";
-import { messageAboutBadUserAgent } from "../constants";
-
-interface LoginResult {
-  status: number;
-  data: {
-    message: string;
-    accessToken?: string;
-  };
-}
+import { setTokenCookie, messageAboutBadUserAgent } from "../constants";
 
 export async function authRegisterRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
@@ -51,22 +43,12 @@ export async function authLoginRoute(fastify: FastifyInstance) {
         req.body
       );
 
-      if (result.success) {
-        if ("token" in result) {
-          return res
-            .setCookie("accessToken", result.token.raw, {
-              //domain: 'your.domain',
-              //path: '/',
-              secure: true,
-              httpOnly: true,
-              sameSite: "strict",
-            })
-            .code(result.status)
-            .send(result.data);
-        }
+      if (result.success && "token" in result) {
+        setTokenCookie(res, result.token);
+        return res.code(result.status).send(result.data);
       }
-      // Error OR need verification code
-      return res.code(result.status).send(result);
+      // Error || need verification code
+      return res.code(result.status).send(result.data);
     },
   });
 }
@@ -91,16 +73,8 @@ export async function authCodeRoute(fastify: FastifyInstance) {
         req.headers["user-agent"]
       );
       if (result.success) {
-        return res
-          .setCookie("accessToken", result.token.raw, {
-            //domain: 'your.domain',
-            //path: '/',
-            secure: true,
-            httpOnly: true,
-            sameSite: "strict",
-          })
-          .code(result.status)
-          .send(result.data);
+        setTokenCookie(res, result.token);
+        return res.code(result.status).send(result.data);
       } else {
         return res.code(result.status).send(result.data);
       }
