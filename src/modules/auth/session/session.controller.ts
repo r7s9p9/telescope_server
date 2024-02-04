@@ -8,46 +8,49 @@ import {
 import {
   messageAboutBlockedSession,
   messageAboutNoSession,
+  messageAboutSessionRefreshed,
+  messageAboutVerifiedSession,
   sessionStartValues,
 } from "./session.constants";
-import { messageAboutWrongToken } from "../../constants";
 import { JWT } from "@fastify/jwt";
 import { token } from "../../../utils/token";
 import { model } from "./session.model";
 import { uaChecker } from "../../../utils/user-agent";
+import { FastifyInstance, FastifyRequest } from "fastify";
 
 export const session = (redis: FastifyRedis) => {
   const m = model(redis);
   const t = token();
 
   async function sessionWrapper(
-    jwt: JWT,
-    daysOfTokenToBeUpdated: string | number,
-    token: any,
-    ip: string,
-    ua?: string
+    fastify: FastifyInstance,
+    request: FastifyRequest
   ) {
-    if (!ua) {
+    if (!request.headers["user-agent"]) {
       return messageAboutBadUserAgent;
     }
-    const tokenData = await t.check(token);
-    if (tokenData && tokenData.id && tokenData.exp) {
+    const ip = request.ip;
+    const ua = request.headers["user-agent"];
+    const tokenDays = fastify.config.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED;
+    const tokenResult = await t.check(request);
+
+    if (tokenResult.success) {
       const sessionResult = await checkSession({
-        id: tokenData.id,
-        exp: tokenData.exp,
+        id: tokenResult.id,
+        exp: tokenResult.exp,
         ip: ip,
         ua: ua,
       });
-      if ("data" in sessionResult) {
-        const toUpdate = t.isNeedRefresh(tokenData.exp, daysOfTokenToBeUpdated);
-        if (toUpdate) {
-          return await refreshSession(jwt, tokenData, ip, ua);
+
+      if (sessionResult.success) {
+        if (t.isNeedRefresh(tokenResult.exp, tokenDays)) {
+          return await refreshSession(fastify.jwt, tokenResult, ip, ua);
         }
-        return { token: tokenData };
+        return messageAboutVerifiedSession(tokenResult);
       }
       return sessionResult;
     }
-    return messageAboutWrongToken;
+    return tokenResult;
   }
 
   async function checkSession(client: {
@@ -88,7 +91,7 @@ export const session = (redis: FastifyRedis) => {
     return messageAboutNoSession;
   }
 
-  async function initSession(
+  async function createSession(
     userId: UserId,
     exp: number,
     ua: string,
@@ -106,35 +109,29 @@ export const session = (redis: FastifyRedis) => {
   async function refreshSession(
     jwt: JWT,
     oldToken: {
-      id: any;
-      exp: any;
+      id: UserId;
+      exp: number;
     },
     ip: string,
     ua: string
   ) {
     const newToken = await t.create(jwt, oldToken.id);
-    if (newToken && newToken.id && newToken.exp && newToken.raw) {
-      if (oldToken.id !== newToken.id) {
-        // When "old" id !== new id
-        return messageAboutServerError;
+    if (newToken) {
+      if (oldToken.id === newToken.id) {
+        const removeOldSessionResult = await m.removeSession(
+          oldToken.id,
+          oldToken.exp
+        );
+        const createNewSessionResult = await createSession(
+          newToken.id,
+          newToken.exp,
+          ua,
+          ip
+        );
+        if (removeOldSessionResult && createNewSessionResult) {
+          return messageAboutSessionRefreshed(newToken);
+        }
       }
-      const removeOldSessionResult = await m.removeSession(
-        oldToken.id,
-        oldToken.exp
-      );
-
-      const createNewSessionResult = await initSession(
-        newToken.id,
-        newToken.exp,
-        ua,
-        ip
-      );
-      if (!removeOldSessionResult || !createNewSessionResult) {
-        return messageAboutServerError;
-      }
-      return {
-        newToken: { raw: newToken.raw, id: newToken.id, exp: newToken.exp },
-      };
     }
     return messageAboutServerError;
   }
@@ -207,7 +204,7 @@ export const session = (redis: FastifyRedis) => {
   return {
     sessionWrapper,
     isCodeNeeded,
-    initSession,
+    createSession,
     createCode,
     checkCode,
   };

@@ -16,14 +16,12 @@ export async function accountReadRoute(fastify: FastifyInstance) {
     schema: readAccountSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      if ("token" in req.session) {
-        const result = await account(fastify.redis).readAccount(
-          req.body.readData,
-          req.session.token.id,
-          req.body.readUserId
-        );
-        return res.code(200).send(result);
-      } else return res.code(req.session.status).send(req.session);
+      const result = await account(fastify.redis).readAccount(
+        req.body.readData,
+        req.session.token.id,
+        req.body.readUserId
+      );
+      return res.code(200).send(result);
     },
   });
 }
@@ -37,13 +35,11 @@ export async function accountUpdateRoute(fastify: FastifyInstance) {
     schema: writeAccountSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      if ("token" in req.session) {
-        const result = await account(fastify.redis).updateAccount(
-          req.body.writeData,
-          req.session.token.id
-        );
-        return res.code(200).send(result);
-      } else return res.code(req.session.status).send(req.session);
+      const result = await account(fastify.redis).updateAccount(
+        req.body.writeData,
+        req.session.token.id
+      );
+      return res.code(200).send(result);
     },
   });
 }

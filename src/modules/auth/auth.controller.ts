@@ -68,14 +68,20 @@ export const auth = (redis: FastifyRedis) => {
       if (!correctPassword) {
         return messageAboutInvalidEmailOrPassword;
       }
-      const result = await s.isCodeNeeded(user.id);
-      if (result) {
+      if (await s.isCodeNeeded(user.id)) {
         return messageAboutVerificationRequired;
       }
       const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
-        await s.initSession(tokenData.id, tokenData.exp, ua, ip);
-        return messageAboutLoginSuccessful(tokenData.raw);
+        const result = await s.createSession(
+          tokenData.id,
+          tokenData.exp,
+          ua,
+          ip
+        );
+        if (result) {
+          return messageAboutLoginSuccessful(tokenData);
+        }
       }
       return messageAboutServerError;
     } catch (e) {
@@ -102,8 +108,8 @@ export const auth = (redis: FastifyRedis) => {
       }
       const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
-        await s.initSession(tokenData.id, tokenData.exp, ua, ip);
-        return messageAboutLoginSuccessful(tokenData.raw);
+        await s.createSession(tokenData.id, tokenData.exp, ua, ip);
+        return messageAboutLoginSuccessful(tokenData);
       }
       return messageAboutServerError;
     } catch (e) {

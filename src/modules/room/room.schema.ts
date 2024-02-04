@@ -1,6 +1,7 @@
 import z from "zod";
 import { UserId } from "../types";
 import { roomTypeValues } from "./room.constants";
+import { RoomInfoValues } from "./room.types";
 
 const userId = z
   .string()
@@ -16,11 +17,15 @@ const roomType = z.union([
 ]);
 
 const createRoomBody = z.object({
-  roomInfo: z.object({
-    name: z.string().min(6),
-    type: roomType,
-    about: z.string().min(6),
-  }),
+  roomInfo: z
+    .object({
+      name: z.string().min(6),
+      type: roomType,
+      about: z.string().min(6),
+    })
+    .transform((roomInfo) => {
+      return roomInfo as RoomInfoValues;
+    }),
   userIdArr: userId.array().optional(),
 });
 

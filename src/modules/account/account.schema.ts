@@ -65,7 +65,7 @@ const readDataPrivacyArray = z
   .optional();
 
 const readBody = z.object({
-  readUserId: userId.or(z.literal("self")),
+  readUserId: userId,
   readData: z.object({
     general: readDataGeneralArray,
     properties: readDataPropertiesArray,

@@ -1,18 +1,18 @@
 import { userKeyPart } from "../constants";
 import { RoomId, UserId } from "../types";
-import { RoomInfoValues } from "./room.types";
+import { RoomInfoValues, WriteRoomResult } from "./room.types";
 
 export const roomTypeValues = {
-  public: "public",
-  private: "private",
-  single: "single",
+  public: "public" as const,
+  private: "private" as const,
+  single: "single" as const,
 };
 
 export const roomInfoFields = {
-  name: "name",
-  creatorId: "creatorId",
-  type: "type",
-  about: "about",
+  name: "name" as const,
+  creatorId: "creatorId" as const,
+  type: "type" as const,
+  about: "about" as const,
 };
 
 export const roomInfoStartValues = (
@@ -47,19 +47,119 @@ export const welcomePersonalRoomMessage =
 export const userRoomsSetKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${allRoomsKeyPart}`;
 
-export const personalRoomKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${personalRoomName}`;
-export const serviceRoomKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${serviceRoomName}`;
-
-export const singleRoomKey = (userId: UserId, roomId: RoomId) =>
-  `${userKeyPart}:${userId}:${internalRoomsKeyPart}:${roomId}`;
-export const singleRoomInfoKey = (userId: UserId, roomId: RoomId) =>
-  `${singleRoomKey(userId, roomId)}:info`;
-
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
-
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;
 export const roomUsersKey = (roomId: RoomId) => `${roomKey(roomId)}:users`;
 export const roomBlockedUsersKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:blockedUsers`;
+
+export const messageAboutSuccessOfCreatingRoom = (roomId: RoomId) => {
+  return {
+    status: 200,
+    data: { success: true, roomId: roomId },
+  };
+};
+
+export const messageAboutSuccessOfUpdateRoom = (updated: WriteRoomResult) => {
+  return {
+    status: 200,
+    data: { success: true, updated: updated },
+  };
+};
+
+export const messageAboutSuccessOfJoining = () => {
+  return {
+    status: 200,
+    data: { success: true },
+  };
+};
+
+export const messageAboutSuccessOfLeave = () => {
+  return {
+    status: 200,
+    data: { success: true },
+  };
+};
+
+export const messageAboutYouAreNoLongerInRoom = () => {
+  return {
+    status: 409,
+    data: { success: false },
+  };
+};
+
+export const messageAboutSuccessOfInvite = () => {
+  return {
+    status: 200,
+    data: { success: true },
+  };
+};
+
+export const messageAboutSuccessfulUserBlock = {
+  status: 200,
+  data: { success: true },
+};
+
+export const messageAboutNoOneBlocked = {
+  status: 409,
+  data: { success: false },
+};
+
+export const messageAboutNoOneInvited = {
+  status: 409,
+  data: { success: false },
+};
+
+export const messageAboutBadRequest = {
+  status: 400,
+  data: {
+    error: {
+      message: "The request is incorrectly formed",
+    },
+  },
+};
+
+export const messageAboutNoCreator = {
+  status: 403,
+  data: {
+    error: {
+      message: "Only the room creator can do this",
+    },
+  },
+};
+
+export const messageAboutLackOfPermission = {
+  status: 403,
+  data: {
+    error: {
+      message: "You don't have the right to read the room",
+    },
+  },
+};
+
+export const messageAboutAlreadyInRoom = {
+  status: 409,
+  data: {
+    error: {
+      message: "You are already in the room",
+    },
+  },
+};
+
+export const messageAboutLackOfPermissionToInvite = {
+  status: 403,
+  data: {
+    error: {
+      message: "You cannot invite this user to the room",
+    },
+  },
+};
+
+export const messageAboutLackOfPermissionToJoin = {
+  status: 403,
+  data: {
+    error: {
+      message: "You can't enter the room",
+    },
+  },
+};

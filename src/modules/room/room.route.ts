@@ -16,21 +16,18 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
     schema: createRoomSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      if ("token" in req.session) {
-        // const roomInfo: RoomInfoValues = {
-        //   name: "someRoom",
-        //   creatorId: req.session.token.id,
-        //   type: "single",
-        //   about: "nope",
-        // };
-
-        const result = await room(fastify.redis).initRoom(
-          fastify.redis,
-          req.body.roomInfo,
-          req.body.userIdArr
-        );
-        return res.code(200).send(result);
-      } else return res.code(req.session.status).send(req.session);
+      // const roomInfo: RoomInfoValues = {
+      //   name: "someRoom",
+      //      creatorId: req.session.token.id,
+      //   type: "single",
+      //   about: "nope",
+      // };
+      const result = await room(fastify.redis).createRoom(
+        req.session.token.id,
+        req.body.roomInfo,
+        req.body.userIdArr
+      );
+      return res.code(200).send(result);
     },
   });
 }
@@ -44,9 +41,7 @@ export async function roomUpdateRoute(fastify: FastifyInstance) {
     //schema: roomSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      if ("token" in req.session) {
-        // empty
-      } else return res.code(req.session.status).send(req.session);
+      // empty
     },
   });
 }
@@ -60,9 +55,7 @@ export async function roomDeleteRoute(fastify: FastifyInstance) {
     //schema: roomSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      if ("token" in req.session) {
-        // empty
-      } else return res.code(req.session.status).send(req.session);
+      // empty
     },
   });
 }

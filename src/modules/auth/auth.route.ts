@@ -6,13 +6,7 @@ import {
 } from "fastify-type-provider-zod";
 import { registerSchema, loginSchema, codeSchema } from "./auth.schema";
 import { auth } from "./auth.controller";
-
-const userAgentError = {
-  status: 401,
-  data: {
-    message: "No user agent in header",
-  },
-};
+import { messageAboutBadUserAgent } from "../constants";
 
 interface LoginResult {
   status: number;
@@ -25,14 +19,13 @@ interface LoginResult {
 export async function authRegisterRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
-
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
     url: "/api/auth/register",
     schema: registerSchema,
     handler: async (req, res) => {
       const result = await auth(fastify.redis).registerHandler(req.body);
-      return res.code(result.status).send(result);
+      return res.code(result.status).send(result.data);
     },
   });
 }
@@ -46,7 +39,9 @@ export async function authLoginRoute(fastify: FastifyInstance) {
     schema: loginSchema,
     handler: async (req, res) => {
       if (!req.headers["user-agent"]) {
-        return res.code(userAgentError.status).send(userAgentError.data);
+        return res
+          .code(messageAboutBadUserAgent.status)
+          .send(messageAboutBadUserAgent.data);
       }
 
       const result = await auth(fastify.redis).loginHandler(
@@ -56,28 +51,22 @@ export async function authLoginRoute(fastify: FastifyInstance) {
         req.body
       );
 
-      if ("data" in result) {
-        if ("accessToken" in result.data) {
-          console.log(result.data.accessToken);
-          return (
-            res
-              .setCookie("accessToken", result.data.accessToken, {
-                //domain: 'your.domain',
-                //path: '/',
-                secure: true,
-                httpOnly: true,
-                sameSite: "strict",
-              })
-              .code(result.status)
-              //.send(result.data); // accessToken needed only in cookie
-              .send()
-          );
+      if (result.success) {
+        if ("token" in result) {
+          return res
+            .setCookie("accessToken", result.token.raw, {
+              //domain: 'your.domain',
+              //path: '/',
+              secure: true,
+              httpOnly: true,
+              sameSite: "strict",
+            })
+            .code(result.status)
+            .send(result.data);
         }
-        return res.code(result.status).send(result.data);
       }
-      if ("error" in result) {
-        return res.code(result.status).send(result.error);
-      }
+      // Error OR need verification code
+      return res.code(result.status).send(result);
     },
   });
 }
@@ -91,7 +80,9 @@ export async function authCodeRoute(fastify: FastifyInstance) {
     schema: codeSchema,
     handler: async (req, res) => {
       if (!req.headers["user-agent"]) {
-        return res.code(userAgentError.status).send(userAgentError.data);
+        return res
+          .code(messageAboutBadUserAgent.status)
+          .send(messageAboutBadUserAgent.data);
       }
       const result = await auth(fastify.redis).codeHandler(
         fastify.jwt,
@@ -99,27 +90,19 @@ export async function authCodeRoute(fastify: FastifyInstance) {
         req.ip,
         req.headers["user-agent"]
       );
-      if ("data" in result) {
-        if ("accessToken" in result.data) {
-          console.log(result.data.accessToken);
-          return (
-            res
-              .setCookie("accessToken", result.data.accessToken, {
-                //domain: 'your.domain',
-                //path: '/',
-                secure: true,
-                httpOnly: true,
-                sameSite: "strict",
-              })
-              .code(result.status)
-              //.send(result.data); // accessToken needed only in cookie
-              .send()
-          );
-        }
+      if (result.success) {
+        return res
+          .setCookie("accessToken", result.token.raw, {
+            //domain: 'your.domain',
+            //path: '/',
+            secure: true,
+            httpOnly: true,
+            sameSite: "strict",
+          })
+          .code(result.status)
+          .send(result.data);
+      } else {
         return res.code(result.status).send(result.data);
-      }
-      if ("error" in result) {
-        return res.code(result.status).send(result.error);
       }
     },
   });

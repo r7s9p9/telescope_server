@@ -40,18 +40,18 @@ export type CodeBodyType = z.infer<typeof codeBody>;
 export const registerSchema = {
   header: z.string(),
   body: registerBody,
-  response: {
-    200: z.object({
-      data: z.object({
-        message: z.string(),
-      }),
-    }),
-    401: z.object({
-      error: z.object({
-        message: z.string(),
-      }),
-    }),
-  },
+  // response: {
+  //   200: z.object({
+  //     data: z.object({
+  //       message: z.string(),
+  //     }),
+  //   }),
+  //   401: z.object({
+  //     error: z.object({
+  //       message: z.string(),
+  //     }),
+  //   }),
+  // },
 };
 
 export const loginSchema = {

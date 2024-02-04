@@ -94,11 +94,8 @@ export const account = (redis: FastifyRedis) => {
   async function readAccount(
     toRead: AccountReadData,
     userId: UserId,
-    targetUserId: UserId | "self"
+    targetUserId: UserId
   ) {
-    if (targetUserId === "self") {
-      targetUserId = userId;
-    }
     const result: AccountReadResult = Object.create(null);
     const relationships = await checkRelationships(userId, targetUserId);
     await readAccountProperties(
@@ -207,7 +204,7 @@ export const account = (redis: FastifyRedis) => {
   }
   async function createAccount(userId: UserId, username: string) {
     await m.initAccount(userId, username);
-    await room(redis).createInternalRooms(redis, userId);
+    await room(redis).createServiceRoom(userId);
   }
 
   async function updateAccount(toWrite: AccountWriteData, userId: UserId) {

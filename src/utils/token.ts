@@ -1,32 +1,42 @@
 import { JWT } from "@fastify/jwt";
-import { validate as uuidValidate } from "uuid";
 import { Token, UserId } from "../modules/types";
+import { checkUserId } from "./uuid";
+import { messageAboutWrongToken } from "../modules/constants";
+import { FastifyRequest } from "fastify/types/request";
 
 export const token = () => {
   async function create(jwt: JWT, userId: UserId) {
+    // token.exp will add by fastify/jwt
     const token = jwt.sign({ id: userId });
     const decodedToken = jwt.decode<Token>(token);
-
-    if (decodedToken !== null && decodedToken.exp) {
+    if (decodedToken && decodedToken.id && decodedToken.exp) {
       return { id: decodedToken.id, exp: decodedToken.exp, raw: token };
     }
+    return null;
   }
 
-  async function check(tokenObj: any) {
+  async function check(request: FastifyRequest) {
+    const token = await request.jwtVerify<Token>({ onlyCookie: true });
     if (
-      typeof tokenObj === "object" &&
-      "id" in tokenObj &&
-      "exp" in tokenObj &&
-      typeof tokenObj.exp === "number"
+      typeof token === "object" &&
+      !Array.isArray(token) &&
+      token !== null &&
+      "id" in token &&
+      "exp" in token &&
+      typeof token.id === "string" &&
+      typeof token.exp === "number"
     ) {
-      const checkId = (uuid: any): uuid is UserId => {
-        return uuidValidate(uuid);
-      };
-      if (checkId(tokenObj.id)) {
-        return { id: tokenObj.id, exp: tokenObj.exp };
+      if (checkUserId(token.id)) {
+        const preVerifiedToken = {
+          status: 200 as const,
+          success: true as const,
+          id: token.id,
+          exp: token.exp,
+        };
+        return preVerifiedToken;
       }
     }
-    return false;
+    return messageAboutWrongToken;
   }
 
   function isNeedRefresh(exp: number, daysOfTokenToBeUpdated: number | string) {

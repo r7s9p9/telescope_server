@@ -1,293 +1,232 @@
 import { FastifyRedis } from "@fastify/redis";
-import crypto from "crypto";
-import { UserId, UserIdArr, RoomId, Message, MessageContent } from "../types";
+import { UserId, UserIdArr, RoomId } from "../types";
 import {
-  serviceRoomKey,
+  messageAboutAlreadyInRoom,
+  messageAboutBadRequest,
+  messageAboutLackOfPermission,
+  messageAboutLackOfPermissionToInvite,
+  messageAboutLackOfPermissionToJoin,
+  messageAboutNoCreator,
+  messageAboutNoOneBlocked,
+  messageAboutNoOneInvited,
+  messageAboutSuccessOfCreatingRoom,
+  messageAboutSuccessOfInvite,
+  messageAboutSuccessOfJoining,
+  messageAboutSuccessOfLeave,
+  messageAboutSuccessOfUpdateRoom,
+  messageAboutSuccessfulUserBlock,
+  messageAboutYouAreNoLongerInRoom,
+  roomInfoFields,
+  roomTypeValues,
   serviceRoomName,
   welcomeServiceRoomMessage,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
 import { model } from "./room.model";
-import { RoomInfoValues } from "./room.types";
-
-// user:userid:rooms:allRoomsKeyPart            User rooms              (Set)
-// user:userid:rooms:internal:serviceRoomName   App messages            (Sorted Set)
-// user:userid:rooms:internal:personalRoomName  Self messages           (Sorted Set)
-// room:roomId                                  Room messages           (Sorted Set)
+import {
+  CreateRoomInfo,
+  ReadRoomInfoValues,
+  RoomInfoValues,
+  WriteRoomInfo,
+} from "./room.types";
+import { randomUUID } from "crypto";
+import { messageAboutServerError } from "../constants";
 
 export const room = (redis: FastifyRedis) => {
   const a = account(redis);
+  const m = model(redis);
 
-  async function createInternalRooms(redis: FastifyRedis, userId: UserId) {
-    async function createServiceRoom(redis: FastifyRedis, userId: UserId) {
-      const appFirstMessage = {
-        author: serviceRoomName,
-        content: {
-          text: welcomeServiceRoomMessage,
-        },
-      };
-      // Add message func ???????
-      await redis.zadd(
-        serviceRoomKey(userId),
-        Date.now(),
-        JSON.stringify(appFirstMessage)
-      );
+  const isInviteAllowed = async (
+    initiatorUserId: UserId,
+    targetUserId: UserId
+  ) => {
+    const { properties } = await a.readAccount(
+      { properties: [accountFields.properties.isCanAddToRoom] },
+      initiatorUserId,
+      targetUserId
+    );
+    if (properties && properties.isCanAddToRoom) {
+      return true;
     }
-    const roomInfo: RoomInfoValues = {
+    return false;
+  };
+
+  const checkPublic = async (roomId: RoomId) => {
+    const { type } = await m.readRoomInfo(roomId, [roomInfoFields.type]);
+    return type === roomTypeValues.public;
+  };
+
+  const checkPermission = async (roomId: RoomId, userId: UserId) => {
+    const isPublic = await checkPublic(roomId);
+    if (!isPublic) {
+      const isMember = await m.isUserInRoomSet(roomId, userId);
+      if (!isMember) {
+        return false;
+      }
+    }
+    if (await m.isUserBlocked(userId, roomId)) {
+      return false;
+    }
+    return true;
+  };
+
+  async function createServiceRoom(userId: UserId) {
+    const roomInfo = {
       name: serviceRoomName,
-      type: "single",
+      type: roomTypeValues.single,
       about: "Service notifications",
     };
-
-    await initRoom(redis, userId, roomInfo);
-    await createServiceRoom(redis, userId);
+    const appFirstMessage = {
+      author: serviceRoomName,
+      content: {
+        text: welcomeServiceRoomMessage,
+      },
+    };
+    const result = await createRoom(userId, roomInfo);
+    if ("data" in result && "success" in result.data && result.data.success) {
+      // send hello message
+      // separate service room from another?
+    }
   }
 
-  async function initRoom(
-    redis: FastifyRedis,
+  async function createRoom(
     creatorId: UserId,
-    roomInfo: RoomInfoValues,
-    userIdArr?: UserIdArr
-  ): Promise<{ userCount: number; roomId: RoomId } | { error: string }> {
-    const roomId = crypto.randomUUID();
+    roomInfo: CreateRoomInfo,
+    userIdArr?: UserId[]
+  ) {
+    const isSingle = roomInfo.type === roomTypeValues.single;
+    const isUsers = userIdArr && userIdArr.length > 0;
+    const roomId = randomUUID();
+    roomInfo.creatorId = creatorId;
+    if (isSingle && !isUsers) {
+      const isCreated = await m.createRoom(roomId, [creatorId], roomInfo);
+      if (isCreated) {
+        return messageAboutSuccessOfCreatingRoom;
+      }
+      return messageAboutServerError;
+    }
+    if (!isSingle) {
+      let readyUsers: UserId[] = [];
+      if (isUsers) {
+        readyUsers = await inviteUsers(roomId, creatorId, userIdArr);
+      }
+      readyUsers.push(creatorId);
+      const isCreated = await m.createRoom(roomId, readyUsers, roomInfo);
+      if (isCreated) {
+        return messageAboutSuccessOfCreatingRoom;
+      }
+      return messageAboutServerError;
+    }
+    return messageAboutBadRequest;
+  }
 
-    if (roomInfo.type === "single") {
-      if (!userIdArr) {
-        await model(redis).addRoom(creatorId, roomId, roomInfo);
-        return { userCount: 1, roomId: roomId };
-      } else {
-        return { error: "Wrong room type selected" };
-      }
-    } else if (roomInfo.type === "public" || roomInfo.type === "private") {
-      if (!userIdArr || userIdArr.length === 0) {
-        return { error: "No members provided" };
-      }
-      const suitableUsers = new Set<UserId>();
-      for (const userId of userIdArr) {
-        const account = await a.readAccount(
-          { properties: [accountFields.properties.isCanAddToRoom] },
-          creatorId,
-          userId
-        );
-        if (account.properties && account.properties.isCanAddToRoom === true) {
-          suitableUsers.add(userId);
+  async function readRoomInfo(
+    userId: UserId,
+    roomId: RoomId,
+    toRead: Array<ReadRoomInfoValues>
+  ) {
+    if (await checkPermission(roomId, userId)) {
+      return await m.readRoomInfo(roomId, toRead);
+    }
+    return messageAboutLackOfPermission;
+  }
+
+  async function updateRoomInfo(
+    userId: UserId,
+    roomId: RoomId,
+    roomInfo: WriteRoomInfo
+  ) {
+    const creator = await m.isCreator(userId, roomId);
+    if (creator) {
+      const result = await m.updateRoomInfo(roomId, roomInfo);
+      return messageAboutSuccessOfUpdateRoom(result);
+    }
+    return messageAboutLackOfPermission;
+  }
+
+  async function readRoomUsers(userId: UserId, roomId: RoomId) {
+    if (await checkPermission(roomId, userId)) {
+      return await m.readUsers(roomId);
+    }
+    return messageAboutLackOfPermission;
+  }
+
+  async function joinRoom(roomId: RoomId, userId: UserId) {
+    const isPublic = await checkPublic(roomId);
+    if (isPublic) {
+      const isBlocked = await m.isUserBlocked(roomId, userId);
+      if (!isBlocked) {
+        const result = await m.addUsers(roomId, [userId]);
+        if (result[0] === userId) {
+          return messageAboutSuccessOfJoining;
         }
-      }
-      if (suitableUsers.size > 1) {
-        for (const userId of suitableUsers) {
-          await model(redis).addRoom(userId, roomId, roomInfo);
-        }
-        return { userCount: suitableUsers.size, roomId: roomId };
-      } else {
-        return { error: "No suitable users" };
+        return messageAboutServerError;
       }
     }
-    return { error: "Wrong room type selected" };
+    return messageAboutLackOfPermissionToJoin;
   }
 
-  return { createInternalRooms, initRoom };
+  async function leaveRoom(roomId: RoomId, userId: UserId) {
+    const result = await m.removeUsers(roomId, [userId]);
+    if (result[0] === userId) {
+      return messageAboutSuccessOfLeave;
+    }
+    return messageAboutYouAreNoLongerInRoom;
+  }
+
+  async function inviteUsers(
+    roomId: RoomId,
+    initiatorUserId: UserId,
+    userIdArr: UserId[]
+  ) {
+    const readyUsers: UserId[] = [];
+    for (const userId of userIdArr) {
+      const isAllow = await isInviteAllowed(initiatorUserId, userId);
+      if (isAllow) {
+        readyUsers.push(userId);
+      }
+    }
+    return await m.addUsers(roomId, readyUsers);
+  }
+
+  async function inviteUsersWrapper(
+    roomId: RoomId,
+    initiatorUserId: UserId,
+    userIdArr: UserId[]
+  ) {
+    const invited = await inviteUsers(roomId, initiatorUserId, userIdArr);
+    if (invited.length !== 0) {
+      return messageAboutSuccessOfInvite;
+    }
+    return messageAboutNoOneInvited;
+  }
+
+  async function blockUser(
+    roomId: RoomId,
+    initiatorUserId: UserId,
+    userIdArr: UserId[]
+  ) {
+    const creator = await m.isCreator(roomId, initiatorUserId);
+    if (!creator) {
+      return messageAboutNoCreator;
+    }
+    const result = await m.blockUsers(roomId, userIdArr);
+    if (result.length !== 0) {
+      return messageAboutSuccessfulUserBlock;
+    }
+    return messageAboutNoOneBlocked;
+  }
+
+  return {
+    createServiceRoom,
+    createRoom,
+    readRoomInfo,
+    updateRoomInfo,
+    readRoomUsers,
+    blockUser,
+    joinRoom,
+    leaveRoom,
+    inviteUsersWrapper,
+  };
 };
-
-// export async function deleteRoom(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   const creatorid = await redis.hget(roomInfoKey(roomId), "creator");
-//   if (creatorid === userId) {
-//     // Bad idea to remove all at once
-//     await redis.del(roomKey(roomId));
-//     await redis.del(roomInfoKey(roomId));
-//     await redis.del(roomUsersKey(roomId));
-//     await redis.del(roomBlockedUsersKey(roomId));
-//     return true;
-//   }
-//   return false;
-// }
-
-// export async function updateRoom(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId,
-//   roomInfo: RoomInfoValues
-// ) {
-//   if (await model.isCreator(redis, userId, roomId)) {
-//     if (roomInfo.name) {
-//       await redis.hset(roomKey(roomId), roomInfo.name);
-//     }
-//     if (roomInfo.type) {
-//       await redis.hset(roomKey(roomId), roomInfo.type);
-//     }
-//     if (roomInfo.about) {
-//       await redis.hset(roomKey(roomId), roomInfo.about);
-//     }
-//     return true;
-//   }
-//   return false;
-// }
-
-// export async function readRoomInfo(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await checkAccessToRoom(redis, userId, roomId)) {
-//     const roomInfo = await redis.hmget(
-//       roomInfoKey(roomId),
-//       roomInfoFields.name,
-//       roomInfoFields.creator,
-//       roomInfoFields.type,
-//       roomInfoFields.about
-//     );
-//     return roomInfo;
-//   }
-//   return false;
-// }
-
-// export async function readRoomUsers(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await checkAccessToRoom(redis, userId, roomId)) {
-//     return await redis.smembers(roomUsersKey(roomId));
-//   }
-//   return false;
-// }
-
-// export async function readRoomUserCount(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await checkAccessToRoom(redis, userId, roomId)) {
-//     return false;
-//   }
-//   return await redis.scard(roomUsersKey(roomId));
-// }
-
-// export async function readRoomContent(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId,
-//   position: number,
-//   range: number
-// ) {
-//   if (await checkAccessToRoom(redis, userId, roomId)) {
-//     const startIndex = position;
-//     const stopIndex = position + range;
-//     return await redis.zrevrange(roomKey(roomId), startIndex, stopIndex);
-//   }
-// }
-
-// export async function addMessage(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId,
-//   content: MessageContent
-// ) {
-//   if (await checkAccessToPosting(redis, userId, roomId)) {
-//     const message: Message = {
-//       author: userId,
-//       content: content,
-//     };
-
-//     await redis.zadd(roomKey(roomId), Date.now(), JSON.stringify(message));
-//   }
-// }
-
-// export async function checkAccessToPosting(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await checkAccessToRoom(redis, userId, roomId)) {
-//     return await redis.sismember(roomUsersKey(roomId), userId);
-//   }
-// }
-
-// export async function checkAccessToRoom(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await isUserBlockedInRoom(redis, userId, roomId)) {
-//     return false;
-//   }
-//   const roomType = await redis.hget(roomInfoKey(roomId), "type");
-//   if (roomType === "public") {
-//     return true;
-//   }
-//   if (
-//     (await isMember(redis, userId, roomId)) ||
-//     (await model.isCreator(redis, userId, roomId))
-//   ) {
-//     return true;
-//   }
-
-//   return false;
-// }
-
-// export async function addUserToRoom(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   creatorId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await model.isCreator(redis, creatorId, roomId)) {
-//     const account = await readAccount(
-//       redis,
-//       { properties: [accountFields.properties.isCanAddToRoom] },
-//       creatorId,
-//       userId
-//     );
-//     if (account.get(accountFields.properties.isCanAddToRoom)) {
-//       await model.addUser(redis, userId, roomId);
-//       return true;
-//     } else return false;
-//   }
-// }
-
-// export async function removeUserFromRoom(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   targetUserId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (userId === targetUserId || (await isCreator(redis, userId, roomId))) {
-//     await redis.srem(roomUsersKey(roomId), targetUserId);
-//     await redis.srem(userRoomsSetKey(userId), roomId);
-//   }
-// }
-
-// export async function blockUser(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   creatorId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await isCreator(redis, creatorId, roomId)) {
-//     await redis.sadd(roomBlockedUsersKey(roomId), userId);
-//     await removeUserFromRoom(redis, creatorId, userId, roomId);
-//   }
-// }
-
-// export async function unblockUser(
-//   redis: FastifyRedis,
-//   userid: UserId,
-//   creatorId: UserId,
-//   roomId: RoomId
-// ) {
-//   if (await isCreator(redis, creatorId, roomId)) {
-//     await redis.srem(roomBlockedUsersKey(roomId), userid);
-//   }
-// }
-
-// export async function isMember(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   roomId: RoomId
-// ) {
-//   return await redis.sismember(roomUsersKey(roomId), userId);
-// }
