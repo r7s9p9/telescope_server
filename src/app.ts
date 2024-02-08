@@ -65,7 +65,8 @@ const app = async () => {
     "preSerialization",
     async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
       if (!isProd) {
-        if (payload.dev && payload.dev.session) {
+        console.log(payload);
+        if (request.session && payload.dev) {
           payload.dev.session = request.session;
         }
       }
