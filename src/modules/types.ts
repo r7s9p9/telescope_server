@@ -27,9 +27,7 @@ export type goodSession =
         id: UserId;
         exp: number;
       };
-      data: {
-        dev?: DevData;
-      };
+      message?: string[] | readonly string[];
     }
   | {
       status: 200;
@@ -40,9 +38,7 @@ export type goodSession =
         id: UserId;
         exp: number;
       };
-      data: {
-        dev?: DevData;
-      };
+      message?: string[] | readonly string[];
     };
 
 export interface DevData {

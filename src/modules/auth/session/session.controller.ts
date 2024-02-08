@@ -24,11 +24,8 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
     fastify: FastifyInstance,
     request: FastifyRequest
   ) {
-    if (!request.headers["user-agent"]) {
-      return payloadBadUserAgent(isProd);
-    }
     const ip = request.ip;
-    const ua = request.headers["user-agent"];
+    const ua = request.ua;
     const tokenDays = fastify.config.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED;
     const tokenResult = await t.check(request, isProd);
 
@@ -55,12 +52,8 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
     id: UserId;
     exp: number;
     ip: string;
-    ua: string | undefined;
+    ua: string;
   }) {
-    // Move this to separated decorator/preValidation?
-    if (!client.ua) {
-      return payloadBadUserAgent(isProd);
-    }
     const sessionFound = await m.isSessionExist(client.id, client.exp);
     if (sessionFound) {
       const isBlocked = await m.getSessionData(client.id, client.exp).ban();

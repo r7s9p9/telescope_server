@@ -28,9 +28,7 @@ export const payloadWrongToken = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
-    data: {
-      dev: !isProd ? { message: ["Token is invalid"] as const } : undefined,
-    },
+    message: !isProd ? (["Token is invalid"] as const) : undefined,
   };
 };
 
@@ -46,11 +44,8 @@ export const payloadBadUserAgent = (isProd: boolean) => {
   };
 };
 
-export const setTokenCookie = (
-  response: FastifyReply,
-  token: { raw: string }
-) =>
-  response.setCookie("accessToken", token.raw, {
+export const setTokenCookie = (reply: FastifyReply, token: { raw: string }) =>
+  reply.setCookie("accessToken", token.raw, {
     //domain: 'your.domain',
     //path: '/',
     secure: true,

@@ -29,11 +29,9 @@ export const payloadVerifiedSession = (
     status: 200 as const,
     success: true as const,
     token: { isNew: false as const, id: tokenData.id, exp: tokenData.exp },
-    data: {
-      dev: !isProd
-        ? { message: ["The session successfully passed all checks"] as const }
-        : undefined,
-    },
+    message: !isProd
+      ? (["The session successfully passed all checks"] as const)
+      : undefined,
   };
 };
 
@@ -54,11 +52,9 @@ export const payloadSessionRefreshed = (
       id: tokenData.id,
       exp: tokenData.exp,
     },
-    data: {
-      dev: !isProd
-        ? { message: ["Session refreshed successfully"] as const }
-        : undefined,
-    },
+    message: !isProd
+      ? (["Session refreshed successfully"] as const)
+      : undefined,
   };
 };
 
@@ -66,9 +62,7 @@ export const payloadBlockedSession = (isProd: boolean) => {
   return {
     status: 403 as const,
     success: false as const,
-    data: {
-      dev: !isProd ? { message: ["Session is banned"] as const } : undefined,
-    },
+    message: !isProd ? (["Session is banned"] as const) : undefined,
   };
 };
 
@@ -76,11 +70,7 @@ export const payloadNoSession = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
-    data: {
-      dev: !isProd
-        ? { message: ["Session Not Found. Log in."] as const }
-        : undefined,
-    },
+    message: !isProd ? (["Session Not Found. Log in."] as const) : undefined,
   };
 };
 
@@ -88,9 +78,7 @@ export const payloadSessionOK = (isProd: boolean) => {
   return {
     status: 200 as const,
     success: true as const,
-    data: {
-      dev: !isProd ? { message: ["Session OK"] as const } : undefined,
-    },
+    message: !isProd ? (["Session OK"] as const) : undefined,
   };
 };
 
@@ -98,10 +86,6 @@ export const payloadBadUserAgent = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
-    data: {
-      dev: !isProd
-        ? { message: ["User Agent is invalid"] as const }
-        : undefined,
-    },
+    message: !isProd ? (["User Agent is invalid"] as const) : undefined,
   };
 };

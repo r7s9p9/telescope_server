@@ -19,6 +19,7 @@ import {
   roomDeleteRoute,
   roomUpdateRoute,
 } from "./modules/room/room.route";
+import { payloadBadUserAgent, setTokenCookie } from "./modules/constants";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -26,17 +27,11 @@ declare module "fastify" {
     checkSession: any;
   }
   export interface FastifyRequest {
+    ua: string;
     session: goodSession;
     token: Token;
-    //user: string | object | Buffer; // this is token with content from fastify/jwt
   }
 }
-
-// declare module "@fastify/jwt" {
-//   export interface fastifyJWT {
-//     user: Token; // Change user to some other naming
-//   }
-// }
 
 const app = async () => {
   const fastify = Fastify({
@@ -53,10 +48,9 @@ const app = async () => {
       algorithm: fastify.config.JWT_ALG,
       expiresIn: fastify.config.JWT_EXPIRATION, // for client-side logic
       noTimestamp: true, // disable iat inserting in token
-      //clockTimestamp: Date.now(),
     },
     verify: {
-      algorithms: [fastify.config.JWT_ALG], // only this alg
+      algorithms: [fastify.config.JWT_ALG], // accept only this alg
       maxAge: fastify.config.JWT_EXPIRATION,
     },
     cookie: {
@@ -65,24 +59,29 @@ const app = async () => {
     },
   });
 
+  const isProd = fastify.config.APP_IS_PROD;
+
   fastify.addHook(
     "preSerialization",
     async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
-      // Temp inverting constant
-      // if (fastify.config.APP_IS_PROD) {
-      //   const devError = payload?.devError;
-      //   const regularDevMessage = payload?.devMessage;
-      //   if (!devError && !regularDevMessage) {
-      //     return payload;
-      //   }
-      //   if (devError) {
-      //     delete payload.devError;
-      //   }
-      //   if (regularDevMessage) {
-      //     delete payload.devMessage;
-      //   }
-      // }
+      if (!isProd) {
+        if (payload.dev && payload.dev.session) {
+          payload.dev.session = request.session;
+        }
+      }
       return payload;
+    }
+  );
+
+  fastify.addHook(
+    "preValidation",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!request.headers["user-agent"]) {
+        const payload = payloadBadUserAgent(isProd);
+        return reply.code(payload.status).send(payload.data);
+      } else {
+        request.ua = request.headers["user-agent"];
+      }
     }
   );
 
@@ -90,21 +89,19 @@ const app = async () => {
     "checkSession",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const result = await session(
-          fastify.redis,
-          fastify.config.APP_IS_PROD
-        ).sessionWrapper(fastify, request);
-        if (result.success) {
-          request.session = result;
-          if (result.token.isNew) {
-            reply.setCookie("accessToken", result.token.raw, {
-              secure: true,
-              httpOnly: true,
-              sameSite: "strict",
-            });
+        const sessionData = await session(fastify.redis, isProd).sessionWrapper(
+          fastify,
+          request
+        );
+        if (sessionData.success) {
+          if (sessionData.token.isNew) {
+            setTokenCookie(reply, sessionData.token);
           }
+          request.session = sessionData;
         } else {
-          return reply.code(result.status).send(result.data);
+          return reply
+            .code(sessionData.status)
+            .send(!isProd ? sessionData : undefined);
         }
       } catch (e) {
         return reply.send(e);
