@@ -16,17 +16,10 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
     schema: createRoomSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      // const roomInfo: RoomInfoValues = {
-      //   name: "someRoom",
-      //      creatorId: req.session.token.id,
-      //   type: "single",
-      //   about: "nope",
-      // };
-      const result = await room(fastify.redis).createRoom(
-        req.session.token.id,
-        req.body.roomInfo,
-        req.body.userIdArr
-      );
+      const result = await room(
+        fastify.redis,
+        fastify.config.APP_IS_PROD
+      ).createRoom(req.session.token.id, req.body.roomInfo, req.body.userIdArr);
       return res.code(200).send(result);
     },
   });

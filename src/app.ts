@@ -65,14 +65,35 @@ const app = async () => {
     },
   });
 
+  fastify.addHook(
+    "preSerialization",
+    async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
+      // Temp inverting constant
+      // if (fastify.config.APP_IS_PROD) {
+      //   const devError = payload?.devError;
+      //   const regularDevMessage = payload?.devMessage;
+      //   if (!devError && !regularDevMessage) {
+      //     return payload;
+      //   }
+      //   if (devError) {
+      //     delete payload.devError;
+      //   }
+      //   if (regularDevMessage) {
+      //     delete payload.devMessage;
+      //   }
+      // }
+      return payload;
+    }
+  );
+
   fastify.decorate(
     "checkSession",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const result = await session(fastify.redis).sessionWrapper(
-          fastify,
-          request
-        );
+        const result = await session(
+          fastify.redis,
+          fastify.config.APP_IS_PROD
+        ).sessionWrapper(fastify, request);
         if (result.success) {
           request.session = result;
           if (result.token.isNew) {

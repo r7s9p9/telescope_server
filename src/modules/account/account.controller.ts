@@ -1,7 +1,18 @@
 import { FastifyRedis } from "@fastify/redis";
 import { model } from "./account.model";
-import { UserId } from "../types";
-import { accountFields, accountPrivacyRules } from "./account.constants";
+import { DevData, UserId } from "../types";
+import {
+  accountFields,
+  accountPrivacyRules,
+  accountReaded,
+  accountUpdated,
+  devMessageAboutAccountDoesNotExist,
+  devMessageAboutBadReadPrivacy,
+  devMessageReadAccount,
+  devMessageWriteAccount,
+  devTargetUserId,
+  devUserId,
+} from "./account.constants";
 import { room } from "../room/room.controller";
 import {
   AccountReadData,
@@ -14,12 +25,44 @@ import {
   ReadTargetUserRoomField,
   ReadTargetUserPrivacyField,
   WriteTargetUserField,
+  Relationships,
 } from "./account.types";
 
-type Relationships = {
-  sameUser: boolean;
-  friend: boolean;
-  ban: boolean;
+const collectDevData = (isProd: boolean) => {
+  const read = (
+    toRead: AccountReadData,
+    userId: UserId,
+    targetUserId: UserId,
+    isAccountExist: boolean,
+    relationships: Relationships
+  ) => {
+    if (!isProd) {
+      const dev: DevData = {};
+      dev.message = [devUserId(userId), devTargetUserId(targetUserId)];
+      if (!isAccountExist) {
+        dev.error = {};
+        dev.error.message = [devMessageAboutAccountDoesNotExist];
+        return dev;
+      }
+      if (toRead.privacy && relationships && !relationships.sameUser) {
+        dev.error = {};
+        dev.error.message = [devMessageAboutBadReadPrivacy];
+      }
+      dev.message = dev.message.concat(
+        devMessageReadAccount(toRead, relationships)
+      );
+      return dev;
+    }
+  };
+  const write = (toWrite: AccountWriteData, userId: UserId) => {
+    if (!isProd) {
+      const dev: DevData = {};
+      dev.message = devMessageWriteAccount(toWrite);
+      dev.message = dev.message.concat(devUserId(userId));
+      return dev;
+    }
+  };
+  return { read, write };
 };
 
 const accessSolver = (
@@ -49,7 +92,7 @@ const accessSolver = (
   }
 };
 
-export const account = (redis: FastifyRedis) => {
+export const account = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
   async function accessChecker(
@@ -84,7 +127,10 @@ export const account = (redis: FastifyRedis) => {
     return false;
   }
 
-  async function checkRelationships(userId: UserId, targetUserId: UserId) {
+  async function checkRelationships(
+    userId: UserId,
+    targetUserId: UserId
+  ): Promise<Relationships> {
     const sameUser = userId === targetUserId;
     const friend = await m.isFriend(userId, targetUserId);
     const ban = await m.isUserBlockedByUser(userId, targetUserId);
@@ -92,80 +138,84 @@ export const account = (redis: FastifyRedis) => {
   }
 
   async function readAccount(
-    toRead: AccountReadData,
     userId: UserId,
-    targetUserId: UserId
+    targetUserId: UserId,
+    toRead: AccountReadData
   ) {
     const result: AccountReadResult = Object.create(null);
+    result.data = Object.create(null);
+    const isTargetExist = await m.isAccountExist(targetUserId);
     const relationships = await checkRelationships(userId, targetUserId);
-    await readAccountProperties(
+    if (isTargetExist) {
+      result.data.properties = await readAccountProperties(
+        targetUserId,
+        relationships,
+        toRead.properties
+      );
+      result.data.general = await readAllowedGeneralField(
+        targetUserId,
+        relationships,
+        toRead.general
+      );
+      result.data.privacy = await readAccountPrivacyField(
+        targetUserId,
+        relationships,
+        toRead.privacy
+      );
+    }
+    result.data.dev = collectDevData(isProd).read(
+      toRead,
+      userId,
       targetUserId,
-      relationships,
-      toRead.properties,
-      result
+      isTargetExist,
+      relationships
     );
-    await readAllowedGeneralField(
-      targetUserId,
-      relationships,
-      toRead.general,
-      result
-    );
-    await readAccountPrivacyField(
-      targetUserId,
-      relationships,
-      toRead.privacy,
-      result
-    );
-    return result;
+    return accountReaded(result);
   }
 
   async function readAccountProperties(
     targetUserId: UserId,
     relationships: Relationships,
-    fieldToRead: AccountReadData["properties"],
-    result: AccountReadResult
+    propertiesToRead: AccountReadData["properties"]
   ) {
-    if (fieldToRead) {
-      result.properties = {};
+    if (propertiesToRead) {
+      const properties: AccountReadResult["data"]["properties"] = {};
       let value: string;
-      for (value of fieldToRead) {
+      for (value of propertiesToRead) {
         if (accountFields.properties.isFriend === value) {
-          result.properties.isFriend =
-            relationships.friend && !relationships.ban;
+          properties.isFriend = relationships.friend && !relationships.ban;
         }
-
         if (accountFields.properties.isCanAddToRoom === value) {
-          result.properties.isCanAddToRoom = await accessChecker(
+          properties.isCanAddToRoom = await accessChecker(
             targetUserId,
             relationships,
             accountFields.properties.isCanAddToRoom
           );
         }
         if (accountFields.properties.isBlockedYou === value) {
-          result.properties.isBlockedYou = relationships.ban;
-
-          console.log(result.properties.isBlockedYou);
+          properties.isBlockedYou = relationships.ban;
         }
       }
+      return properties;
     }
   }
 
   async function readAllowedGeneralField(
     targetUserId: UserId,
     relationships: Relationships,
-    fieldToRead: AccountReadData["general"],
-    result: AccountReadResult
+    generalToRead: AccountReadData["general"]
   ) {
-    if (fieldToRead) {
-      result.general = {};
+    if (generalToRead) {
+      const general: AccountReadResult["data"]["general"] = {};
       let value: ReadTargetUserGeneralField;
-      for (value of fieldToRead) {
-        result.general[value] = await readAllowedGeneralValue(
+      for (value of generalToRead) {
+        general[value] = await readAllowedGeneralValue(
           targetUserId,
           relationships,
           value
         );
       }
+      return general;
     }
   }
 
@@ -187,68 +237,71 @@ export const account = (redis: FastifyRedis) => {
   async function readAccountPrivacyField(
     targetUserId: UserId,
     relationships: Relationships,
-    fieldToRead: AccountReadData["privacy"],
-    result: AccountReadResult
+    fieldToRead: AccountReadData["privacy"]
   ) {
     if (fieldToRead && relationships.sameUser) {
-      result.privacy = {};
+      const privacy: AccountReadResult["data"]["privacy"] = {};
       let item: ReadTargetUserPrivacyField;
       for (item of fieldToRead) {
         const privacyRule = accountFields.privacy[item];
-        result.privacy[privacyRule] = await m.readAccountPrivacyValue(
+        privacy[privacyRule] = await m.readAccountPrivacyValue(
           targetUserId,
           privacyRule
         );
       }
+      return privacy;
     }
   }
-  async function createAccount(userId: UserId, username: string) {
-    await m.initAccount(userId, username);
-    await room(redis).createServiceRoom(userId);
+
+  async function updateAccount(userId: UserId, toWrite: AccountWriteData) {
+    const result: AccountWriteResult = Object.create(null);
+    result.data = Object.create(null);
+    result.data.general = await updateAccountGeneralField(
+      userId,
+      toWrite.general
+    );
+    result.data.privacy = await updateAccountPrivacyField(
+      userId,
+      toWrite.privacy
+    );
+    result.data.dev = collectDevData(isProd).write(toWrite, userId);
+    return accountUpdated(result);
   }
 
-  async function updateAccount(toWrite: AccountWriteData, userId: UserId) {
-    const result: AccountWriteResult = Object.create(null);
-    await updateAccountGeneralField(userId, toWrite.general, result);
-    await updateAccountPrivacyField(userId, toWrite.privacy, result);
-    return result;
-  }
   async function updateAccountGeneralField(
     userId: UserId,
-    fieldToWrite: AccountWriteData["general"],
-    result: AccountWriteResult
+    generalToWrite: AccountWriteData["general"]
   ) {
-    if (fieldToWrite) {
-      result.general = {};
+    if (generalToWrite) {
+      const general: AccountWriteResult["data"]["general"] = {};
       let key: WriteTargetUserField;
-      for (key in fieldToWrite) {
-        const value = fieldToWrite[key];
-        result.general[key] = await m.writeAccountGeneralValue(
-          userId,
-          key,
-          value
-        );
+      for (key in generalToWrite) {
+        const value = generalToWrite[key];
+        general[key] = await m.writeAccountGeneralValue(userId, key, value);
       }
+      return general;
     }
   }
 
   async function updateAccountPrivacyField(
     userId: UserId,
-    fieldToWrite: AccountWriteData["privacy"],
-    result: AccountWriteResult
+    privacyToWrite: AccountWriteData["privacy"]
   ) {
-    if (fieldToWrite) {
-      result.privacy = {};
+    if (privacyToWrite) {
+      const privacy: AccountWriteResult["data"]["privacy"] = {};
       let key: ReadTargetUserPrivacyField;
-      for (key in fieldToWrite) {
-        const value = fieldToWrite[key];
-        result.privacy[key] = await m.writeAccountPrivacyValue(
-          userId,
-          key,
-          value
-        );
+      for (key in privacyToWrite) {
+        const value = privacyToWrite[key];
+        privacy[key] = await m.writeAccountPrivacyValue(userId, key, value);
       }
+      return privacy;
     }
   }
+
+  async function createAccount(userId: UserId, username: string) {
+    const initResult = await m.initAccount(userId, username);
+    await room(redis, isProd).createServiceRoom(userId);
+  }
+
   return { readAccount, createAccount, updateAccount };
 };

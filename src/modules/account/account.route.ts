@@ -16,12 +16,13 @@ export async function accountReadRoute(fastify: FastifyInstance) {
     schema: readAccountSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      const result = await account(fastify.redis).readAccount(
-        req.body.readData,
+      const a = account(fastify.redis, fastify.config.APP_IS_PROD);
+      const result = await a.readAccount(
         req.session.token.id,
-        req.body.readUserId
+        req.body.readUserId,
+        req.body.readData
       );
-      return res.code(200).send(result);
+      return res.code(result.status).send(result.data);
     },
   });
 }
@@ -35,11 +36,12 @@ export async function accountUpdateRoute(fastify: FastifyInstance) {
     schema: writeAccountSchema,
     preHandler: [fastify.checkSession],
     handler: async (req, res) => {
-      const result = await account(fastify.redis).updateAccount(
-        req.body.writeData,
-        req.session.token.id
+      const a = account(fastify.redis, fastify.config.APP_IS_PROD);
+      const result = await a.updateAccount(
+        req.session.token.id,
+        req.body.writeData
       );
-      return res.code(200).send(result);
+      return res.code(result.status).send(result.data);
     },
   });
 }

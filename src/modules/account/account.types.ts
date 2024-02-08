@@ -1,5 +1,11 @@
-import { Message, RoomId, UserId, UserIdArr } from "../types";
-import { accountFields, accountPrivacyRules } from "./account.constants";
+import { DevData } from "../types";
+import { accountFields } from "./account.constants";
+
+export type Relationships = {
+  sameUser: boolean;
+  friend: boolean;
+  ban: boolean;
+};
 
 export type AccountPrivacyRules = "everybody" | "friends" | "nobody";
 
@@ -42,25 +48,30 @@ export interface AccountReadData {
 }
 
 export interface AccountReadResult {
-  general?: {
-    username?: string | null;
-    name?: string | null;
-    bio?: string | null;
-    lastSeen?: string | null;
-  };
-  properties?: {
-    isBlockedYou?: boolean;
-    isFriend?: boolean;
-    isCanAddToRoom?: boolean;
-  };
-  privacy?: {
-    seeLastSeen?: AccountPrivacyRules | null;
-    seeName?: AccountPrivacyRules | null;
-    seeBio?: AccountPrivacyRules | null;
-    addToRoom?: AccountPrivacyRules | null;
-    seeRoomsContainingUser?: AccountPrivacyRules | null;
-    seeFriends?: AccountPrivacyRules | null;
-    seeProfilePhotos?: AccountPrivacyRules | null;
+  success: boolean;
+  status: number;
+  data: {
+    general?: {
+      username?: string | null;
+      name?: string | null;
+      bio?: string | null;
+      lastSeen?: string | null;
+    };
+    properties?: {
+      isBlockedYou?: boolean;
+      isFriend?: boolean;
+      isCanAddToRoom?: boolean;
+    };
+    privacy?: {
+      seeLastSeen?: AccountPrivacyRules | null;
+      seeName?: AccountPrivacyRules | null;
+      seeBio?: AccountPrivacyRules | null;
+      addToRoom?: AccountPrivacyRules | null;
+      seeRoomsContainingUser?: AccountPrivacyRules | null;
+      seeFriends?: AccountPrivacyRules | null;
+      seeProfilePhotos?: AccountPrivacyRules | null;
+    };
+    dev?: DevData;
   };
 }
 
@@ -87,67 +98,23 @@ export interface AccountWriteData {
 }
 
 export interface AccountWriteResult {
-  general?: {
-    username?: boolean;
-    name?: boolean;
-    bio?: boolean;
-  };
-  privacy?: {
-    seeLastSeen?: boolean;
-    seeName?: boolean;
-    seeBio?: boolean;
-    addToRoom?: boolean;
-    seeRoomsContainingUser?: boolean;
-    seeFriends?: boolean;
-    seeProfilePhotos?: boolean;
+  success: boolean;
+  status: number;
+  data: {
+    general?: {
+      username?: boolean;
+      name?: boolean;
+      bio?: boolean;
+    };
+    privacy?: {
+      seeLastSeen?: boolean;
+      seeName?: boolean;
+      seeBio?: boolean;
+      addToRoom?: boolean;
+      seeRoomsContainingUser?: boolean;
+      seeFriends?: boolean;
+      seeProfilePhotos?: boolean;
+    };
+    dev?: DevData;
   };
 }
-
-// export type AccountReadResult = Map<
-//   TargetUserField | TargetUserPrivacyField | TargetUserProperties,
-//   | number
-//   | string
-//   | string[]
-//   | boolean
-//   | null
-//   | (typeof accountPrivacyRules)["everybody" | "friends" | "nobody"]
-// >;
-
-// export interface AcwcountReadResult {
-//   general?:
-//   privacy?:
-//   error?: errorResult;
-// }
-
-// This is not actually will be in account, but rooms
-// own?: {
-//   addUser?: { roomId: RoomId; userId: UserId | UserIdArr };
-//   kickUser?: { roomId: RoomId; userId: UserId | UserIdArr };
-//   blockUser?: { roomId: RoomId; userId: UserId | UserIdArr };
-//   createRoom?: {
-//     roomInfo: RoomInfoValues;
-//     userIdArr?: UserIdArr; // Room type can be "single" -> roomInfo.type === "single"
-//   };
-//   updateRoomInfo?: {
-//     roomId: RoomId;
-//     roomInfo?: Partial<RoomInfoValues>;
-//   };
-//   removeRoom?: RoomId | RoomId[];
-// };
-// message?: {
-//   postMessage?: {
-//     roomId: RoomId;
-//     message: Message;
-//   };
-//   deleteMessage?: {
-//     roomId: RoomId;
-//     messageDate: Number;
-//   };
-//   changeMessage?: {
-//     roomId: RoomId;
-//     messageDate: Number;
-//     message: Message;
-//   };
-// };
-// joinTheRoom?: RoomId | RoomId[];
-// leaveTheRoom?: RoomId | RoomId[];

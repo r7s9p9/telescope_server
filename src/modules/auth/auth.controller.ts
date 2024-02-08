@@ -21,31 +21,31 @@ import { session } from "./session/session.controller";
 import { token } from "../../utils/token";
 import { JWT } from "@fastify/jwt";
 
-export const auth = (redis: FastifyRedis) => {
-  const a = account(redis);
-  const s = session(redis);
+export const auth = (redis: FastifyRedis, isProd: boolean) => {
+  const a = account(redis, isProd);
+  const s = session(redis, isProd);
   const t = token();
 
   async function registerHandler(body: RegisterBodyType) {
     try {
       if (await selectUserByEmail(body.email)) {
-        return messageAboutEmailExists;
+        return messageAboutEmailExists(isProd);
       }
       if (await selectUserByUsername(body.username)) {
-        return messageAboutUsernameExists;
+        return messageAboutUsernameExists(isProd);
       }
       const { email, username, password } = body;
       const { hash, salt } = hashPassword(password);
       await createUser({ email, username, salt, password: hash });
       const user = await selectUserByEmail(body.email);
       if (!user) {
-        return messageAboutServerError;
+        return messageAboutServerError(isProd);
       }
       await a.createAccount(user.id, user.username);
-      return messageAboutAccountCreated;
+      return messageAboutAccountCreated(isProd);
     } catch (e) {
       console.log(e);
-      return messageAboutServerError;
+      return messageAboutServerError(isProd);
     }
   }
 
@@ -58,7 +58,7 @@ export const auth = (redis: FastifyRedis) => {
     try {
       const user = await selectUserByEmail(body.email);
       if (!user) {
-        return messageAboutInvalidEmailOrPassword;
+        return messageAboutInvalidEmailOrPassword(isProd);
       }
       const correctPassword = verifyPassword({
         candidatePassword: body.password,
@@ -66,10 +66,10 @@ export const auth = (redis: FastifyRedis) => {
         hash: user.password,
       });
       if (!correctPassword) {
-        return messageAboutInvalidEmailOrPassword;
+        return messageAboutInvalidEmailOrPassword(isProd);
       }
       if (await s.isCodeNeeded(user.id)) {
-        return messageAboutVerificationRequired;
+        return messageAboutVerificationRequired(isProd);
       }
       const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
@@ -80,13 +80,13 @@ export const auth = (redis: FastifyRedis) => {
           ip
         );
         if (result) {
-          return messageAboutLoginSuccessful(tokenData);
+          return messageAboutLoginSuccessful(tokenData, isProd);
         }
       }
-      return messageAboutServerError;
+      return messageAboutServerError(isProd);
     } catch (e) {
       console.log(e);
-      return messageAboutServerError;
+      return messageAboutServerError(isProd);
     }
   }
 
@@ -99,22 +99,22 @@ export const auth = (redis: FastifyRedis) => {
     try {
       const user = await selectUserByEmail(body.email);
       if (!user) {
-        return messageAboutInvalidEmailOrPassword;
+        return messageAboutInvalidEmailOrPassword(isProd);
       }
       const isCodeCorrect = await s.checkCode(user.id, body.code);
       console.log(isCodeCorrect);
       if (!isCodeCorrect) {
-        return messageAboutWrongCode;
+        return messageAboutWrongCode(isProd);
       }
       const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
         await s.createSession(tokenData.id, tokenData.exp, ua, ip);
-        return messageAboutLoginSuccessful(tokenData);
+        return messageAboutLoginSuccessful(tokenData, isProd);
       }
-      return messageAboutServerError;
+      return messageAboutServerError(isProd);
     } catch (e) {
       console.log(e);
-      return messageAboutServerError;
+      return messageAboutServerError(isProd);
     }
   }
   return { registerHandler, loginHandler, codeHandler };

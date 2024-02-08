@@ -14,7 +14,7 @@ import {
   WriteTargetUserField,
 } from "./account.types";
 
-const model = (redis: FastifyRedis) => {
+export const model = (redis: FastifyRedis) => {
   async function isFriend(userId: UserId, targetUserId: UserId) {
     return !!(await redis.sismember(friendsKey(targetUserId), userId));
   }
@@ -24,7 +24,22 @@ const model = (redis: FastifyRedis) => {
   }
 
   async function initAccount(targetUserId: UserId, username: string) {
-    await redis.hmset(accountKey(targetUserId), accountStartValues(username));
+    const result = await redis.hmset(
+      accountKey(targetUserId),
+      accountStartValues(username)
+    );
+    if (result === "OK") {
+      return true;
+    }
+    return false;
+  }
+
+  async function isAccountExist(userId: UserId) {
+    const result = await redis.hlen(accountKey(userId));
+    if (result > 0) {
+      return true;
+    }
+    return false;
   }
 
   async function readAccountGeneralValue(
@@ -101,6 +116,7 @@ const model = (redis: FastifyRedis) => {
   return {
     isFriend,
     isUserBlockedByUser,
+    isAccountExist,
     initAccount,
     readAccountGeneralValue,
     writeAccountGeneralValue,
@@ -108,67 +124,3 @@ const model = (redis: FastifyRedis) => {
     writeAccountPrivacyValue,
   };
 };
-
-export { model };
-//////////////////////////////////////////////
-// export async function getBlockedCount(
-//   redis: FastifyRedis,
-//   targetUserId: UserId
-// ) {
-//   return await redis.scard(blockedKey(targetUserId));
-// }
-
-// export async function getBlocked(redis: FastifyRedis, targetUserId: UserId) {
-//   return await redis.smembers(blockedKey(targetUserId));
-// }
-
-// export async function addBlocked(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   targetUserId: UserId
-// ) {
-//   await redis.sadd(blockedKey(userId), targetUserId);
-// }
-
-// export async function removeBlocked(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   targetUserId: UserId
-// ) {
-//   await redis.srem(blockedKey(userId), targetUserId);
-// }
-
-// export async function getFriends(redis: FastifyRedis, targetUserId: UserId) {
-//   return await redis.smembers(friendsKey(targetUserId));
-// }
-
-// export async function getFriendCount(
-//   redis: FastifyRedis,
-//   targetUserId: UserId
-// ) {
-//   return await redis.scard(friendsKey(targetUserId));
-// }
-
-// export async function addFriend(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   targetUserId: UserId
-// ) {
-//   await redis.sadd(friendsKey(userId), targetUserId);
-// }
-
-// export async function removeFriend(
-//   redis: FastifyRedis,
-//   userId: UserId,
-//   targetUserId: UserId
-// ) {
-//   await redis.srem(friendsKey(userId), targetUserId);
-// }
-
-// export async function getRooms(redis: FastifyRedis, targetUserId: UserId) {
-//   return await redis.smembers(userRoomsSetKey(targetUserId));
-// }
-
-// export async function getRoomCount(redis: FastifyRedis, targetUserId: UserId) {
-//   return await redis.scard(userRoomsSetKey(targetUserId));
-// }

@@ -114,7 +114,7 @@ export const messageAboutBadRequest = {
   status: 400,
   data: {
     error: {
-      message: "The request is incorrectly formed",
+      devMessage: "The request is incorrectly formed",
     },
   },
 };
@@ -123,7 +123,7 @@ export const messageAboutNoCreator = {
   status: 403,
   data: {
     error: {
-      message: "Only the room creator can do this",
+      devMessage: "Only the room creator can do this",
     },
   },
 };
@@ -132,7 +132,7 @@ export const messageAboutLackOfPermission = {
   status: 403,
   data: {
     error: {
-      message: "You don't have the right to read the room",
+      devMessage: "You don't have the right to read the room",
     },
   },
 };
@@ -141,7 +141,7 @@ export const messageAboutAlreadyInRoom = {
   status: 409,
   data: {
     error: {
-      message: "You are already in the room",
+      devMessage: "You are already in the room",
     },
   },
 };
@@ -150,7 +150,7 @@ export const messageAboutLackOfPermissionToInvite = {
   status: 403,
   data: {
     error: {
-      message: "You cannot invite this user to the room",
+      devMessage: "You cannot invite this user to the room",
     },
   },
 };
@@ -159,7 +159,7 @@ export const messageAboutLackOfPermissionToJoin = {
   status: 403,
   data: {
     error: {
-      message: "You can't enter the room",
+      devMessage: "You can't enter the room",
     },
   },
 };

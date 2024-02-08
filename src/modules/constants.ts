@@ -12,30 +12,38 @@ export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
 
-export const messageAboutServerError = {
-  status: 500 as const,
-  success: false as const,
-  data: { error: { message: "Internal Server Error" as const } },
+export const messageAboutServerError = (isProd: boolean) => {
+  return {
+    status: 500 as const,
+    success: false as const,
+    data: {
+      dev: !isProd
+        ? { message: ["Internal Server Error"] as const }
+        : undefined,
+    },
+  };
 };
 
-export const messageAboutSessionOK = {
-  status: 200 as const,
-  success: true as const,
-  data: {
-    message: "OK" as const,
-  },
+export const messageAboutWrongToken = (isProd: boolean) => {
+  return {
+    status: 401 as const,
+    success: false as const,
+    data: {
+      dev: !isProd ? { message: ["Token is invalid"] as const } : undefined,
+    },
+  };
 };
 
-export const messageAboutWrongToken = {
-  status: 401 as const,
-  success: false as const,
-  data: { error: { message: "Token is invalid" as const } },
-};
-
-export const messageAboutBadUserAgent = {
-  status: 401 as const,
-  success: false as const,
-  data: { error: { message: "User Agent is invalid" as const } },
+export const messageAboutBadUserAgent = (isProd: boolean) => {
+  return {
+    status: 401 as const,
+    success: false as const,
+    data: {
+      dev: !isProd
+        ? { message: ["User Agent is invalid"] as const }
+        : undefined,
+    },
+  };
 };
 
 export const setTokenCookie = (

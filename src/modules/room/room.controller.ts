@@ -27,26 +27,23 @@ import { model } from "./room.model";
 import {
   CreateRoomInfo,
   ReadRoomInfoValues,
-  RoomInfoValues,
   WriteRoomInfo,
 } from "./room.types";
 import { randomUUID } from "crypto";
 import { messageAboutServerError } from "../constants";
 
-export const room = (redis: FastifyRedis) => {
-  const a = account(redis);
+export const room = (redis: FastifyRedis, isProd: boolean) => {
+  const a = account(redis, isProd);
   const m = model(redis);
 
   const isInviteAllowed = async (
     initiatorUserId: UserId,
     targetUserId: UserId
   ) => {
-    const { properties } = await a.readAccount(
-      { properties: [accountFields.properties.isCanAddToRoom] },
-      initiatorUserId,
-      targetUserId
-    );
-    if (properties && properties.isCanAddToRoom) {
+    const { data } = await a.readAccount(initiatorUserId, targetUserId, {
+      properties: [accountFields.properties.isCanAddToRoom],
+    });
+    if (data?.properties?.isCanAddToRoom) {
       return true;
     }
     return false;

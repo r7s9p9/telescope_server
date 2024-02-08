@@ -1,5 +1,81 @@
 import { accountKey } from "../constants";
 import { UserId } from "../types";
+import {
+  AccountReadData,
+  AccountReadResult,
+  AccountWriteData,
+  AccountWriteResult,
+  Relationships,
+} from "./account.types";
+
+export const accountReaded = (result: AccountReadResult) => {
+  result.status = 200 as const;
+  return result;
+};
+
+export const accountUpdated = (result: AccountWriteResult) => {
+  result.status = 200 as const;
+  return result;
+};
+
+export const devUserId = (userId: UserId) => {
+  return `userId: ${userId}`;
+};
+
+export const devTargetUserId = (targetUserId: UserId) => {
+  return `targetUserId: ${targetUserId}`;
+};
+
+export const devMessageReadAccount = (
+  toRead: AccountReadData,
+  relationships: Relationships
+) => {
+  return [
+    `toRead: general: ${toRead.general ? toRead.general : `NO`}`,
+    `toRead: properties: ${toRead.properties ? toRead.properties : "NO"}`,
+    `toRead: privacy: ${toRead.privacy ? toRead.privacy : "NO"}`,
+    `relationships: sameUser: ${relationships.sameUser}`,
+    `relationships: friend: ${relationships.friend}`,
+    `relationships: ban: ${relationships.ban}`,
+  ];
+};
+
+export const devMessageWriteAccount = (toWrite: AccountWriteData) => {
+  return [
+    `toWrite: general: ${toWrite.general ? `YES` : `NO`}`,
+    `toWrite: privacy: ${toWrite.privacy ? `YES` : "NO"}`,
+  ];
+};
+
+export const updateDevMessage = (
+  toRead: AccountReadData,
+  relationships: {
+    sameUser: boolean;
+    friend: boolean;
+    ban: boolean;
+  }
+) => {
+  const generalMessage = `toRead: general: ${toRead.general ? toRead.general : `NO`}`;
+  const propertiesMessage = `toRead: properties: ${toRead.properties ? toRead.properties : "NO"}`;
+  const privacyMessage = `toRead: privacy: ${toRead.privacy ? toRead.privacy : "NO"}`;
+  const sameUserMessage = `relationships: sameUser: ${relationships.sameUser}`;
+  const friendMessage = `relationships: friend: ${relationships.friend}`;
+  const banMessage = `relationships: ban: ${relationships.ban}`;
+  return [
+    generalMessage,
+    propertiesMessage,
+    privacyMessage,
+    sameUserMessage,
+    friendMessage,
+    banMessage,
+  ];
+};
+
+export const devMessageAboutAccountDoesNotExist =
+  "The requested account does not exist";
+
+export const devMessageAboutBadReadPrivacy =
+  "The user cannot read privacy that is not his own";
 
 export const friendsKey = (userId: UserId) => `${accountKey(userId)}:friends`;
 

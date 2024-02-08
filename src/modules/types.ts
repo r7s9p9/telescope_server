@@ -18,10 +18,6 @@ export interface MessageContent {
   text: string;
 }
 
-export interface errorResult {
-  error: { message: string };
-}
-
 export type goodSession =
   | {
       status: 200;
@@ -32,7 +28,7 @@ export type goodSession =
         exp: number;
       };
       data: {
-        message: string;
+        dev?: DevData;
       };
     }
   | {
@@ -45,6 +41,13 @@ export type goodSession =
         exp: number;
       };
       data: {
-        message: string;
+        dev?: DevData;
       };
     };
+
+export interface DevData {
+  message?: string[] | readonly string[];
+  error?: {
+    message?: string[] | readonly string[];
+  };
+}

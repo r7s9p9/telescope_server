@@ -1,16 +1,14 @@
 import { FastifyRedis } from "@fastify/redis";
 import { UserId } from "../../types";
+import { messageAboutServerError } from "../../constants";
 import {
   messageAboutBadUserAgent,
-  messageAboutServerError,
-  messageAboutSessionOK,
-} from "../../constants";
-import {
   messageAboutBlockedSession,
   messageAboutNoSession,
   messageAboutSessionRefreshed,
   messageAboutVerifiedSession,
   sessionStartValues,
+  messageAboutSessionOK,
 } from "./session.constants";
 import { JWT } from "@fastify/jwt";
 import { token } from "../../../utils/token";
@@ -18,7 +16,7 @@ import { model } from "./session.model";
 import { uaChecker } from "../../../utils/user-agent";
 import { FastifyInstance, FastifyRequest } from "fastify";
 
-export const session = (redis: FastifyRedis) => {
+export const session = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
   const t = token();
 
@@ -27,12 +25,12 @@ export const session = (redis: FastifyRedis) => {
     request: FastifyRequest
   ) {
     if (!request.headers["user-agent"]) {
-      return messageAboutBadUserAgent;
+      return messageAboutBadUserAgent(isProd);
     }
     const ip = request.ip;
     const ua = request.headers["user-agent"];
     const tokenDays = fastify.config.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED;
-    const tokenResult = await t.check(request);
+    const tokenResult = await t.check(request, isProd);
 
     if (tokenResult.success) {
       const sessionResult = await checkSession({
@@ -46,7 +44,7 @@ export const session = (redis: FastifyRedis) => {
         if (t.isNeedRefresh(tokenResult.exp, tokenDays)) {
           return await refreshSession(fastify.jwt, tokenResult, ip, ua);
         }
-        return messageAboutVerifiedSession(tokenResult);
+        return messageAboutVerifiedSession(isProd, tokenResult);
       }
       return sessionResult;
     }
@@ -61,13 +59,13 @@ export const session = (redis: FastifyRedis) => {
   }) {
     // Move this to separated decorator/preValidation?
     if (!client.ua) {
-      return messageAboutBadUserAgent;
+      return messageAboutBadUserAgent(isProd);
     }
     const sessionFound = await m.isSessionExist(client.id, client.exp);
     if (sessionFound) {
       const isBlocked = await m.getSessionData(client.id, client.exp).ban();
       if (isBlocked) {
-        return messageAboutBlockedSession;
+        return messageAboutBlockedSession(isProd);
       }
       const isEqualIP = await m
         .isSessionDataEqual(client.id, client.exp)
@@ -82,13 +80,13 @@ export const session = (redis: FastifyRedis) => {
       if (uaIsGood) {
         await m.updateSessionData(client.id, client.exp).ua(client.ua);
         await m.updateSessionData(client.id, client.exp).online(Date.now());
-        return messageAboutSessionOK;
+        return messageAboutSessionOK(isProd);
       } else {
         await m.updateSessionData(client.id, client.exp).ban(true);
-        return messageAboutBlockedSession;
+        return messageAboutBlockedSession(isProd);
       }
     }
-    return messageAboutNoSession;
+    return messageAboutNoSession(isProd);
   }
 
   async function createSession(
@@ -129,11 +127,11 @@ export const session = (redis: FastifyRedis) => {
           ip
         );
         if (removeOldSessionResult && createNewSessionResult) {
-          return messageAboutSessionRefreshed(newToken);
+          return messageAboutSessionRefreshed(isProd, newToken);
         }
       }
     }
-    return messageAboutServerError;
+    return messageAboutServerError(isProd);
   }
 
   async function isCodeNeeded(userId: UserId) {

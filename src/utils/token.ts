@@ -15,7 +15,7 @@ export const token = () => {
     return null;
   }
 
-  async function check(request: FastifyRequest) {
+  async function check(request: FastifyRequest, isProd: boolean) {
     const token = await request.jwtVerify<Token>({ onlyCookie: true });
     if (
       typeof token === "object" &&
@@ -36,7 +36,7 @@ export const token = () => {
         return preVerifiedToken;
       }
     }
-    return messageAboutWrongToken;
+    return messageAboutWrongToken(isProd);
   }
 
   function isNeedRefresh(exp: number, daysOfTokenToBeUpdated: number | string) {
