@@ -6,7 +6,7 @@ import {
 } from "fastify-type-provider-zod";
 import { registerSchema, loginSchema, codeSchema } from "./auth.schema";
 import { auth } from "./auth.controller";
-import { setTokenCookie, messageAboutBadUserAgent } from "../constants";
+import { setTokenCookie, payloadBadUserAgent } from "../constants";
 
 export async function authRegisterRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
@@ -35,8 +35,8 @@ export async function authLoginRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       if (!req.headers["user-agent"]) {
         return res
-          .code(messageAboutBadUserAgent(fastify.config.APP_IS_PROD).status)
-          .send(messageAboutBadUserAgent(fastify.config.APP_IS_PROD).data);
+          .code(payloadBadUserAgent(fastify.config.APP_IS_PROD).status)
+          .send(payloadBadUserAgent(fastify.config.APP_IS_PROD).data);
       }
 
       const result = await auth(
@@ -64,8 +64,8 @@ export async function authCodeRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       if (!req.headers["user-agent"]) {
         return res
-          .code(messageAboutBadUserAgent(fastify.config.APP_IS_PROD).status)
-          .send(messageAboutBadUserAgent(fastify.config.APP_IS_PROD).data);
+          .code(payloadBadUserAgent(fastify.config.APP_IS_PROD).status)
+          .send(payloadBadUserAgent(fastify.config.APP_IS_PROD).data);
       }
       const result = await auth(
         fastify.redis,

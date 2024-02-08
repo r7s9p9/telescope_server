@@ -1,7 +1,7 @@
 import { JWT } from "@fastify/jwt";
 import { Token, UserId } from "../modules/types";
 import { checkUserId } from "./uuid";
-import { messageAboutWrongToken } from "../modules/constants";
+import { payloadWrongToken } from "../modules/constants";
 import { FastifyRequest } from "fastify/types/request";
 
 export const token = () => {
@@ -36,7 +36,7 @@ export const token = () => {
         return preVerifiedToken;
       }
     }
-    return messageAboutWrongToken(isProd);
+    return payloadWrongToken(isProd);
   }
 
   function isNeedRefresh(exp: number, daysOfTokenToBeUpdated: number | string) {

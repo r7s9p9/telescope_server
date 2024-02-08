@@ -1,6 +1,6 @@
 import { FastifyRedis } from "@fastify/redis";
 import { UserId } from "../../types";
-import { messageAboutServerError } from "../../constants";
+import { payloadServerError } from "../../constants";
 import {
   messageAboutBadUserAgent,
   messageAboutBlockedSession,
@@ -131,7 +131,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
         }
       }
     }
-    return messageAboutServerError(isProd);
+    return payloadServerError(isProd);
   }
 
   async function isCodeNeeded(userId: UserId) {

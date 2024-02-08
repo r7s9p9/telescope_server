@@ -53,113 +53,208 @@ export const roomUsersKey = (roomId: RoomId) => `${roomKey(roomId)}:users`;
 export const roomBlockedUsersKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:blockedUsers`;
 
-export const messageAboutSuccessOfCreatingRoom = (roomId: RoomId) => {
+export const payloadSuccessOfCreatingRoom = (
+  roomId: RoomId,
+  isProd: boolean
+) => {
   return {
     status: 200,
-    data: { success: true, roomId: roomId },
+    data: {
+      success: true,
+      roomId: roomId,
+      dev: !isProd
+        ? { message: ["The room was created successfully"] as const }
+        : undefined,
+    },
   };
 };
 
-export const messageAboutSuccessOfUpdateRoom = (updated: WriteRoomResult) => {
+export const payloadSuccessOfUpdateRoom = (
+  updated: WriteRoomResult,
+  isProd: boolean
+) => {
   return {
     status: 200,
-    data: { success: true, updated: updated },
+    data: {
+      success: true,
+      updated: updated,
+      dev: !isProd
+        ? { message: ["The room has been successfully updated"] as const }
+        : undefined,
+    },
   };
 };
 
-export const messageAboutSuccessOfJoining = () => {
+export const payloadSuccessOfJoining = (isProd: boolean) => {
   return {
     status: 200,
-    data: { success: true },
+    data: {
+      success: true,
+      dev: !isProd
+        ? { message: ["You have successfully joined the room"] as const }
+        : undefined,
+    },
   };
 };
 
-export const messageAboutSuccessOfLeave = () => {
+export const payloadSuccessOfLeave = (isProd: boolean) => {
   return {
     status: 200,
-    data: { success: true },
+    data: {
+      success: true,
+      dev: !isProd
+        ? { message: ["You have successfully left the room"] as const }
+        : undefined,
+    },
   };
 };
 
-export const messageAboutYouAreNoLongerInRoom = () => {
+export const payloadYouAreNoLongerInRoom = (isProd: boolean) => {
   return {
     status: 409,
-    data: { success: false },
+    data: {
+      success: false,
+      dev: !isProd
+        ? { message: ["You were no longer in this room"] as const }
+        : undefined,
+    },
   };
 };
 
-export const messageAboutSuccessOfInvite = () => {
+export const payloadSuccessOfInvite = (isProd: boolean) => {
   return {
     status: 200,
-    data: { success: true },
+    data: {
+      success: true,
+      dev: !isProd
+        ? {
+            message: [
+              "You have successfully invited a user to the room",
+            ] as const,
+          }
+        : undefined,
+    },
   };
 };
 
-export const messageAboutSuccessfulUserBlock = {
-  status: 200,
-  data: { success: true },
-};
-
-export const messageAboutNoOneBlocked = {
-  status: 409,
-  data: { success: false },
-};
-
-export const messageAboutNoOneInvited = {
-  status: 409,
-  data: { success: false },
-};
-
-export const messageAboutBadRequest = {
-  status: 400,
-  data: {
-    error: {
-      devMessage: "The request is incorrectly formed",
+export const payloadSuccessfulUserBlock = (isProd: boolean) => {
+  return {
+    status: 200,
+    data: {
+      success: true,
+      dev: !isProd
+        ? {
+            message: [
+              "You have successfully banned a user from this room",
+            ] as const,
+          }
+        : undefined,
     },
-  },
+  };
 };
 
-export const messageAboutNoCreator = {
-  status: 403,
-  data: {
-    error: {
-      devMessage: "Only the room creator can do this",
+export const payloadNoOneBlocked = (isProd: boolean) => {
+  return {
+    status: 409,
+    data: {
+      success: false,
+      dev: !isProd
+        ? {
+            message: ["No users were banned from the room"] as const,
+          }
+        : undefined,
     },
-  },
+  };
 };
 
-export const messageAboutLackOfPermission = {
-  status: 403,
-  data: {
-    error: {
-      devMessage: "You don't have the right to read the room",
+export const payloadNoOneInvited = (isProd: boolean) => {
+  return {
+    status: 409,
+    data: {
+      success: false,
+      dev: !isProd
+        ? {
+            message: ["No users were invited to the room"] as const,
+          }
+        : undefined,
     },
-  },
+  };
 };
 
-export const messageAboutAlreadyInRoom = {
-  status: 409,
-  data: {
-    error: {
-      devMessage: "You are already in the room",
+export const payloadBadRequest = (isProd: boolean) => {
+  return {
+    status: 400,
+    data: {
+      dev: !isProd
+        ? {
+            message: ["The request is incorrectly formed"] as const,
+          }
+        : undefined,
     },
-  },
+  };
 };
 
-export const messageAboutLackOfPermissionToInvite = {
-  status: 403,
-  data: {
-    error: {
-      devMessage: "You cannot invite this user to the room",
+export const payloadNoCreator = (isProd: boolean) => {
+  return {
+    status: 403,
+    data: {
+      dev: !isProd
+        ? {
+            message: ["Only the room creator can do this"] as const,
+          }
+        : undefined,
     },
-  },
+  };
 };
 
-export const messageAboutLackOfPermissionToJoin = {
-  status: 403,
-  data: {
-    error: {
-      devMessage: "You can't enter the room",
+export const payloadLackOfPermission = (isProd: boolean) => {
+  return {
+    status: 403,
+    data: {
+      dev: !isProd
+        ? {
+            message: ["You don't have the right to read the room"] as const,
+          }
+        : undefined,
     },
-  },
+  };
+};
+
+export const payloadAlreadyInRoom = (isProd: boolean) => {
+  return {
+    status: 409,
+    data: {
+      dev: !isProd
+        ? {
+            message: ["You are already in the room"] as const,
+          }
+        : undefined,
+    },
+  };
+};
+
+export const payloadLackOfPermissionToInvite = (isProd: boolean) => {
+  return {
+    status: 403,
+    data: {
+      dev: !isProd
+        ? {
+            message: ["You cannot invite this user to the room"] as const,
+          }
+        : undefined,
+    },
+  };
+};
+
+export const payloadLackOfPermissionToJoin = (isProd: boolean) => {
+  return {
+    status: 403,
+    data: {
+      dev: !isProd
+        ? {
+            message: ["You can't enter the room"] as const,
+          }
+        : undefined,
+    },
+  };
 };

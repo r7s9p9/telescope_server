@@ -6,7 +6,7 @@ import {
 import { RegisterBodyType, LoginBodyType, CodeBodyType } from "./auth.schema";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyRedis } from "@fastify/redis";
-import { messageAboutServerError } from "../constants";
+import { payloadServerError } from "../constants";
 import {
   messageAboutAccountCreated,
   messageAboutEmailExists,
@@ -39,13 +39,13 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       await createUser({ email, username, salt, password: hash });
       const user = await selectUserByEmail(body.email);
       if (!user) {
-        return messageAboutServerError(isProd);
+        return payloadServerError(isProd);
       }
       await a.createAccount(user.id, user.username);
       return messageAboutAccountCreated(isProd);
     } catch (e) {
       console.log(e);
-      return messageAboutServerError(isProd);
+      return payloadServerError(isProd);
     }
   }
 
@@ -83,10 +83,10 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
           return messageAboutLoginSuccessful(tokenData, isProd);
         }
       }
-      return messageAboutServerError(isProd);
+      return payloadServerError(isProd);
     } catch (e) {
       console.log(e);
-      return messageAboutServerError(isProd);
+      return payloadServerError(isProd);
     }
   }
 
@@ -111,10 +111,10 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         await s.createSession(tokenData.id, tokenData.exp, ua, ip);
         return messageAboutLoginSuccessful(tokenData, isProd);
       }
-      return messageAboutServerError(isProd);
+      return payloadServerError(isProd);
     } catch (e) {
       console.log(e);
-      return messageAboutServerError(isProd);
+      return payloadServerError(isProd);
     }
   }
   return { registerHandler, loginHandler, codeHandler };

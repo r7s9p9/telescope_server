@@ -12,7 +12,7 @@ export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
 
-export const messageAboutServerError = (isProd: boolean) => {
+export const payloadServerError = (isProd: boolean) => {
   return {
     status: 500 as const,
     success: false as const,
@@ -24,7 +24,7 @@ export const messageAboutServerError = (isProd: boolean) => {
   };
 };
 
-export const messageAboutWrongToken = (isProd: boolean) => {
+export const payloadWrongToken = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
@@ -34,7 +34,7 @@ export const messageAboutWrongToken = (isProd: boolean) => {
   };
 };
 
-export const messageAboutBadUserAgent = (isProd: boolean) => {
+export const payloadBadUserAgent = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
