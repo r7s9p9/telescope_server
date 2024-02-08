@@ -8,13 +8,13 @@ import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyRedis } from "@fastify/redis";
 import { payloadServerError } from "../constants";
 import {
-  messageAboutAccountCreated,
-  messageAboutEmailExists,
-  messageAboutInvalidEmailOrPassword,
-  messageAboutLoginSuccessful,
-  messageAboutUsernameExists,
-  messageAboutVerificationRequired,
-  messageAboutWrongCode,
+  payloadAccountCreated,
+  payloadEmailExists,
+  payloadInvalidEmailOrPassword,
+  payloadLoginSuccessful,
+  payloadUsernameExists,
+  payloadVerificationRequired,
+  payloadWrongCode,
 } from "./auth.constants";
 import { account } from "../account/account.controller";
 import { session } from "./session/session.controller";
@@ -29,10 +29,10 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
   async function registerHandler(body: RegisterBodyType) {
     try {
       if (await selectUserByEmail(body.email)) {
-        return messageAboutEmailExists(isProd);
+        return payloadEmailExists(isProd);
       }
       if (await selectUserByUsername(body.username)) {
-        return messageAboutUsernameExists(isProd);
+        return payloadUsernameExists(isProd);
       }
       const { email, username, password } = body;
       const { hash, salt } = hashPassword(password);
@@ -42,7 +42,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         return payloadServerError(isProd);
       }
       await a.createAccount(user.id, user.username);
-      return messageAboutAccountCreated(isProd);
+      return payloadAccountCreated(isProd);
     } catch (e) {
       console.log(e);
       return payloadServerError(isProd);
@@ -58,7 +58,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
     try {
       const user = await selectUserByEmail(body.email);
       if (!user) {
-        return messageAboutInvalidEmailOrPassword(isProd);
+        return payloadInvalidEmailOrPassword(isProd);
       }
       const correctPassword = verifyPassword({
         candidatePassword: body.password,
@@ -66,10 +66,10 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         hash: user.password,
       });
       if (!correctPassword) {
-        return messageAboutInvalidEmailOrPassword(isProd);
+        return payloadInvalidEmailOrPassword(isProd);
       }
       if (await s.isCodeNeeded(user.id)) {
-        return messageAboutVerificationRequired(isProd);
+        return payloadVerificationRequired(isProd);
       }
       const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
@@ -80,7 +80,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
           ip
         );
         if (result) {
-          return messageAboutLoginSuccessful(tokenData, isProd);
+          return payloadLoginSuccessful(tokenData, isProd);
         }
       }
       return payloadServerError(isProd);
@@ -99,17 +99,17 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
     try {
       const user = await selectUserByEmail(body.email);
       if (!user) {
-        return messageAboutInvalidEmailOrPassword(isProd);
+        return payloadInvalidEmailOrPassword(isProd);
       }
       const isCodeCorrect = await s.checkCode(user.id, body.code);
       console.log(isCodeCorrect);
       if (!isCodeCorrect) {
-        return messageAboutWrongCode(isProd);
+        return payloadWrongCode(isProd);
       }
       const tokenData = await t.create(jwt, user.id);
       if (tokenData) {
         await s.createSession(tokenData.id, tokenData.exp, ua, ip);
-        return messageAboutLoginSuccessful(tokenData, isProd);
+        return payloadLoginSuccessful(tokenData, isProd);
       }
       return payloadServerError(isProd);
     } catch (e) {

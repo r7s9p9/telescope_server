@@ -18,7 +18,7 @@ export const sessionStartValues = (ua: string, ip: string) => [
   Date.now(),
 ];
 
-export const messageAboutVerifiedSession = (
+export const payloadVerifiedSession = (
   isProd: boolean,
   tokenData: {
     id: UserId;
@@ -37,7 +37,7 @@ export const messageAboutVerifiedSession = (
   };
 };
 
-export const messageAboutSessionRefreshed = (
+export const payloadSessionRefreshed = (
   isProd: boolean,
   tokenData: {
     raw: string;
@@ -62,7 +62,7 @@ export const messageAboutSessionRefreshed = (
   };
 };
 
-export const messageAboutBlockedSession = (isProd: boolean) => {
+export const payloadBlockedSession = (isProd: boolean) => {
   return {
     status: 403 as const,
     success: false as const,
@@ -72,7 +72,7 @@ export const messageAboutBlockedSession = (isProd: boolean) => {
   };
 };
 
-export const messageAboutNoSession = (isProd: boolean) => {
+export const payloadNoSession = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
@@ -84,7 +84,7 @@ export const messageAboutNoSession = (isProd: boolean) => {
   };
 };
 
-export const messageAboutSessionOK = (isProd: boolean) => {
+export const payloadSessionOK = (isProd: boolean) => {
   return {
     status: 200 as const,
     success: true as const,
@@ -94,7 +94,7 @@ export const messageAboutSessionOK = (isProd: boolean) => {
   };
 };
 
-export const messageAboutBadUserAgent = (isProd: boolean) => {
+export const payloadBadUserAgent = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,

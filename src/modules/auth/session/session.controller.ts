@@ -2,13 +2,13 @@ import { FastifyRedis } from "@fastify/redis";
 import { UserId } from "../../types";
 import { payloadServerError } from "../../constants";
 import {
-  messageAboutBadUserAgent,
-  messageAboutBlockedSession,
-  messageAboutNoSession,
-  messageAboutSessionRefreshed,
-  messageAboutVerifiedSession,
+  payloadBadUserAgent,
+  payloadBlockedSession,
+  payloadNoSession,
+  payloadSessionRefreshed,
+  payloadVerifiedSession,
   sessionStartValues,
-  messageAboutSessionOK,
+  payloadSessionOK,
 } from "./session.constants";
 import { JWT } from "@fastify/jwt";
 import { token } from "../../../utils/token";
@@ -25,7 +25,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
     request: FastifyRequest
   ) {
     if (!request.headers["user-agent"]) {
-      return messageAboutBadUserAgent(isProd);
+      return payloadBadUserAgent(isProd);
     }
     const ip = request.ip;
     const ua = request.headers["user-agent"];
@@ -44,7 +44,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
         if (t.isNeedRefresh(tokenResult.exp, tokenDays)) {
           return await refreshSession(fastify.jwt, tokenResult, ip, ua);
         }
-        return messageAboutVerifiedSession(isProd, tokenResult);
+        return payloadVerifiedSession(isProd, tokenResult);
       }
       return sessionResult;
     }
@@ -59,13 +59,13 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
   }) {
     // Move this to separated decorator/preValidation?
     if (!client.ua) {
-      return messageAboutBadUserAgent(isProd);
+      return payloadBadUserAgent(isProd);
     }
     const sessionFound = await m.isSessionExist(client.id, client.exp);
     if (sessionFound) {
       const isBlocked = await m.getSessionData(client.id, client.exp).ban();
       if (isBlocked) {
-        return messageAboutBlockedSession(isProd);
+        return payloadBlockedSession(isProd);
       }
       const isEqualIP = await m
         .isSessionDataEqual(client.id, client.exp)
@@ -80,13 +80,13 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
       if (uaIsGood) {
         await m.updateSessionData(client.id, client.exp).ua(client.ua);
         await m.updateSessionData(client.id, client.exp).online(Date.now());
-        return messageAboutSessionOK(isProd);
+        return payloadSessionOK(isProd);
       } else {
         await m.updateSessionData(client.id, client.exp).ban(true);
-        return messageAboutBlockedSession(isProd);
+        return payloadBlockedSession(isProd);
       }
     }
-    return messageAboutNoSession(isProd);
+    return payloadNoSession(isProd);
   }
 
   async function createSession(
@@ -127,7 +127,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
           ip
         );
         if (removeOldSessionResult && createNewSessionResult) {
-          return messageAboutSessionRefreshed(isProd, newToken);
+          return payloadSessionRefreshed(isProd, newToken);
         }
       }
     }

@@ -1,6 +1,6 @@
 import { UserId } from "../types";
 
-export const messageAboutLoginSuccessful = (
+export const payloadLoginSuccessful = (
   token: {
     id: UserId;
     exp: number;
@@ -25,7 +25,7 @@ export const messageAboutLoginSuccessful = (
   };
 };
 
-export const messageAboutAccountCreated = (isProd: boolean) => {
+export const payloadAccountCreated = (isProd: boolean) => {
   return {
     status: 201 as const,
     success: true as const,
@@ -35,7 +35,7 @@ export const messageAboutAccountCreated = (isProd: boolean) => {
   };
 };
 
-export const messageAboutVerificationRequired = (isProd: boolean) => {
+export const payloadVerificationRequired = (isProd: boolean) => {
   return {
     status: 201 as const,
     success: true as const,
@@ -51,7 +51,7 @@ export const messageAboutVerificationRequired = (isProd: boolean) => {
   };
 };
 
-export const messageAboutUsernameExists = (isProd: boolean) => {
+export const payloadUsernameExists = (isProd: boolean) => {
   return {
     status: 400 as const,
     success: false as const,
@@ -63,7 +63,7 @@ export const messageAboutUsernameExists = (isProd: boolean) => {
   };
 };
 
-export const messageAboutEmailExists = (isProd: boolean) => {
+export const payloadEmailExists = (isProd: boolean) => {
   return {
     status: 400 as const,
     success: false as const,
@@ -75,7 +75,7 @@ export const messageAboutEmailExists = (isProd: boolean) => {
   };
 };
 
-export const messageAboutInvalidEmailOrPassword = (isProd: boolean) => {
+export const payloadInvalidEmailOrPassword = (isProd: boolean) => {
   return {
     status: 401 as const,
     success: false as const,
@@ -87,7 +87,7 @@ export const messageAboutInvalidEmailOrPassword = (isProd: boolean) => {
   };
 };
 
-export const messageAboutWrongCode = (isProd: boolean) => {
+export const payloadWrongCode = (isProd: boolean) => {
   return {
     status: 400 as const,
     success: false as const,
