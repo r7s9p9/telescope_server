@@ -1,5 +1,6 @@
 import { FastifyReply } from "fastify";
 import { UserId } from "./types";
+import { JWTConfig } from "../plugins/env";
 
 export const userKeyPart = "user";
 
@@ -44,8 +45,29 @@ export const payloadBadUserAgent = (isProd: boolean) => {
   };
 };
 
+export const tokenName = "accessToken" as const;
+
+export const jwtConfig = (config: JWTConfig) => {
+  return {
+    secret: config.JWT_SECRET,
+    sign: {
+      algorithm: config.JWT_ALG,
+      expiresIn: config.JWT_EXPIRATION, // for client-side logic
+      noTimestamp: true, // disable iat inserting in token
+    },
+    verify: {
+      algorithms: [config.JWT_ALG], // accept only this alg
+      maxAge: config.JWT_EXPIRATION,
+    },
+    cookie: {
+      cookieName: tokenName,
+      signed: false,
+    },
+  };
+};
+
 export const setTokenCookie = (reply: FastifyReply, token: { raw: string }) =>
-  reply.setCookie("accessToken", token.raw, {
+  reply.setCookie(tokenName, token.raw, {
     //domain: 'your.domain',
     //path: '/',
     secure: true,

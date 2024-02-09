@@ -19,7 +19,11 @@ import {
   roomDeleteRoute,
   roomUpdateRoute,
 } from "./modules/room/room.route";
-import { payloadBadUserAgent, setTokenCookie } from "./modules/constants";
+import {
+  jwtConfig,
+  payloadBadUserAgent,
+  setTokenCookie,
+} from "./modules/constants";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -39,26 +43,8 @@ const app = async () => {
   });
 
   await fastify.register(fastifyEnv);
-
   await fastify.register(fastifyCookie);
-
-  await fastify.register(jwt, {
-    secret: fastify.config.JWT_SECRET,
-    sign: {
-      algorithm: fastify.config.JWT_ALG,
-      expiresIn: fastify.config.JWT_EXPIRATION, // for client-side logic
-      noTimestamp: true, // disable iat inserting in token
-    },
-    verify: {
-      algorithms: [fastify.config.JWT_ALG], // accept only this alg
-      maxAge: fastify.config.JWT_EXPIRATION,
-    },
-    cookie: {
-      cookieName: "accessToken",
-      signed: false,
-    },
-  });
-
+  await fastify.register(jwt, jwtConfig(fastify.config));
   const isProd = fastify.config.APP_IS_PROD;
 
   fastify.addHook(

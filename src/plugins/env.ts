@@ -6,11 +6,11 @@ import z from "zod";
 // import type Algorithm from 'fast-jwt/src/index.d.ts'
 // import { hsAlgorithms, edAlgorithms, esAlgorithms, rsaAlgorithms } from 'fast-jwt/src/crypto';
 
-// console.log(hsAlgorithms)
+export type JWTConfig = ReturnType<typeof converter>;
 
 declare module "fastify" {
   interface FastifyInstance {
-    config: ReturnType<typeof converter>;
+    config: JWTConfig;
   }
 }
 
