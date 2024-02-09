@@ -1,6 +1,6 @@
 import { FastifyReply } from "fastify";
 import { UserId } from "./types";
-import { JWTConfig } from "../plugins/env";
+import { EnvValues } from "../plugins/env";
 
 export const userKeyPart = "user";
 
@@ -47,30 +47,50 @@ export const payloadBadUserAgent = (isProd: boolean) => {
 
 export const tokenName = "accessToken" as const;
 
-export const jwtConfig = (config: JWTConfig) => {
+export const jwtAlgorithms = [
+  "HS256",
+  "HS384",
+  "HS512",
+  "ES256",
+  "ES384",
+  "ES512",
+  "RS256",
+  "RS384",
+  "RS512",
+  "PS256",
+  "PS384",
+  "PS512",
+  "EdDSA",
+] as const;
+
+export const jwtConfig = (config: EnvValues) => {
   return {
     secret: config.JWT_SECRET,
     sign: {
       algorithm: config.JWT_ALG,
-      expiresIn: config.JWT_EXPIRATION, // for client-side logic
-      noTimestamp: true, // disable iat inserting in token
+      // exp for sign
+      expiresIn: config.JWT_EXPIRATION,
+      // disable inserting iat string in token
+      noTimestamp: true,
     },
     verify: {
-      algorithms: [config.JWT_ALG], // accept only this alg
+      // accept only this alg
+      algorithms: [config.JWT_ALG],
+      // exp for verify
       maxAge: config.JWT_EXPIRATION,
     },
     cookie: {
       cookieName: tokenName,
-      signed: false,
+      signed: false as const,
     },
   };
 };
 
 export const setTokenCookie = (reply: FastifyReply, token: { raw: string }) =>
   reply.setCookie(tokenName, token.raw, {
-    //domain: 'your.domain',
-    //path: '/',
-    secure: true,
-    httpOnly: true,
-    sameSite: "strict",
+    //domain:
+    //path:
+    secure: true as const,
+    httpOnly: true as const,
+    sameSite: "strict" as const,
   });

@@ -44,8 +44,8 @@ const app = async () => {
 
   await fastify.register(fastifyEnv);
   await fastify.register(fastifyCookie);
-  await fastify.register(jwt, jwtConfig(fastify.config));
-  const isProd = fastify.config.APP_IS_PROD;
+  await fastify.register(jwt, jwtConfig(fastify.env));
+  const isProd = fastify.env.APP_IS_PROD;
 
   fastify.addHook(
     "preSerialization",
@@ -113,7 +113,7 @@ const app = async () => {
   await fastify.register(roomUpdateRoute);
   await fastify.register(roomDeleteRoute);
 
-  fastify.listen({ port: parseInt(fastify.config.APP_PORT) }, function (err) {
+  fastify.listen({ port: parseInt(fastify.env.APP_PORT) }, function (err) {
     if (err) {
       fastify.log.error(err);
       process.exit(1);

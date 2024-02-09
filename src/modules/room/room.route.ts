@@ -18,7 +18,7 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       const result = await room(
         fastify.redis,
-        fastify.config.APP_IS_PROD
+        fastify.env.APP_IS_PROD
       ).createRoom(req.session.token.id, req.body.roomInfo, req.body.userIdArr);
       return res.code(200).send(result);
     },

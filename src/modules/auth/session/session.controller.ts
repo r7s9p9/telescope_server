@@ -26,7 +26,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
   ) {
     const ip = request.ip;
     const ua = request.ua;
-    const tokenDays = fastify.config.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED;
+    const tokenDays = fastify.env.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED;
     const tokenResult = await t.check(request, isProd);
 
     if (tokenResult.success) {

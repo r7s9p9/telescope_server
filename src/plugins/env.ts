@@ -2,41 +2,24 @@ import { FastifyInstance } from "fastify";
 import fastifyPlugin from "fastify-plugin";
 import dotenv from "dotenv";
 import z from "zod";
+import { jwtAlgorithms } from "../modules/constants";
 
 // import type Algorithm from 'fast-jwt/src/index.d.ts'
 // import { hsAlgorithms, edAlgorithms, esAlgorithms, rsaAlgorithms } from 'fast-jwt/src/crypto';
 
-export type JWTConfig = ReturnType<typeof converter>;
+export type EnvValues = ReturnType<typeof converter>;
 
 declare module "fastify" {
   interface FastifyInstance {
-    config: JWTConfig;
+    env: EnvValues;
   }
 }
-
-const jwtAlg = [
-  // TODO find this in modules
-  "none",
-  "HS256",
-  "HS384",
-  "HS512",
-  "ES256",
-  "ES384",
-  "ES512",
-  "RS256",
-  "RS384",
-  "RS512",
-  "PS256",
-  "PS384",
-  "PS512",
-  "EdDSA",
-] as const;
 
 const envVars = z.object({
   APP_IS_PROD: z.union([z.literal("true"), z.literal("false")]),
   APP_PORT: z.string(),
   JWT_SECRET: z.string(),
-  JWT_ALG: z.enum(jwtAlg),
+  JWT_ALG: z.enum(jwtAlgorithms),
   JWT_EXPIRATION: z.union([z.string(), z.number()]),
   JWT_DAYS_OF_TOKEN_TO_BE_UPDATED: z.string(),
 });
@@ -63,7 +46,7 @@ export const fastifyEnv = fastifyPlugin(
     fastify: FastifyInstance,
     done: (err?: any) => void
   ): Promise<void> => {
-    fastify.decorate("config", converter(parsedEnvVars));
+    fastify.decorate("env", converter(parsedEnvVars));
   },
   {
     name: "custom-env",
