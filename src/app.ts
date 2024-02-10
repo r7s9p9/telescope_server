@@ -32,6 +32,7 @@ import {
   payloadBadUserAgent,
   setTokenCookie,
 } from "./modules/constants";
+import { messageAddRoute } from "./modules/room/message/message.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -128,6 +129,8 @@ const app = async () => {
   await fastify.register(roomLeaveRoute);
   await fastify.register(roomInviteUsersRoute);
   await fastify.register(roomDeleteRoute);
+
+  await fastify.register(messageAddRoute);
 
   fastify.listen({ port: parseInt(fastify.env.APP_PORT) }, function (err) {
     if (err) {

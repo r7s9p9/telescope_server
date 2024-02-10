@@ -67,14 +67,12 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
   };
 
   const checkPermission = async (roomId: RoomId, userId: UserId) => {
-    const isPublic = await checkPublic(roomId);
-    if (!isPublic) {
-      const isMember = await m.isUserInRoomSet(roomId, userId);
-      if (!isMember) {
-        return false;
-      }
+    const isMember = await m.isUserInRoomSet(roomId, userId);
+    if (!isMember) {
+      return false;
     }
-    if (await m.isUserBlocked(userId, roomId)) {
+    const isBlocked = await m.isUserBlocked(userId, roomId);
+    if (isBlocked) {
       return false;
     }
     return true;
@@ -320,6 +318,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
   }
 
   return {
+    checkPermission,
     createServiceRoom,
     createRoom,
     deleteRoom,
