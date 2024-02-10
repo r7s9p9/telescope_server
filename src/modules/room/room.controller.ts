@@ -6,6 +6,8 @@ import {
   payloadLackOfPermission,
   payloadLackOfPermissionToInvite,
   payloadLackOfPermissionToJoin,
+  payloadLackOfPermissionToReadUsers,
+  payloadLackOfPermissionToUpdate,
   payloadNoCreator,
   payloadNoOneBlocked,
   payloadNoOneInvited,
@@ -14,12 +16,21 @@ import {
   payloadSuccessOfJoining,
   payloadSuccessOfLeave,
   payloadSuccessOfUpdateRoom,
-  payloadSuccessfulUserBlock,
+  payloadSuccessfulReadInfo,
+  payloadSuccessfulReadUsers,
+  payloadSuccessfulBlockUsers,
   payloadYouAreNoLongerInRoom,
   roomInfoFields,
   roomTypeValues,
   serviceRoomName,
   welcomeServiceRoomMessage,
+  payloadSuccessfulKickUsers,
+  payloadNoOneKicked,
+  payloadSuccessfulDeleteRoom,
+  payloadRoomNotCompletelyDeleted,
+  payloadSuccessfulUnblockUsers,
+  payloadNoOneUnblocked,
+  payloadNoJoined,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -31,6 +42,7 @@ import {
 } from "./room.types";
 import { randomUUID } from "crypto";
 import { payloadServerError } from "../constants";
+import { checkUserId } from "../../utils/uuid";
 
 export const room = (redis: FastifyRedis, isProd: boolean) => {
   const a = account(redis, isProd);
@@ -82,7 +94,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     };
     const result = await createRoom(userId, roomInfo);
     if ("data" in result && "success" in result.data && result.data.success) {
-      // send hello message
+      // TODO post service message to room
       // separate service room from another?
     }
   }
@@ -113,6 +125,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       if (isCreated) {
         return payloadSuccessOfCreatingRoom(roomId, isProd);
       }
+      // TODO change payload to "smarter" way -> like what happen badly
       return payloadServerError(isProd);
     }
     return payloadBadRequest(isProd);
@@ -124,7 +137,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     toRead: Array<ReadRoomInfoValues>
   ) {
     if (await checkPermission(roomId, userId)) {
-      return await m.readRoomInfo(roomId, toRead);
+      const result = await m.readRoomInfo(roomId, toRead);
+      return payloadSuccessfulReadInfo(roomId, result, isProd);
     }
     return payloadLackOfPermission(isProd);
   }
@@ -134,74 +148,123 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     roomId: RoomId,
     roomInfo: WriteRoomInfo
   ) {
-    const creator = await m.isCreator(userId, roomId);
+    const creator = await m.isCreator(roomId, userId);
     if (creator) {
       const result = await m.updateRoomInfo(roomId, roomInfo);
-      return payloadSuccessOfUpdateRoom(result, isProd);
+      // TODO post service message to room
+      // TODO customize payloadSuccessOfUpdateRoom
+      return payloadSuccessOfUpdateRoom(roomId, result, isProd);
     }
-    return payloadLackOfPermission(isProd);
+    return payloadLackOfPermissionToUpdate(isProd);
   }
 
   async function readRoomUsers(userId: UserId, roomId: RoomId) {
     if (await checkPermission(roomId, userId)) {
-      return await m.readUsers(roomId);
+      const result = await m.readUsers(roomId);
+      const userIdArr: UserId[] = [];
+      for (const userId of result) {
+        if (checkUserId(userId)) {
+          userIdArr.push(userId);
+        }
+      }
+      return payloadSuccessfulReadUsers(
+        roomId,
+        result.length,
+        userIdArr,
+        isProd
+      );
     }
-    return payloadLackOfPermission(isProd);
+    return payloadLackOfPermissionToReadUsers(isProd);
   }
 
-  async function joinRoom(roomId: RoomId, userId: UserId) {
+  async function joinRoom(userId: UserId, roomId: RoomId) {
     const isPublic = await checkPublic(roomId);
-    if (isPublic) {
-      const isBlocked = await m.isUserBlocked(roomId, userId);
+    const creator = await m.isCreator(roomId, userId);
+    if (isPublic || creator) {
+      const isBlocked = creator ? false : await m.isUserBlocked(roomId, userId);
       if (!isBlocked) {
         const result = await m.addUsers(roomId, [userId]);
+        console.log(result);
         if (result[0] === userId) {
-          return payloadSuccessOfJoining(isProd);
+          // TODO post service message to room
+          return payloadSuccessOfJoining(roomId, isProd);
         }
-        return payloadServerError(isProd);
+        return payloadNoJoined(roomId, isProd);
       }
     }
-    return payloadLackOfPermissionToJoin(isProd);
+    return payloadLackOfPermissionToJoin(roomId, isProd);
   }
 
-  async function leaveRoom(roomId: RoomId, userId: UserId) {
-    const result = await m.removeUsers(roomId, [userId]);
-    if (result[0] === userId) {
-      return payloadSuccessOfLeave(isProd);
+  async function leaveRoom(userId: UserId, roomId: RoomId) {
+    const [result] = await m.removeUsers(roomId, [userId]);
+    if (result === userId) {
+      // TODO post service message to room
+      return payloadSuccessOfLeave(roomId, isProd);
     }
-    return payloadYouAreNoLongerInRoom(isProd);
+    return payloadYouAreNoLongerInRoom(roomId, isProd);
+  }
+
+  async function kickUsers(
+    initiatorUserId: UserId,
+    roomId: RoomId,
+    userIdArr: UserId[]
+  ) {
+    const creator = await m.isCreator(roomId, initiatorUserId);
+    if (!creator) {
+      return payloadNoCreator(isProd);
+    }
+    const result = await m.removeUsers(roomId, userIdArr);
+    console.log(result, result.length);
+    if (result.length !== 0) {
+      // TODO post service message to room
+      return payloadSuccessfulKickUsers(
+        roomId,
+        userIdArr.length,
+        result,
+        isProd
+      );
+    }
+    return payloadNoOneKicked(roomId, isProd);
   }
 
   async function inviteUsers(
-    roomId: RoomId,
     initiatorUserId: UserId,
+    roomId: RoomId,
     userIdArr: UserId[]
   ) {
     const readyUsers: UserId[] = [];
     for (const userId of userIdArr) {
-      const isAllow = await isInviteAllowed(initiatorUserId, userId);
-      if (isAllow) {
-        readyUsers.push(userId);
+      // for skip creatorId in case when inviteUsersRoute has creatorId in userIdArr
+      if (userId !== initiatorUserId) {
+        const isAllow = await isInviteAllowed(initiatorUserId, userId);
+        if (isAllow) {
+          readyUsers.push(userId);
+        }
       }
     }
+    // TODO post service message to room
     return await m.addUsers(roomId, readyUsers);
   }
 
   async function inviteUsersWrapper(
-    roomId: RoomId,
     initiatorUserId: UserId,
+    roomId: RoomId,
     userIdArr: UserId[]
   ) {
+    const creator = await m.isCreator(roomId, initiatorUserId);
+    if (!creator) {
+      return payloadNoCreator(isProd);
+    }
     const invited = await inviteUsers(roomId, initiatorUserId, userIdArr);
     if (invited.length !== 0) {
-      return payloadSuccessOfInvite(isProd);
+      return payloadSuccessOfInvite(roomId, userIdArr.length, invited, isProd);
     }
-    return payloadNoOneInvited(isProd);
+    return payloadNoOneInvited(roomId, isProd);
   }
 
-  async function blockUser(
-    roomId: RoomId,
+  async function blockUsers(
     initiatorUserId: UserId,
+    roomId: RoomId,
     userIdArr: UserId[]
   ) {
     const creator = await m.isCreator(roomId, initiatorUserId);
@@ -210,18 +273,62 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     }
     const result = await m.blockUsers(roomId, userIdArr);
     if (result.length !== 0) {
-      return payloadSuccessfulUserBlock(isProd);
+      // TODO add service message
+      return payloadSuccessfulBlockUsers(
+        roomId,
+        userIdArr.length,
+        result,
+        isProd
+      );
     }
-    return payloadNoOneBlocked(isProd);
+    return payloadNoOneBlocked(roomId, isProd);
+  }
+
+  async function unblockUsers(
+    initiatorUserId: UserId,
+    roomId: RoomId,
+    userIdArr: UserId[]
+  ) {
+    const creator = await m.isCreator(roomId, initiatorUserId);
+    if (!creator) {
+      return payloadNoCreator(isProd);
+    }
+    const result = await m.unblockUsers(roomId, userIdArr);
+    if (result.length !== 0) {
+      // TODO add service message
+      return payloadSuccessfulUnblockUsers(
+        roomId,
+        userIdArr.length,
+        result,
+        isProd
+      );
+    }
+    return payloadNoOneUnblocked(roomId, isProd);
+  }
+
+  async function deleteRoom(initiatorUserId: UserId, roomId: RoomId) {
+    const creator = await m.isCreator(roomId, initiatorUserId);
+    if (!creator) {
+      return payloadNoCreator(isProd);
+    }
+    const result = await m.deleteRoom(roomId);
+    // TODO remove all messages
+    if (result.final) {
+      return payloadSuccessfulDeleteRoom(roomId, isProd);
+    }
+    return payloadRoomNotCompletelyDeleted(roomId, result, isProd);
   }
 
   return {
     createServiceRoom,
     createRoom,
+    deleteRoom,
     readRoomInfo,
     updateRoomInfo,
     readRoomUsers,
-    blockUser,
+    kickUsers,
+    blockUsers,
+    unblockUsers,
     joinRoom,
     leaveRoom,
     inviteUsersWrapper,

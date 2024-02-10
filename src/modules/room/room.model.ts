@@ -57,6 +57,7 @@ export const model = (redis: FastifyRedis) => {
       roomInfo
     );
     const user = await addUsers(roomId, userIdArr);
+
     if (name && creatorId && type && about && user) {
       return true;
     }
@@ -65,9 +66,18 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function deleteRoom(roomId: RoomId) {
-    await redis.del(roomInfoKey(roomId));
-    await redis.del(roomUsersKey(roomId));
-    await redis.del(roomBlockedUsersKey(roomId));
+    const infoResult = (await redis.del(roomInfoKey(roomId))) === 1;
+    const usersResult = (await redis.del(roomUsersKey(roomId))) === 1;
+    //const blockedResult = (await redis.del(roomBlockedUsersKey(roomId))) === 1;
+    // TODO need to know if there no blocked key (no banned users)
+    const result = {
+      info: infoResult,
+      users: usersResult,
+      //blocked: blockedResult,
+      final: infoResult && usersResult, // && blockedResult,
+    };
+    console.log(result);
+    return result;
   }
 
   async function readRoomInfo(
@@ -86,11 +96,11 @@ export const model = (redis: FastifyRedis) => {
     const result: WriteRoomResult = Object.create(null);
     let key: keyof WriteRoomInfo;
     for (key in roomInfo) {
-      const value = verifierInfoValueWrapper(roomInfoFields[key], key);
+      const value = verifierInfoValueWrapper(key, roomInfo[key]);
       if (value) {
         result[key] = await updateRoomInfoValue(
           roomId,
-          roomInfoFields.name,
+          roomInfoFields[key],
           value
         );
       } else {
@@ -166,17 +176,25 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function isUserBlocked(roomId: RoomId, userId: UserId) {
+    if (await isCreator(roomId, userId)) {
+      return false as const;
+    }
     return !!(await redis.sismember(roomBlockedUsersKey(roomId), userId));
   }
 
   async function blockUsers(roomId: RoomId, userIdArr: UserId[]) {
     const blockedUsers: UserId[] = [];
+    const { creatorId } = await readRoomInfo(roomId, [
+      roomInfoFields.creatorId,
+    ]);
     for (const userId of userIdArr) {
-      const blocked =
-        (await redis.sadd(roomBlockedUsersKey(roomId), userIdArr)) === 1;
-      if (blocked) {
-        // Already blocked users will not appear as added (true)
-        blockedUsers.push(userId);
+      if (userId !== creatorId) {
+        const blocked =
+          (await redis.sadd(roomBlockedUsersKey(roomId), userIdArr)) === 1;
+        if (blocked) {
+          // Already blocked users will not appear as added (true)
+          blockedUsers.push(userId);
+        }
       }
     }
     return blockedUsers;

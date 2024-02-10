@@ -18,6 +18,7 @@ export const payloadServerError = (isProd: boolean) => {
     status: 500 as const,
     success: false as const,
     data: {
+      success: false as const,
       dev: !isProd
         ? { message: ["Internal Server Error"] as const }
         : undefined,
