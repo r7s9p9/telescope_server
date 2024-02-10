@@ -196,7 +196,7 @@ export async function roomLeaveRoute(fastify: FastifyInstance) {
   });
 }
 
-export async function inviteUsersRoute(fastify: FastifyInstance) {
+export async function roomInviteUsersRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
