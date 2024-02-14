@@ -91,7 +91,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       },
     };
     const result = await createRoom(userId, roomInfo);
-    if ("data" in result && "success" in result.data && result.data.success) {
+    if (result.data.success) {
       // TODO post service message to room
       // separate service room from another?
     }

@@ -4,6 +4,11 @@ import fastifyRedis from "@fastify/redis";
 import { fastifyEnv } from "./plugins/env";
 import jwt from "@fastify/jwt";
 import { Token, goodSession } from "./modules/types";
+import {
+  jwtConfig,
+  payloadBadUserAgent,
+  setTokenCookie,
+} from "./modules/constants";
 import { session } from "./modules/auth/session/session.controller";
 import {
   authCodeRoute,
@@ -28,11 +33,12 @@ import {
   roomUpdateRoute,
 } from "./modules/room/room.route";
 import {
-  jwtConfig,
-  payloadBadUserAgent,
-  setTokenCookie,
-} from "./modules/constants";
-import { messageAddRoute } from "./modules/room/message/message.route";
+  messageAddRoute,
+  messageCheckRoute,
+  messageReadRoute,
+  messageRemoveRoute,
+  messageUpdateRoute,
+} from "./modules/room/message/message.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -130,7 +136,11 @@ const app = async () => {
   await fastify.register(roomInviteUsersRoute);
   await fastify.register(roomDeleteRoute);
 
+  await fastify.register(messageReadRoute);
   await fastify.register(messageAddRoute);
+  await fastify.register(messageUpdateRoute);
+  await fastify.register(messageRemoveRoute);
+  await fastify.register(messageCheckRoute);
 
   fastify.listen({ port: parseInt(fastify.env.APP_PORT) }, function (err) {
     if (err) {
