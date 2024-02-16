@@ -102,7 +102,6 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         return payloadInvalidEmailOrPassword(isProd);
       }
       const isCodeCorrect = await s.checkCode(user.id, body.code);
-      console.log(isCodeCorrect);
       if (!isCodeCorrect) {
         return payloadWrongCode(isProd);
       }

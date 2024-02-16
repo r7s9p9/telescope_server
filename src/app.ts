@@ -91,7 +91,6 @@ const app = async () => {
     "sessionVerifier",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        console.log(request.cookies);
         const sessionData = await session(fastify.redis, isProd).sessionWrapper(
           fastify,
           request

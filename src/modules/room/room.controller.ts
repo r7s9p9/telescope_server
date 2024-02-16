@@ -182,7 +182,6 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const isBlocked = creator ? false : await m.isUserBlocked(roomId, userId);
       if (!isBlocked) {
         const result = await m.addUsers(roomId, [userId]);
-        console.log(result);
         if (result[0] === userId) {
           // TODO post service message to room
           return payloadSuccessOfJoining(roomId, isProd);
@@ -212,7 +211,6 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return payloadNoCreator(isProd);
     }
     const result = await m.removeUsers(roomId, userIdArr);
-    console.log(result, result.length);
     if (result.length !== 0) {
       // TODO post service message to room
       return payloadSuccessfulKickUsers(

@@ -75,7 +75,6 @@ export const model = (redis: FastifyRedis) => {
       //blocked: blockedResult,
       final: infoResult && usersResult, // && blockedResult,
     };
-    console.log(result);
     return result;
   }
 

@@ -16,9 +16,6 @@ export async function accountReadRoute(fastify: FastifyInstance) {
     schema: readAccountSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, res) => {
-      console.log(req.body.readUserId);
-      console.log(req.body.readData);
-      console.log(req.body);
       const accountAction = account(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await accountAction.readAccount(
         req.session.token.id,
