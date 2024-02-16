@@ -2,7 +2,6 @@ import { FastifyRedis } from "@fastify/redis";
 import { UserId } from "../../types";
 import { payloadServerError } from "../../constants";
 import {
-  payloadBadUserAgent,
   payloadBlockedSession,
   payloadNoSession,
   payloadSessionRefreshed,
@@ -26,7 +25,9 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
   ) {
     const ip = request.ip;
     const ua = request.ua;
-    const tokenDays = fastify.env.JWT_DAYS_OF_TOKEN_TO_BE_UPDATED;
+    const remainingTokenSecondsToRefresh =
+      fastify.env.tokenRemainingSecondsToBeUpdated;
+    //const tokenDays = 0;
     const tokenResult = await t.check(request, isProd);
 
     if (tokenResult.success) {
@@ -38,7 +39,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
       });
 
       if (sessionResult.success) {
-        if (t.isNeedRefresh(tokenResult.exp, tokenDays)) {
+        if (t.isNeedRefresh(tokenResult.exp, remainingTokenSecondsToRefresh)) {
           return await refreshSession(fastify.jwt, tokenResult, ip, ua);
         }
         return payloadVerifiedSession(isProd, tokenResult);

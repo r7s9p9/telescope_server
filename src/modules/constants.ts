@@ -2,6 +2,8 @@ import { FastifyReply } from "fastify";
 import { UserId } from "./types";
 import { EnvValues } from "../plugins/env";
 
+export const envFile = ".env";
+
 export const userKeyPart = "user";
 
 export const accountKeyPart = "account";
@@ -46,7 +48,7 @@ export const payloadBadUserAgent = (isProd: boolean) => {
   };
 };
 
-export const tokenName = "accessToken" as const;
+export const tokenName = "token" as const;
 
 export const jwtAlgorithms = [
   "HS256",
@@ -64,21 +66,21 @@ export const jwtAlgorithms = [
   "EdDSA",
 ] as const;
 
-export const jwtConfig = (config: EnvValues) => {
+export const jwtConfig = (env: EnvValues) => {
   return {
-    secret: config.JWT_SECRET,
+    secret: env.tokenSecret,
     sign: {
-      algorithm: config.JWT_ALG,
+      algorithm: env.tokenAlg,
       // exp for sign
-      expiresIn: config.JWT_EXPIRATION,
+      expiresIn: env.tokenSecondsExpiration,
       // disable inserting iat string in token
       noTimestamp: true,
     },
     verify: {
       // accept only this alg
-      algorithms: [config.JWT_ALG],
+      algorithms: [env.tokenAlg],
       // exp for verify
-      maxAge: config.JWT_EXPIRATION,
+      maxAge: env.tokenSecondsExpiration,
     },
     cookie: {
       cookieName: tokenName,
@@ -87,13 +89,16 @@ export const jwtConfig = (config: EnvValues) => {
   };
 };
 
-export const setTokenCookie = (reply: FastifyReply, token: { raw: string }) =>
+export const setTokenCookie = (
+  reply: FastifyReply,
+  token: { raw: string; exp: number }
+) =>
   reply.setCookie(tokenName, token.raw, {
-    //domain:
-    //path:
+    maxAge: token.exp - Math.round(Date.now() / 1000),
+    path: "/",
     secure: true as const,
     httpOnly: true as const,
-    sameSite: "strict" as const,
+    sameSite: true as const,
   });
 
 export const clearTokenCookie = (reply: FastifyReply) =>

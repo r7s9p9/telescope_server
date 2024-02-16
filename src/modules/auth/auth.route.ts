@@ -18,7 +18,7 @@ export async function authRegisterRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       const result = await auth(
         fastify.redis,
-        fastify.env.APP_IS_PROD
+        fastify.env.isProd
       ).registerHandler(req.body);
       return res.code(result.status).send(result.data);
     },
@@ -35,14 +35,16 @@ export async function authLoginRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       if (!req.headers["user-agent"]) {
         return res
-          .code(payloadBadUserAgent(fastify.env.APP_IS_PROD).status)
-          .send(payloadBadUserAgent(fastify.env.APP_IS_PROD).data);
+          .code(payloadBadUserAgent(fastify.env.isProd).status)
+          .send(payloadBadUserAgent(fastify.env.isProd).data);
       }
 
-      const result = await auth(
-        fastify.redis,
-        fastify.env.APP_IS_PROD
-      ).loginHandler(fastify.jwt, req.ip, req.headers["user-agent"], req.body);
+      const result = await auth(fastify.redis, fastify.env.isProd).loginHandler(
+        fastify.jwt,
+        req.ip,
+        req.headers["user-agent"],
+        req.body
+      );
 
       if (result.success && "token" in result) {
         setTokenCookie(res, result.token);
@@ -64,13 +66,15 @@ export async function authCodeRoute(fastify: FastifyInstance) {
     handler: async (req, res) => {
       if (!req.headers["user-agent"]) {
         return res
-          .code(payloadBadUserAgent(fastify.env.APP_IS_PROD).status)
-          .send(payloadBadUserAgent(fastify.env.APP_IS_PROD).data);
+          .code(payloadBadUserAgent(fastify.env.isProd).status)
+          .send(payloadBadUserAgent(fastify.env.isProd).data);
       }
-      const result = await auth(
-        fastify.redis,
-        fastify.env.APP_IS_PROD
-      ).codeHandler(fastify.jwt, req.body, req.ip, req.headers["user-agent"]);
+      const result = await auth(fastify.redis, fastify.env.isProd).codeHandler(
+        fastify.jwt,
+        req.body,
+        req.ip,
+        req.headers["user-agent"]
+      );
       if (result.success) {
         setTokenCookie(res, result.token);
         return res.code(result.status).send(result.data);

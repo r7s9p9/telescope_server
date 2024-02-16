@@ -39,13 +39,16 @@ export const token = () => {
     return payloadWrongToken(isProd);
   }
 
-  function isNeedRefresh(exp: number, daysOfTokenToBeUpdated: number | string) {
-    const millisecondsPerDay = 24 * 60 * 60 * 1000;
-    const tokenLifetime = Number(exp) - Math.round(Number(Date.now()) / 1000);
-    const daysOfTokenLife = Math.round(tokenLifetime / millisecondsPerDay);
-    const daysLeftOfTokenLife =
-      Number(daysOfTokenToBeUpdated) - daysOfTokenLife;
-    if (daysLeftOfTokenLife <= 0) {
+  function isNeedRefresh(
+    tokenExp: number,
+    remainingTokenSecondsForRenewal: number
+  ) {
+    const currentDateInSeconds = Math.round(Number(Date.now()) / 1000);
+    const dateByWhichTokenShouldRenewed =
+      tokenExp - remainingTokenSecondsForRenewal;
+    const remainingSecondsToUpdate =
+      dateByWhichTokenShouldRenewed - currentDateInSeconds;
+    if (remainingSecondsToUpdate < 0) {
       return true;
     }
     return false;

@@ -22,7 +22,7 @@ export async function messageReadRoute(fastify: FastifyInstance) {
     schema: readMessagesSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
+      const messageAction = message(fastify.redis, fastify.env.isProd);
       const result = await messageAction.read(
         req.session.token.id,
         req.body.roomId,
@@ -42,7 +42,7 @@ export async function messageAddRoute(fastify: FastifyInstance) {
     schema: addMessageSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
+      const messageAction = message(fastify.redis, fastify.env.isProd);
       const result = await messageAction.add(
         req.session.token.id,
         req.body.roomId,
@@ -62,7 +62,7 @@ export async function messageUpdateRoute(fastify: FastifyInstance) {
     schema: updateMessageSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
+      const messageAction = message(fastify.redis, fastify.env.isProd);
       const result = await messageAction.update(
         req.session.token.id,
         req.body.roomId,
@@ -82,7 +82,7 @@ export async function messageRemoveRoute(fastify: FastifyInstance) {
     schema: removeMessageSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
+      const messageAction = message(fastify.redis, fastify.env.isProd);
       const result = await messageAction.remove(
         req.session.token.id,
         req.body.roomId,
@@ -102,7 +102,7 @@ export async function messageCheckRoute(fastify: FastifyInstance) {
     schema: checkMessageSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
+      const messageAction = message(fastify.redis, fastify.env.isProd);
       const result = await messageAction.check(
         req.session.token.id,
         req.body.roomId,

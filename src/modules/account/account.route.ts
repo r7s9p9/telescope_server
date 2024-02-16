@@ -16,7 +16,7 @@ export async function accountReadRoute(fastify: FastifyInstance) {
     schema: readAccountSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, res) => {
-      const accountAction = account(fastify.redis, fastify.env.APP_IS_PROD);
+      const accountAction = account(fastify.redis, fastify.env.isProd);
       const result = await accountAction.readAccount(
         req.session.token.id,
         req.body.readUserId,
@@ -36,7 +36,7 @@ export async function accountUpdateRoute(fastify: FastifyInstance) {
     schema: writeAccountSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, res) => {
-      const accountAction = account(fastify.redis, fastify.env.APP_IS_PROD);
+      const accountAction = account(fastify.redis, fastify.env.isProd);
       const result = await accountAction.updateAccount(
         req.session.token.id,
         req.body.writeData

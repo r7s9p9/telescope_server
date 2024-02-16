@@ -43,8 +43,7 @@ import {
 
 declare module "fastify" {
   export interface FastifyInstance {
-    checkToken: any; // TODO fix type
-    sessionVerifier: any;
+    sessionVerifier: any; // Fix type
   }
   export interface FastifyRequest {
     ua: string;
@@ -61,12 +60,11 @@ const app = async () => {
   await fastify.register(fastifyEnv);
   await fastify.register(fastifyCookie);
   await fastify.register(jwt, jwtConfig(fastify.env));
-  const isProd = fastify.env.APP_IS_PROD;
 
   fastify.addHook(
     "preSerialization",
     async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
-      if (!isProd) {
+      if (!fastify.env.isProd) {
         if (request.session && payload.dev) {
           payload.dev.session = request.session;
         }
@@ -79,7 +77,7 @@ const app = async () => {
     "preValidation",
     async (request: FastifyRequest, reply: FastifyReply) => {
       if (!request.headers["user-agent"]) {
-        const payload = payloadBadUserAgent(isProd);
+        const payload = payloadBadUserAgent(fastify.env.isProd);
         return reply.code(payload.status).send(payload.data);
       } else {
         request.ua = request.headers["user-agent"];
@@ -91,10 +89,10 @@ const app = async () => {
     "sessionVerifier",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const sessionData = await session(fastify.redis, isProd).sessionWrapper(
-          fastify,
-          request
-        );
+        const sessionData = await session(
+          fastify.redis,
+          fastify.env.isProd
+        ).sessionWrapper(fastify, request);
         if (sessionData.success) {
           if (sessionData.token.isNew) setTokenCookie(reply, sessionData.token);
           request.session = sessionData;
@@ -102,7 +100,7 @@ const app = async () => {
           clearTokenCookie(reply);
           return reply
             .code(sessionData.status)
-            .send(!isProd ? sessionData : undefined);
+            .send(!fastify.env.isProd ? sessionData : undefined);
         }
       } catch (e) {
         return reply.send(e);
@@ -142,7 +140,7 @@ const app = async () => {
   await fastify.register(messageRemoveRoute);
   await fastify.register(messageCheckRoute);
 
-  fastify.listen({ port: parseInt(fastify.env.APP_PORT) }, function (err) {
+  fastify.listen({ port: parseInt(fastify.env.appPort) }, function (err) {
     if (err) {
       fastify.log.error(err);
       process.exit(1);
