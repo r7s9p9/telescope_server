@@ -1,5 +1,9 @@
 import z from "zod";
-import { accountFields, accountPrivacyRules } from "./account.constants";
+import {
+  accountFields,
+  accountPrivacyRules,
+  valueForReadSelfAccount,
+} from "./account.constants";
 import { UserId } from "../types";
 import {
   ReadTargetUserGeneralField,
@@ -65,7 +69,7 @@ const readDataPrivacyArray = z
   .optional();
 
 const readBody = z.object({
-  readUserId: userId,
+  readUserId: z.literal(valueForReadSelfAccount).or(userId),
   readData: z.object({
     general: readDataGeneralArray,
     properties: readDataPropertiesArray,
@@ -111,11 +115,9 @@ const writeBody = z.object({
 export type AccountReadBodyType = z.infer<typeof readBody>;
 
 export const readAccountSchema = {
-  header: z.string(),
   body: readBody,
 };
 
 export const writeAccountSchema = {
-  header: z.string(),
   body: writeBody,
 };

@@ -8,6 +8,8 @@ import {
   Relationships,
 } from "./account.types";
 
+export const valueForReadSelfAccount = "self" as const;
+
 export const accountReaded = (result: AccountReadResult) => {
   result.status = 200 as const;
   return result;
@@ -149,7 +151,7 @@ export const accountStartValues = (username: string) => [
   accountFields.general.name,
   username,
   accountFields.general.bio,
-  "empty",
+  "empty" as const,
   accountFields.general.lastSeen,
   Date.now(),
   accountFields.privacy.seeLastSeen,

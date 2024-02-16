@@ -26,7 +26,7 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/create",
     schema: createRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.createRoom(
@@ -46,7 +46,7 @@ export async function roomReadRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/read",
     schema: readRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.readRoomInfo(
@@ -66,7 +66,7 @@ export async function roomUpdateRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/update",
     schema: updateRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.updateRoomInfo(
@@ -86,7 +86,7 @@ export async function roomGetUsersRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/get-users",
     schema: getUsersRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.readRoomUsers(
@@ -105,7 +105,7 @@ export async function roomKickUsersRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/kick-users",
     schema: kickUsersRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.kickUsers(
@@ -125,7 +125,7 @@ export async function roomBlockUsersRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/block-users",
     schema: blockUsersRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.blockUsers(
@@ -145,7 +145,7 @@ export async function roomUnblockUsersRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/unblock-users",
     schema: unblockUsersRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.unblockUsers(
@@ -165,7 +165,7 @@ export async function roomJoinRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/join",
     schema: joinRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.joinRoom(
@@ -184,7 +184,7 @@ export async function roomLeaveRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/leave",
     schema: leaveRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.leaveRoom(
@@ -203,7 +203,7 @@ export async function roomInviteUsersRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/invite-users",
     schema: inviteUsersRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.inviteUsersWrapper(
@@ -223,7 +223,7 @@ export async function roomDeleteRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/room/delete",
     schema: deleteRoomSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await roomAction.deleteRoom(

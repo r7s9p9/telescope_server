@@ -28,6 +28,77 @@ import {
   Relationships,
 } from "./account.types";
 
+const accessSolver = (
+  valueToRead:
+    | ReadTargetUserGeneralField
+    | ReadTargetUserFriendField
+    | ReadTargetUserRoomField
+    | ReadTargetUserBlockedField
+    | typeof accountFields.properties.isCanAddToRoom
+) => {
+  switch (valueToRead) {
+    case accountFields.general.name:
+      return accountFields.privacy.seeName;
+    case accountFields.general.bio:
+      return accountFields.privacy.seeBio;
+    case accountFields.general.lastSeen:
+      return accountFields.privacy.seeLastSeen;
+    case accountFields.friend.readFriends ||
+      accountFields.friend.readFriendCount:
+      return accountFields.privacy.seeFriends;
+    case accountFields.room.readRooms || accountFields.room.readRoomCount:
+      return accountFields.privacy.seeRoomsContainingUser;
+    case accountFields.properties.isCanAddToRoom:
+      return accountFields.privacy.addToRoom;
+    default:
+      return false;
+  }
+};
+
+async function accessChecker(
+  m: ReturnType<typeof model>,
+  targetUserId: UserId,
+  relationships: Relationships,
+  valueToRead:
+    | ReadTargetUserGeneralField
+    | ReadTargetUserFriendField
+    | ReadTargetUserRoomField
+    | ReadTargetUserBlockedField
+    | typeof accountFields.properties.isCanAddToRoom
+) {
+  if (relationships.sameUser) return true; // If same user - give full access
+  if (valueToRead === accountFields.general.username) return true; // Username must always be accessible, even userId is banned
+  if (relationships.ban) return false; // If ban - only username can be readed
+
+  const privacyField = accessSolver(valueToRead); // "everybody" | "friends" | "nobody"
+  if (!privacyField) return false;
+  const privacyValue = await m.readAccountPrivacyValue(
+    targetUserId,
+    privacyField
+  );
+  if (privacyValue === accountPrivacyRules.everybody) {
+    return true;
+  }
+  if (privacyValue === accountPrivacyRules.friends) {
+    return relationships.friend;
+  }
+  if (privacyValue === accountPrivacyRules.nobody) {
+    return false;
+  }
+  return false;
+}
+
+async function checkRelationships(
+  m: ReturnType<typeof model>,
+  userId: UserId,
+  targetUserId: UserId
+): Promise<Relationships> {
+  const sameUser = userId === targetUserId;
+  const friend = await m.isFriend(userId, targetUserId);
+  const ban = await m.isUserBlockedByUser(userId, targetUserId);
+  return { sameUser: sameUser, friend: friend, ban: ban };
+}
+
 const collectDevData = (isProd: boolean) => {
   const read = (
     toRead: AccountReadData,
@@ -65,87 +136,21 @@ const collectDevData = (isProd: boolean) => {
   return { read, write };
 };
 
-const accessSolver = (
-  valueToRead:
-    | ReadTargetUserGeneralField
-    | ReadTargetUserFriendField
-    | ReadTargetUserRoomField
-    | ReadTargetUserBlockedField
-    | typeof accountFields.properties.isCanAddToRoom
-) => {
-  switch (valueToRead) {
-    case accountFields.general.name:
-      return accountFields.privacy.seeName;
-    case accountFields.general.bio:
-      return accountFields.privacy.seeBio;
-    case accountFields.general.lastSeen:
-      return accountFields.privacy.seeLastSeen;
-    case accountFields.friend.readFriends ||
-      accountFields.friend.readFriendCount:
-      return accountFields.privacy.seeFriends;
-    case accountFields.room.readRooms || accountFields.room.readRoomCount:
-      return accountFields.privacy.seeRoomsContainingUser;
-    case accountFields.properties.isCanAddToRoom:
-      return accountFields.privacy.addToRoom;
-    default:
-      return false;
-  }
-};
-
 export const account = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
-  async function accessChecker(
-    targetUserId: UserId,
-    relationships: Relationships,
-    valueToRead:
-      | ReadTargetUserGeneralField
-      | ReadTargetUserFriendField
-      | ReadTargetUserRoomField
-      | ReadTargetUserBlockedField
-      | typeof accountFields.properties.isCanAddToRoom
-  ) {
-    if (relationships.sameUser) return true; // If same user - give full access
-    if (valueToRead === accountFields.general.username) return true; // Username must always be accessible, even userId is banned
-    if (relationships.ban) return false; // If ban - only username can be readed
-
-    const privacyField = accessSolver(valueToRead); // "everybody" | "friends" | "nobody"
-    if (!privacyField) return false;
-    const privacyValue = await m.readAccountPrivacyValue(
-      targetUserId,
-      privacyField
-    );
-    if (privacyValue === accountPrivacyRules.everybody) {
-      return true;
-    }
-    if (privacyValue === accountPrivacyRules.friends) {
-      return relationships.friend;
-    }
-    if (privacyValue === accountPrivacyRules.nobody) {
-      return false;
-    }
-    return false;
-  }
-
-  async function checkRelationships(
-    userId: UserId,
-    targetUserId: UserId
-  ): Promise<Relationships> {
-    const sameUser = userId === targetUserId;
-    const friend = await m.isFriend(userId, targetUserId);
-    const ban = await m.isUserBlockedByUser(userId, targetUserId);
-    return { sameUser: sameUser, friend: friend, ban: ban };
-  }
-
   async function readAccount(
     userId: UserId,
-    targetUserId: UserId,
+    targetUserId: UserId | "self",
     toRead: AccountReadData
   ) {
+    if (targetUserId === "self") targetUserId = userId;
+
     const result: AccountReadResult = Object.create(null);
     result.data = Object.create(null);
     const isTargetExist = await m.isAccountExist(targetUserId);
-    const relationships = await checkRelationships(userId, targetUserId);
+    const relationships = await checkRelationships(m, userId, targetUserId);
+
     if (isTargetExist) {
       result.data.properties = await readAccountProperties(
         targetUserId,
@@ -187,6 +192,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
         }
         if (accountFields.properties.isCanAddToRoom === value) {
           properties.isCanAddToRoom = await accessChecker(
+            m,
             targetUserId,
             relationships,
             accountFields.properties.isCanAddToRoom
@@ -225,6 +231,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
     valueToRead: ReadTargetUserGeneralField
   ) {
     const access = await accessChecker(
+      m,
       targetUserId,
       relationships,
       valueToRead

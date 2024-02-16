@@ -12,7 +12,6 @@ import {
   CreateRoomInfo,
   ReadRoomInfoResult,
   ReadRoomInfoValues,
-  RoomInfoValues,
   WriteRoomInfo,
   WriteRoomResult,
 } from "./room.types";

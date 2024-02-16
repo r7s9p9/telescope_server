@@ -84,7 +84,7 @@ const model = (redis: FastifyRedis) => {
       const result = await redis.hset(
         sessionHashKey(userId, exp),
         sessionFields.ban,
-        value.toString
+        value.toString()
       );
       return result === 1;
     }

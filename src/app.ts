@@ -5,6 +5,7 @@ import { fastifyEnv } from "./plugins/env";
 import jwt from "@fastify/jwt";
 import { Token, goodSession } from "./modules/types";
 import {
+  clearTokenCookie,
   jwtConfig,
   payloadBadUserAgent,
   setTokenCookie,
@@ -43,7 +44,7 @@ import {
 declare module "fastify" {
   export interface FastifyInstance {
     checkToken: any; // TODO fix type
-    checkSession: any;
+    sessionVerifier: any;
   }
   export interface FastifyRequest {
     ua: string;
@@ -87,19 +88,19 @@ const app = async () => {
   );
 
   fastify.decorate(
-    "checkSession",
+    "sessionVerifier",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
+        console.log(request.cookies);
         const sessionData = await session(fastify.redis, isProd).sessionWrapper(
           fastify,
           request
         );
         if (sessionData.success) {
-          if (sessionData.token.isNew) {
-            setTokenCookie(reply, sessionData.token);
-          }
+          if (sessionData.token.isNew) setTokenCookie(reply, sessionData.token);
           request.session = sessionData;
         } else {
+          clearTokenCookie(reply);
           return reply
             .code(sessionData.status)
             .send(!isProd ? sessionData : undefined);

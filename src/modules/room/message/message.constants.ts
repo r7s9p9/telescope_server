@@ -237,7 +237,8 @@ export const payloadUpdatedMessages = (
 ) => {
   const isToUpdate = toUpdate.length !== 0;
   const isToRemove = toRemove.length !== 0;
-  const devMessageToUpdate = "Current messages successfully sent" as const;
+  const devMessageToUpdate =
+    "Current versions of messages were sent successfully" as const;
   const devMessageToRemove =
     "Successfully sent creation dates for already deleted messages" as const;
   const devMessage: string[] = [];

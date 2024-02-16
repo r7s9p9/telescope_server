@@ -20,7 +20,7 @@ export async function messageReadRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/message/read",
     schema: readMessagesSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await messageAction.read(
@@ -40,7 +40,7 @@ export async function messageAddRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/message/add",
     schema: addMessageSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await messageAction.add(
@@ -60,7 +60,7 @@ export async function messageUpdateRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/message/update",
     schema: updateMessageSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await messageAction.update(
@@ -80,7 +80,7 @@ export async function messageRemoveRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/message/remove",
     schema: removeMessageSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await messageAction.remove(
@@ -100,7 +100,7 @@ export async function messageCheckRoute(fastify: FastifyInstance) {
     method: ["POST"],
     url: "/api/message/check",
     schema: checkMessageSchema,
-    preHandler: [fastify.checkSession],
+    preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(fastify.redis, fastify.env.APP_IS_PROD);
       const result = await messageAction.check(

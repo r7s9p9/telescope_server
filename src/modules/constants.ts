@@ -95,3 +95,6 @@ export const setTokenCookie = (reply: FastifyReply, token: { raw: string }) =>
     httpOnly: true as const,
     sameSite: "strict" as const,
   });
+
+export const clearTokenCookie = (reply: FastifyReply) =>
+  reply.clearCookie(tokenName);
