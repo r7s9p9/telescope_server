@@ -70,7 +70,6 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     const { data } = await a.readAccount(initiatorUserId, targetUserId, {
       properties: [accountFields.properties.isCanReadUserRooms],
     });
-    console.log(data);
     if (data?.properties?.isCanReadUserRooms) {
       return { isAllow: true as const, userId: data.userId };
     }
