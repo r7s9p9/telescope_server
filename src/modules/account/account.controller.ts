@@ -192,6 +192,14 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
         if (accountFields.properties.isFriend === value) {
           properties.isFriend = relationships.friend && !relationships.ban;
         }
+        if (accountFields.properties.isCanReadUserRooms === value) {
+          properties.isCanReadUserRooms = await accessChecker(
+            m,
+            targetUserId,
+            relationships,
+            accountFields.properties.isCanReadUserRooms
+          );
+        }
         if (accountFields.properties.isCanAddToRoom === value) {
           properties.isCanAddToRoom = await accessChecker(
             m,
