@@ -31,6 +31,8 @@ import {
   payloadSuccessfulUnblockUsers,
   payloadNoOneUnblocked,
   payloadNoJoined,
+  payloadNoAllowedReadRooms,
+  payloadSuccessfulReadUserRooms,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -59,6 +61,19 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return true;
     }
     return false;
+  };
+
+  const isReadUserRoomsAllowed = async (
+    initiatorUserId: UserId,
+    targetUserId: UserId | "self"
+  ) => {
+    const { data } = await a.readAccount(initiatorUserId, targetUserId, {
+      properties: [accountFields.properties.isCanReadUserRooms],
+    });
+    if (data?.properties?.isCanReadUserRooms) {
+      return { isAllow: true as const, userId: data.userId };
+    }
+    return { isAllow: false as const, userId: data.userId };
   };
 
   const checkPublic = async (roomId: RoomId) => {
@@ -315,6 +330,26 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     return payloadRoomNotCompletelyDeleted(roomId, result, isProd);
   }
 
+  async function readUserRooms(
+    initiatorUserId: UserId,
+    targetUserId: UserId | "self"
+  ) {
+    const { isAllow, userId } = await isReadUserRoomsAllowed(
+      initiatorUserId,
+      targetUserId
+    );
+    const isSameUser = userId === "self";
+    if (!isAllow) {
+      return payloadNoAllowedReadRooms(userId, isProd);
+    }
+    if (isSameUser) {
+      const result = await m.readUserRooms(initiatorUserId);
+      return payloadSuccessfulReadUserRooms(userId, result, isProd);
+    }
+    const result = await m.readUserRooms(userId);
+    return payloadSuccessfulReadUserRooms(userId, result, isProd);
+  }
+
   return {
     checkPermission,
     createServiceRoom,
@@ -329,5 +364,6 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     joinRoom,
     leaveRoom,
     inviteUsersWrapper,
+    readUserRooms,
   };
 };

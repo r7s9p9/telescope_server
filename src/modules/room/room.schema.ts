@@ -153,3 +153,11 @@ const deleteRoomBody = z.object({
 export const deleteRoomSchema = {
   body: deleteRoomBody,
 };
+
+const getUserRoomsBody = z.object({
+  userId: userId.or(z.literal("self")),
+});
+
+export const getUserRoomsSchema = {
+  body: getUserRoomsBody,
+};

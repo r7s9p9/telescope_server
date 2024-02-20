@@ -9,6 +9,7 @@ import {
   blockUsersRoomSchema,
   createRoomSchema,
   deleteRoomSchema,
+  getUserRoomsSchema,
   getUsersRoomSchema,
   inviteUsersRoomSchema,
   joinRoomSchema,
@@ -92,6 +93,25 @@ export async function roomGetUsersRoute(fastify: FastifyInstance) {
       const result = await roomAction.readRoomUsers(
         req.session.token.id,
         req.body.roomId
+      );
+      return rep.code(result.status).send(result.data);
+    },
+  });
+}
+
+export async function roomGetUserRoomsRoute(fastify: FastifyInstance) {
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+  fastify.withTypeProvider<ZodTypeProvider>().route({
+    method: ["POST"],
+    url: "/api/room/get-user-rooms",
+    schema: getUserRoomsSchema,
+    preHandler: [fastify.sessionVerifier],
+    handler: async (req, rep) => {
+      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const result = await roomAction.readUserRooms(
+        req.session.token.id,
+        req.body.userId
       );
       return rep.code(result.status).send(result.data);
     },

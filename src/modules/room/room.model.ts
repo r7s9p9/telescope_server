@@ -15,7 +15,7 @@ import {
   WriteRoomInfo,
   WriteRoomResult,
 } from "./room.types";
-import { checkUserId } from "../../utils/uuid";
+import { checkRoomId, checkUserId } from "../../utils/uuid";
 
 export const model = (redis: FastifyRedis) => {
   function verifierInfoValueWrapper(
@@ -136,7 +136,14 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function readUserRooms(userId: UserId) {
-    return await redis.smembers(userRoomsSetKey(userId));
+    const roomIdArr = await redis.smembers(userRoomsSetKey(userId));
+    const result: RoomId[] = [];
+    for (const roomId of roomIdArr) {
+      if (checkRoomId(roomId)) {
+        result.push(roomId);
+      }
+    }
+    return result;
   }
 
   async function isRoomInUserSet(roomId: RoomId, userId: UserId) {

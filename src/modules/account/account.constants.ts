@@ -90,22 +90,14 @@ export const accountFields = {
     bio: "bio" as const,
     lastSeen: "lastSeen" as const,
   },
-  friend: {
-    readFriends: "readFriends" as const,
-    readFriendCount: "readFriendCount" as const,
-  },
-  room: {
-    readRooms: "readRooms" as const,
-    readRoomCount: "readRoomCount" as const,
-  },
-  blocked: {
-    readBlocked: "readBlocked" as const,
-    readBlockedCount: "readBlockedCount" as const,
-  },
+  friends: "friends" as const,
+  rooms: "rooms" as const,
+  blocked: "blocked" as const,
   properties: {
     isBlockedYou: "isBlockedYou" as const,
     isFriend: "isFriend" as const,
     isCanAddToRoom: "isCanAddToRoom" as const,
+    isCanReadUserRooms: "isCanReadUserRooms" as const,
   },
   privacy: {
     seeLastSeen: "seeLastSeen" as const,

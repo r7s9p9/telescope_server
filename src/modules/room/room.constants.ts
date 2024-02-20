@@ -527,3 +527,41 @@ export const payloadNoJoined = (roomId: RoomId, isProd: boolean) => {
     },
   };
 };
+
+export const payloadNoAllowedReadRooms = (
+  userId: UserId | "self",
+  isProd: boolean
+) => {
+  return {
+    status: 403 as const,
+    data: {
+      success: false as const,
+      userId: userId,
+      dev: !isProd
+        ? {
+            message: ["You are not allowed to read this user's rooms"] as const,
+          }
+        : undefined,
+    },
+  };
+};
+
+export const payloadSuccessfulReadUserRooms = (
+  userId: UserId | "self",
+  roomIdArr: RoomId[],
+  isProd: boolean
+) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: false as const,
+      userId: userId,
+      roomIdArr: roomIdArr,
+      dev: !isProd
+        ? {
+            message: ["You have successfully read this user's rooms"] as const,
+          }
+        : undefined,
+    },
+  };
+};

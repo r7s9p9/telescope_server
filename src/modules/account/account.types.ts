@@ -1,4 +1,4 @@
-import { DevData } from "../types";
+import { DevData, RoomId, UserId } from "../types";
 import { accountFields } from "./account.constants";
 
 export type Relationships = {
@@ -12,7 +12,8 @@ export type AccountPrivacyRules = "everybody" | "friends" | "nobody";
 export type ReadTargetUserProperties = (typeof accountFields)["properties"][
   | "isBlockedYou"
   | "isFriend"
-  | "isCanAddToRoom"];
+  | "isCanAddToRoom"
+  | "isCanReadUserRooms"];
 
 export type ReadTargetUserPrivacyField = (typeof accountFields)["privacy"][
   | "seeLastSeen"
@@ -29,20 +30,10 @@ export type ReadTargetUserGeneralField = (typeof accountFields)["general"][
   | "bio"
   | "lastSeen"];
 
-export type ReadTargetUserFriendField = (typeof accountFields)["friend"][
-  | "readFriends"
-  | "readFriendCount"];
-
-export type ReadTargetUserRoomField = (typeof accountFields)["room"][
-  | "readRooms"
-  | "readRoomCount"];
-
-export type ReadTargetUserBlockedField = (typeof accountFields)["blocked"][
-  | "readBlocked"
-  | "readBlockedCount"];
-
 export interface AccountReadData {
   general?: Array<ReadTargetUserGeneralField>;
+  friends?: boolean; //////////////
+  blocked?: boolean; //////////
   properties?: Array<ReadTargetUserProperties>;
   privacy?: Array<ReadTargetUserPrivacyField>; // Will only be available for reading by the same account
 }
@@ -51,6 +42,7 @@ export interface AccountReadResult {
   success: boolean;
   status: number;
   data: {
+    userId: UserId | "self";
     general?: {
       username?: string | null;
       name?: string | null;
@@ -61,6 +53,7 @@ export interface AccountReadResult {
       isBlockedYou?: boolean;
       isFriend?: boolean;
       isCanAddToRoom?: boolean;
+      isCanReadUserRooms?: boolean;
     };
     privacy?: {
       seeLastSeen?: AccountPrivacyRules | null;

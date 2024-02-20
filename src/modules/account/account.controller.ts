@@ -19,10 +19,7 @@ import {
   AccountReadResult,
   AccountWriteData,
   AccountWriteResult,
-  ReadTargetUserBlockedField,
-  ReadTargetUserFriendField,
   ReadTargetUserGeneralField,
-  ReadTargetUserRoomField,
   ReadTargetUserPrivacyField,
   WriteTargetUserField,
   Relationships,
@@ -31,9 +28,9 @@ import {
 const accessSolver = (
   valueToRead:
     | ReadTargetUserGeneralField
-    | ReadTargetUserFriendField
-    | ReadTargetUserRoomField
-    | ReadTargetUserBlockedField
+    | typeof accountFields.friends
+    | typeof accountFields.blocked ////
+    | typeof accountFields.properties.isCanReadUserRooms
     | typeof accountFields.properties.isCanAddToRoom
 ) => {
   switch (valueToRead) {
@@ -43,10 +40,9 @@ const accessSolver = (
       return accountFields.privacy.seeBio;
     case accountFields.general.lastSeen:
       return accountFields.privacy.seeLastSeen;
-    case accountFields.friend.readFriends ||
-      accountFields.friend.readFriendCount:
+    case accountFields.friends:
       return accountFields.privacy.seeFriends;
-    case accountFields.room.readRooms || accountFields.room.readRoomCount:
+    case accountFields.properties.isCanReadUserRooms:
       return accountFields.privacy.seeRoomsContainingUser;
     case accountFields.properties.isCanAddToRoom:
       return accountFields.privacy.addToRoom;
@@ -61,16 +57,16 @@ async function accessChecker(
   relationships: Relationships,
   valueToRead:
     | ReadTargetUserGeneralField
-    | ReadTargetUserFriendField
-    | ReadTargetUserRoomField
-    | ReadTargetUserBlockedField
+    | typeof accountFields.friends
+    | typeof accountFields.blocked ///
+    | typeof accountFields.properties.isCanReadUserRooms
     | typeof accountFields.properties.isCanAddToRoom
 ) {
   if (relationships.sameUser) return true; // If same user - give full access
   if (valueToRead === accountFields.general.username) return true; // Username must always be accessible, even userId is banned
   if (relationships.ban) return false; // If ban - only username can be readed
 
-  const privacyField = accessSolver(valueToRead); // "everybody" | "friends" | "nobody"
+  const privacyField = accessSolver(valueToRead);
   if (!privacyField) return false;
   const privacyValue = await m.readAccountPrivacyValue(
     targetUserId,
@@ -144,10 +140,16 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
     targetUserId: UserId | "self",
     toRead: AccountReadData
   ) {
-    if (targetUserId === "self") targetUserId = userId;
-
     const result: AccountReadResult = Object.create(null);
     result.data = Object.create(null);
+
+    if (targetUserId === "self") {
+      targetUserId = userId;
+      result.data.userId = "self";
+    } else {
+      result.data.userId = targetUserId;
+    }
+
     const isTargetExist = await m.isAccountExist(targetUserId);
     const relationships = await checkRelationships(m, userId, targetUserId);
 
