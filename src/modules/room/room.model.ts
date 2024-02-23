@@ -9,18 +9,25 @@ import {
   userRoomsSetKey,
 } from "./room.constants";
 import {
-  CreateRoomInfo,
+  RoomInfoInternal,
   ReadRoomInfoResult,
   ReadRoomInfoValues,
-  WriteRoomInfo,
-  WriteRoomResult,
+  RoomInfoValues,
+  RoomInfoToUpdate,
+  RoomInfoUpdateResult,
 } from "./room.types";
 import { checkRoomId, checkUserId } from "../../utils/uuid";
 
+const updateInfoModifiedDate = async (redis: FastifyRedis, roomId: RoomId) => {
+  const date = Number(Date.now());
+  await redis.hset(roomInfoKey(roomId), roomInfoFields.modifiedDate, date);
+  return date;
+};
+
 export const model = (redis: FastifyRedis) => {
   function verifierInfoValueWrapper(
-    field: keyof typeof roomInfoFields,
-    value?: string | null
+    field: keyof RoomInfoValues,
+    value?: string
   ) {
     if (field === roomInfoFields.type) {
       if (
@@ -43,25 +50,51 @@ export const model = (redis: FastifyRedis) => {
     ) {
       return value;
     }
+    // value is bad
     return null;
+  }
+
+  async function touchCreatedDate(roomId: RoomId) {
+    const date = Number(Date.now());
+    const result = await redis.hset(
+      roomInfoKey(roomId),
+      roomInfoFields.createdDate,
+      date
+    );
+    if (result === 1) return { success: true as const, value: date };
+    return { success: false as const };
   }
 
   async function createRoom(
     roomId: RoomId,
     userIdArr: UserId[],
-    roomInfo: CreateRoomInfo
+    roomInfo: RoomInfoInternal
   ) {
+    const undoChanges = async () => {
+      await deleteRoom(roomId);
+      return { success: false as const };
+    };
+
+    const date = await touchCreatedDate(roomId);
+    if (!date.success) return await undoChanges();
+
     const { name, creatorId, type, about } = await updateRoomInfo(
       roomId,
-      roomInfo
+      roomInfo,
+      true as const // just created
     );
-    const user = await addUsers(roomId, userIdArr);
+    const infoSuccess = name && creatorId && type && about;
+    if (!infoSuccess) return await undoChanges();
 
-    if (name && creatorId && type && about && user) {
-      return true;
-    }
-    await deleteRoom(roomId);
-    return false;
+    const addedUsers = await addUsers(roomId, userIdArr);
+    const usersSuccess = addedUsers.length > 0;
+    if (!usersSuccess) return await undoChanges();
+
+    return {
+      success: true as const,
+      createdDate: date.value,
+      users: addedUsers,
+    };
   }
 
   async function deleteRoom(roomId: RoomId) {
@@ -69,30 +102,46 @@ export const model = (redis: FastifyRedis) => {
     const usersResult = (await redis.del(roomUsersKey(roomId))) === 1;
     //const blockedResult = (await redis.del(roomBlockedUsersKey(roomId))) === 1;
     // TODO need to know if there no blocked key (no banned users)
-    const result = {
+    return {
       info: infoResult,
       users: usersResult,
       //blocked: blockedResult,
-      final: infoResult && usersResult, // && blockedResult,
     };
-    return result;
   }
 
   async function readRoomInfo(
     roomId: RoomId,
     toRead: Array<ReadRoomInfoValues>
-  ): Promise<ReadRoomInfoResult> {
+  ): Promise<Omit<ReadRoomInfoResult, "haveAccess">> {
     const result = Object.create(null);
-    for (const fieldToRead of toRead) {
-      const value = await redis.hget(roomInfoKey(roomId), fieldToRead);
-      result[fieldToRead] = verifierInfoValueWrapper(fieldToRead, value);
+    let goodCount = 0;
+    for (const field of toRead) {
+      const value = await redis.hget(roomInfoKey(roomId), field);
+      if (!value) continue;
+      const validatedValue = verifierInfoValueWrapper(field, value);
+      if (!validatedValue) continue;
+      result[field] = validatedValue;
+      goodCount++;
     }
+
+    result.roomId = roomId;
+
+    if (goodCount > 0) {
+      result.success = true as const;
+      return result;
+    }
+    result.success = false as const;
     return result;
   }
 
-  async function updateRoomInfo(roomId: RoomId, roomInfo: WriteRoomInfo) {
-    const result: WriteRoomResult = Object.create(null);
-    let key: keyof WriteRoomInfo;
+  async function updateRoomInfo(
+    roomId: RoomId,
+    roomInfo: RoomInfoToUpdate,
+    justCreated?: boolean
+  ) {
+    const result: RoomInfoUpdateResult = Object.create(null);
+    let isUpdated = false;
+    let key: keyof RoomInfoToUpdate;
     for (key in roomInfo) {
       const value = verifierInfoValueWrapper(key, roomInfo[key]);
       if (value) {
@@ -101,16 +150,22 @@ export const model = (redis: FastifyRedis) => {
           roomInfoFields[key],
           value
         );
+        if (result[key]) {
+          isUpdated = true as const;
+        }
       } else {
         result[key] = false;
       }
+    }
+    if (isUpdated && !justCreated) {
+      result.modifiedDate = await updateInfoModifiedDate(redis, roomId);
     }
     return result;
   }
 
   async function updateRoomInfoValue(
     roomId: RoomId,
-    fieldToWrite: keyof WriteRoomInfo,
+    fieldToWrite: keyof RoomInfoUpdateResult,
     value: string
   ) {
     const result = await redis.hset(roomInfoKey(roomId), fieldToWrite, value);
@@ -168,12 +223,12 @@ export const model = (redis: FastifyRedis) => {
   async function removeUsers(roomId: RoomId, userIdArr: UserId[]) {
     const removedUsers: UserId[] = [];
     for (const userId of userIdArr) {
-      const removedFromRoomSet =
+      const remFromRoomSet =
         (await redis.srem(roomUsersKey(roomId), userIdArr)) === 1;
-      const removedFromUserSet =
+      const remFromUserSet =
         (await redis.srem(userRoomsSetKey(userId), roomId)) === 1;
-      if (removedFromRoomSet && removedFromUserSet) {
-        // Already removed users will not appear as added (true)
+      if (remFromRoomSet && remFromUserSet) {
+        // Already removed users will not push
         removedUsers.push(userId);
       }
     }

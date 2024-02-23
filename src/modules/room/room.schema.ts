@@ -51,13 +51,15 @@ const readRoomInfoArray = z
       ])
       .optional()
   )
-  .transform((privacy) => {
-    return privacy as Array<ReadRoomInfoValues>;
+  .transform((toRead) => {
+    return toRead as Array<ReadRoomInfoValues>;
   });
 
 const readRoomBody = z.object({
-  roomId: roomId,
-  toRead: readRoomInfoArray,
+  range: z.object({
+    min: z.string(),
+    max: z.string(),
+  }),
 });
 
 export const readRoomSchema = {

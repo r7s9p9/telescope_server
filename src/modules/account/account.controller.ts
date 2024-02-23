@@ -317,7 +317,9 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
 
   async function createAccount(userId: UserId, username: string) {
     const initResult = await m.initAccount(userId, username);
-    await room(redis, isProd).createServiceRoom(userId);
+    const roomResult = await room(redis, isProd)
+      .internal()
+      .createServiceRoom(userId);
   }
 
   return { readAccount, createAccount, updateAccount };

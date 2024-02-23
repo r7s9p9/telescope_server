@@ -2,14 +2,16 @@ import { userKeyPart } from "../constants";
 import { RoomId, UserId } from "../types";
 import {
   ReadRoomInfoResult,
+  RoomInfoExternal,
   RoomInfoValues,
-  WriteRoomResult,
+  RoomInfoUpdateResult,
 } from "./room.types";
 
 export const roomTypeValues = {
   public: "public" as const,
   private: "private" as const,
   single: "single" as const,
+  service: "service" as const,
 };
 
 export const roomInfoFields = {
@@ -17,6 +19,8 @@ export const roomInfoFields = {
   creatorId: "creatorId" as const,
   type: "type" as const,
   about: "about" as const,
+  createdDate: "createdDate" as const,
+  modifiedDate: "modifiedDate" as const,
 };
 
 export const roomInfoStartValues = (
@@ -33,11 +37,14 @@ export const roomInfoStartValues = (
   roomInfoValues.type,
   roomInfoFields.about,
   roomInfoValues.about,
+  roomInfoFields.modifiedDate,
+  Number(Date.now),
   roomInfoFields.creatorId,
   creatorId,
 ];
-
-export const serviceRoomName = "Telescope";
+export const serviceRoomName = "Telescope" as const;
+export const serviceRoomAbout = "Service notifications" as const;
+export const serviceId = "service" as const;
 export const personalRoomName = "Saved Messages";
 export const roomKeyPart = "room";
 export const allRoomsKeyPart = "rooms:all";
@@ -58,15 +65,13 @@ export const roomBlockedUsersKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:blockedUsers`;
 
 export const payloadSuccessfulReadInfo = (
-  roomId: RoomId,
-  info: ReadRoomInfoResult,
+  info: ReadRoomInfoResult[],
   isProd: boolean
 ) => {
   return {
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
       info: info,
       dev: !isProd
         ? {
@@ -81,6 +86,9 @@ export const payloadSuccessfulReadInfo = (
 
 export const payloadSuccessOfCreatingRoom = (
   roomId: RoomId,
+  roomInfo: RoomInfoExternal,
+  userIdArr: UserId[],
+  createdDate: number | string,
   isProd: boolean
 ) => {
   return {
@@ -88,6 +96,8 @@ export const payloadSuccessOfCreatingRoom = (
     data: {
       success: true as const,
       roomId: roomId,
+      roomInfo: { ...roomInfo, createdDate },
+      userIdArr: userIdArr,
       dev: !isProd
         ? { message: ["The room was created successfully"] as const }
         : undefined,
@@ -97,7 +107,7 @@ export const payloadSuccessOfCreatingRoom = (
 
 export const payloadSuccessOfUpdateRoom = (
   roomId: RoomId,
-  updated: WriteRoomResult,
+  updated: RoomInfoUpdateResult,
   isProd: boolean
 ) => {
   return {
@@ -421,7 +431,7 @@ export const payloadNoCreator = (isProd: boolean) => {
   };
 };
 
-export const payloadLackOfPermission = (isProd: boolean) => {
+export const payloadNoValuesRequestedToRead = (isProd: boolean) => {
   return {
     status: 403 as const,
     data: {
@@ -429,7 +439,7 @@ export const payloadLackOfPermission = (isProd: boolean) => {
       dev: !isProd
         ? {
             message: [
-              "You don't have the right to read the room info",
+              "No value was requested to read room information",
             ] as const,
           }
         : undefined,

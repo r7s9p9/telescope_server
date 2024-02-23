@@ -1,43 +1,62 @@
-import { UserId } from "../types";
-import { roomInfoFields, roomTypeValues } from "./room.constants";
+import { RoomId, UserId } from "../types";
+import { roomInfoFields, roomTypeValues, serviceId } from "./room.constants";
 
 export interface RoomInfoValues {
-  name: string;
-  creatorId?: UserId;
-  type: keyof typeof roomTypeValues;
-  about: string;
+  [roomInfoFields.name]: string;
+  [roomInfoFields.creatorId]?: UserId;
+  [roomInfoFields.type]: keyof typeof roomTypeValues;
+  [roomInfoFields.about]: string;
+  [roomInfoFields.createdDate]: string | number;
+  [roomInfoFields.modifiedDate]: string | number;
 }
 
-export type ReadRoomInfoValues = (typeof roomInfoFields)[
-  | "name"
-  | "creatorId"
-  | "type"
-  | "about"];
+export type ReadRoomInfoValues = keyof typeof roomInfoFields;
 
-export type ReadRoomInfoResult = {
-  name?: string | null;
-  creatorId?: UserId | null;
-  type?: keyof typeof roomTypeValues | null;
-  about?: string | null;
+export type RoomTypeValues = keyof typeof roomTypeValues;
+
+export type ServiceId = typeof serviceId;
+
+export type RoomState = {
+  roomId: RoomId;
+  infoModifiedDate: string;
+  lastMessageDate: string;
 };
 
-export interface CreateRoomInfo {
+export type ReadRoomInfoResult = {
+  roomId: RoomId;
+  success: boolean;
+  [roomInfoFields.name]?: string;
+  [roomInfoFields.creatorId]?: UserId;
+  [roomInfoFields.type]?: RoomTypeValues;
+  [roomInfoFields.about]?: string;
+  [roomInfoFields.createdDate]?: string | number;
+  [roomInfoFields.modifiedDate]?: string | number;
+};
+
+export interface RoomInfoInternal {
   name: string;
-  creatorId?: UserId;
-  type: keyof typeof roomTypeValues;
+  creatorId: UserId | ServiceId;
+  type: RoomTypeValues;
   about: string;
 }
 
-export interface WriteRoomInfo {
+export interface RoomInfoExternal {
+  name: string;
+  type: RoomTypeValues;
+  about: string;
+}
+
+export interface RoomInfoToUpdate {
   name?: string;
-  creatorId?: UserId;
-  type?: keyof typeof roomTypeValues;
+  creatorId?: UserId | ServiceId;
+  type?: RoomTypeValues;
   about?: string;
 }
 
-export interface WriteRoomResult {
+export interface RoomInfoUpdateResult {
   name?: boolean;
   creatorId?: boolean;
   type?: boolean;
   about?: boolean;
+  modifiedDate?: number | string;
 }

@@ -29,7 +29,7 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
     schema: createRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.createRoom(
         req.session.token.id,
         req.body.roomInfo,
@@ -49,13 +49,12 @@ export async function roomReadRoute(fastify: FastifyInstance) {
     schema: readRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
-      const result = await roomAction.readRoomInfo(
-        req.session.token.id,
-        req.body.roomId,
-        req.body.toRead
-      );
-      return rep.code(result.status).send(result.data);
+      // const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      // const result = await roomAction.readRooms(
+      //   req.session.token.id,
+      //   req.body.range
+      // );
+      // return rep.code(result.status).send(result.data);
     },
   });
 }
@@ -69,7 +68,7 @@ export async function roomUpdateRoute(fastify: FastifyInstance) {
     schema: updateRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.updateRoomInfo(
         req.session.token.id,
         req.body.roomId,
@@ -80,38 +79,19 @@ export async function roomUpdateRoute(fastify: FastifyInstance) {
   });
 }
 
-export async function roomGetUsersRoute(fastify: FastifyInstance) {
+export async function roomReadUsersRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/get-users",
+    url: "/api/room/users",
     schema: getUsersRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
-      const result = await roomAction.readRoomUsers(
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      const result = await roomAction.readUsers(
         req.session.token.id,
         req.body.roomId
-      );
-      return rep.code(result.status).send(result.data);
-    },
-  });
-}
-
-export async function roomGetUserRoomsRoute(fastify: FastifyInstance) {
-  fastify.setValidatorCompiler(validatorCompiler);
-  fastify.setSerializerCompiler(serializerCompiler);
-  fastify.withTypeProvider<ZodTypeProvider>().route({
-    method: ["POST"],
-    url: "/api/room/get-user-rooms",
-    schema: getUserRoomsSchema,
-    preHandler: [fastify.sessionVerifier],
-    handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
-      const result = await roomAction.readUserRooms(
-        req.session.token.id,
-        req.body.userId
       );
       return rep.code(result.status).send(result.data);
     },
@@ -123,11 +103,11 @@ export async function roomKickUsersRoute(fastify: FastifyInstance) {
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/kick-users",
+    url: "/api/room/kick",
     schema: kickUsersRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.kickUsers(
         req.session.token.id,
         req.body.roomId,
@@ -143,11 +123,11 @@ export async function roomBlockUsersRoute(fastify: FastifyInstance) {
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/block-users",
+    url: "/api/room/block",
     schema: blockUsersRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.blockUsers(
         req.session.token.id,
         req.body.roomId,
@@ -163,11 +143,11 @@ export async function roomUnblockUsersRoute(fastify: FastifyInstance) {
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/unblock-users",
+    url: "/api/room/unblock",
     schema: unblockUsersRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.unblockUsers(
         req.session.token.id,
         req.body.roomId,
@@ -187,7 +167,7 @@ export async function roomJoinRoute(fastify: FastifyInstance) {
     schema: joinRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.joinRoom(
         req.session.token.id,
         req.body.roomId
@@ -206,7 +186,7 @@ export async function roomLeaveRoute(fastify: FastifyInstance) {
     schema: leaveRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.leaveRoom(
         req.session.token.id,
         req.body.roomId
@@ -221,12 +201,12 @@ export async function roomInviteUsersRoute(fastify: FastifyInstance) {
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/invite-users",
+    url: "/api/room/invite",
     schema: inviteUsersRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
-      const result = await roomAction.inviteUsersWrapper(
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      const result = await roomAction.inviteUsers(
         req.session.token.id,
         req.body.roomId,
         req.body.toInvite
@@ -245,7 +225,7 @@ export async function roomDeleteRoute(fastify: FastifyInstance) {
     schema: deleteRoomSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      const roomAction = room(fastify.redis, fastify.env.isProd);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
       const result = await roomAction.deleteRoom(
         req.session.token.id,
         req.body.roomId

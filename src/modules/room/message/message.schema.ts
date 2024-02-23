@@ -68,7 +68,7 @@ export const removeMessageSchema = {
 
 const checkMessageBody = z.object({
   roomId: roomId,
-  toCheck: z
+  toCompare: z
     .object({
       created: z.string().length(messageDateSize),
       modified: z.string().length(messageDateSize).optional(),

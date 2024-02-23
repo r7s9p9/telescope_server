@@ -1,14 +1,15 @@
 import { UserId } from "../../types";
+import { ServiceId } from "../room.types";
 import { contentFields, messageFields } from "./message.constants";
 
 export interface Message {
   [messageFields.content]: {
     [contentFields.text]?: string;
   };
-  [messageFields.authorId]: UserId | "service";
+  [messageFields.authorId]: UserId | ServiceId;
   [messageFields.replyTo]?: UserId;
-  [messageFields.created]: string | number;
-  [messageFields.modified]?: string | number;
+  [messageFields.created]: string;
+  [messageFields.modified]?: string;
 }
 
 export type AddMessage = {
@@ -28,8 +29,8 @@ export type UpdateMessage = {
 };
 
 export interface MessageRange {
-  minDate: string;
-  maxDate: string;
+  minDate: Message["created"];
+  maxDate: Message["created"];
 }
 
 export interface MessageDate {

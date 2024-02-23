@@ -25,18 +25,17 @@ import {
   roomBlockUsersRoute,
   roomCreateRoute,
   roomDeleteRoute,
-  roomGetUsersRoute,
   roomJoinRoute,
   roomKickUsersRoute,
   roomLeaveRoute,
   roomReadRoute,
   roomUnblockUsersRoute,
   roomUpdateRoute,
-  roomGetUserRoomsRoute,
+  roomReadUsersRoute,
 } from "./modules/room/room.route";
 import {
   messageAddRoute,
-  messageCheckRoute,
+  messageCompareRoute,
   messageReadRoute,
   messageRemoveRoute,
   messageUpdateRoute,
@@ -126,7 +125,7 @@ const app = async () => {
   await fastify.register(roomCreateRoute);
   await fastify.register(roomReadRoute);
   await fastify.register(roomUpdateRoute);
-  await fastify.register(roomGetUsersRoute);
+  await fastify.register(roomReadUsersRoute);
   await fastify.register(roomKickUsersRoute);
   await fastify.register(roomBlockUsersRoute);
   await fastify.register(roomUnblockUsersRoute);
@@ -134,13 +133,12 @@ const app = async () => {
   await fastify.register(roomLeaveRoute);
   await fastify.register(roomInviteUsersRoute);
   await fastify.register(roomDeleteRoute);
-  await fastify.register(roomGetUserRoomsRoute);
 
   await fastify.register(messageReadRoute);
   await fastify.register(messageAddRoute);
   await fastify.register(messageUpdateRoute);
   await fastify.register(messageRemoveRoute);
-  await fastify.register(messageCheckRoute);
+  await fastify.register(messageCompareRoute);
 
   fastify.listen({ port: parseInt(fastify.env.appPort) }, function (err) {
     if (err) {

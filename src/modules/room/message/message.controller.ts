@@ -10,6 +10,7 @@ import { RoomId, UserId } from "../../types";
 import { room } from "../room.controller";
 import { model } from "./message.model";
 import {
+  payloadAllMessagesEqual,
   payloadAllRequestedMessagesDeleted,
   payloadMessageDoesNotExist,
   payloadMessageNotUpdated,
@@ -26,150 +27,224 @@ import {
   payloadSuccessfulReadMessages,
   payloadUpdatedMessages,
 } from "./message.constants";
+import { serviceId } from "../room.constants";
 
-const touchDate = () => {
-  return Date.now();
-};
+const touchDate = () => Date.now().toString();
 
 export const message = (redis: FastifyRedis, isProd: boolean) => {
-  const roomAction = room(redis, isProd);
+  const roomAction = room(redis, isProd).internal();
   const m = model(redis);
 
-  async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
-    const isAllow = await roomAction.checkPermission(roomId, userId);
-    if (!isAllow) {
-      return payloadNotAllowedAddMessages(roomId, isProd);
-    }
-    message.authorId = userId;
-    message.created = touchDate();
-    const result = await m.add(roomId, message);
-    if (result) {
-      return payloadSuccessfulAddMessage(roomId, message.created, isProd);
-    }
-    return payloadNoMessageWasAdded(roomId, isProd);
-  }
-
-  async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
-    const isAllow = await roomAction.checkPermission(roomId, userId);
-    if (!isAllow) {
-      return payloadNotAllowedReadMessages(roomId, isProd);
-    }
-    const result = await m.read(roomId, range);
-    if (!result.success) {
-      return payloadNoOneMessageReadedWithErrors(roomId, result.error, isProd);
-    }
-    if (!result.error && result.empty) {
-      return payloadNoOneMessageReaded(roomId, isProd);
-    }
-    return payloadSuccessfulReadMessages(
-      roomId,
-      result.messages,
-      result.error,
-      isProd
-    );
-  }
-
-  async function update(
-    userId: UserId,
-    roomId: RoomId,
-    message: UpdateMessage
-  ) {
-    const isAllow = await roomAction.checkPermission(roomId, userId);
-    if (!isAllow) {
-      return payloadNotAllowedAddMessages(roomId, isProd);
-    }
-    const info = await m.isAuthor(roomId, userId, message.created);
-    if (!info.exist) {
-      return payloadMessageDoesNotExist(roomId, isProd);
-    }
-    if (!info.isAuthor) {
-      return payloadNotAuthorOfMessage(roomId, isProd);
-    }
-    message.modified = touchDate();
-    message.authorId = userId;
-    const removeResult = await m.remove(roomId, message.created);
-    const addResult = await m.add(roomId, message);
-
-    if (!removeResult || !addResult) {
-      return payloadMessageNotUpdated(roomId, isProd);
-    }
-    return payloadMessageUpdatedSuccessfully(roomId, message.modified, isProd);
-  }
-
-  async function remove(userId: UserId, roomId: RoomId, created: string) {
-    const isAllow = await roomAction.checkPermission(roomId, userId);
-    if (!isAllow) {
-      return payloadNotAllowedAddMessages(roomId, isProd);
-    }
-    const info = await m.isAuthor(roomId, userId, created);
-    if (!info.exist) {
-      return payloadMessageDoesNotExist(roomId, isProd);
-    }
-    if (!info.isAuthor) {
-      return payloadNotAuthorOfMessage(roomId, isProd);
-    }
-    const result = await m.remove(roomId, created);
-    if (result) {
-      return payloadMessageSuccessfullyDeleted(roomId, isProd);
-    }
-    return payloadMessageWasNotDeleted(roomId, isProd);
-  }
-
-  async function check(userId: UserId, roomId: RoomId, toCheck: MessageDate[]) {
-    const isAllow = await roomAction.checkPermission(roomId, userId);
-    if (!isAllow) {
-      return payloadNotAllowedReadMessages(roomId, isProd);
-    }
-    const createdArr = takeCreated(toCheck);
-    const stored = await m.getDates(roomId, createdArr);
-
-    if (stored.empty) {
-      return payloadAllRequestedMessagesDeleted(roomId, createdArr, isProd);
-    }
-    const { toRead, toRemove } = compareMessageDates(toCheck, stored.array);
-
-    const updatedMessages: Message[] = [];
-    for (const date of toRead) {
-      const result = await m.read(roomId, { minDate: date, maxDate: date });
-      if (result.messages && result.messages[0]) {
-        updatedMessages.push(result.messages[0]);
-      }
-    }
-    return payloadUpdatedMessages(roomId, updatedMessages, toRemove, isProd);
-  }
-
-  function compareMessageDates(toCheck: MessageDate[], stored: MessageDate[]) {
-    const toRead: MessageDate["created"][] = [];
-    const toRemove: MessageDate["created"][] = [];
-    const createdArr = takeCreated(stored);
-    for (const message of toCheck) {
-      const created = createdArr.find((value) => value === message.created);
-      if (!created) {
-        toRemove.push(message.created);
-      }
-      if (message.modified) {
-        const compare = (value: MessageDate) =>
-          Number(value.created) === Number(message.created) &&
-          Number(value.modified) === Number(message.modified);
-        const isEqual = stored.every(compare);
-        if (!isEqual) {
-          toRead.push(message.created);
+  const internal = () => {
+    function extractCreatedAt(array: MessageDate[]) {
+      const createdArr: MessageDate["created"][] = [];
+      for (const messageDate of array) {
+        if (messageDate.created) {
+          createdArr.push(messageDate.created);
         }
       }
+      return createdArr;
     }
 
-    return { toRead, toRemove };
-  }
+    function calcDatesDiff(
+      clientDatesArr: MessageDate[],
+      storedMessageArr: Message[]
+    ) {
+      const toUpdate: Message[] = [];
+      const toRemove: MessageDate["created"][] = [];
 
-  function takeCreated(array: MessageDate[]) {
-    const createdOnly: MessageDate["created"][] = [];
-    for (const messageDate of array) {
-      if (messageDate.created) {
-        createdOnly.push(messageDate.created);
+      for (const client of clientDatesArr) {
+        let clientCreatedFound = false;
+        for (const stored of storedMessageArr) {
+          console.log(stored, client);
+          if (stored.created !== client.created) continue;
+          clientCreatedFound = true;
+          if (stored.modified || client.modified) {
+            if (client.modified !== stored.modified) {
+              toUpdate.push(stored);
+            }
+          }
+        }
+        if (!clientCreatedFound) toRemove.push(client.created);
       }
+      return { toUpdate, toRemove };
     }
-    return createdOnly;
-  }
 
-  return { read, add, update, remove, check };
+    async function addByService(roomId: RoomId, text: string) {
+      const message = {
+        content: { text },
+        created: touchDate(),
+        authorId: serviceId,
+      };
+      return await m.add(roomId, message);
+    }
+
+    async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
+      message.authorId = userId;
+      message.created = touchDate();
+      const isAdded = await m.add(roomId, message);
+      if (!isAdded) return { success: false as const };
+      return { success: true as const, created: message.created };
+    }
+
+    async function read(roomId: RoomId, range: MessageRange) {
+      const result = await m.readByRange(roomId, range);
+      const isEmpty = result.messageArr.length === 0;
+      const isError = result.errorArr.length !== 0;
+      return {
+        messageArr: result.messageArr,
+        isEmpty,
+        isError,
+        errorArr: result.errorArr,
+      };
+    }
+
+    async function readLastMessage(roomId: RoomId) {
+      const result = await m.readLastMessage(roomId);
+      const isEmpty = result.messageArr.length === 0;
+      const isError = result.errorArr.length !== 0;
+      return {
+        messageArr: result.messageArr,
+        isEmpty,
+        isError,
+        errorArr: result.errorArr,
+      };
+    }
+
+    async function update(
+      authorId: UserId,
+      roomId: RoomId,
+      message: UpdateMessage
+    ) {
+      const finalMessage: Message = {
+        ...message,
+        modified: touchDate(),
+        authorId: authorId,
+      };
+      const removeResult = await m.remove(roomId, finalMessage.created);
+      const addResult = await m.add(roomId, finalMessage);
+      if (removeResult && addResult) {
+        return { success: true as const, message: finalMessage };
+      }
+      return { success: false as const };
+    }
+
+    async function compare(roomId: RoomId, clientDatesArr: MessageDate[]) {
+      // Remove some checks?
+      const clientCreatedArr = extractCreatedAt(clientDatesArr);
+      const storedDatesArr = await m.readByCreated(roomId, clientCreatedArr);
+
+      const isAnyExist = storedDatesArr.length > 0;
+      if (!isAnyExist) return { toRemove: clientCreatedArr };
+
+      // Find diff
+      const { toUpdate, toRemove } = calcDatesDiff(
+        clientDatesArr,
+        storedDatesArr
+      );
+
+      return { toUpdate, toRemove };
+    }
+
+    return {
+      extractCreatedAt,
+      calcDatesDiff,
+      addByService,
+      add,
+      read,
+      readLastMessage,
+      update,
+      compare,
+    };
+  };
+
+  const external = () => {
+    async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
+      const isAllow = await roomAction.checkPermission(roomId, userId);
+      if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
+
+      const result = await internal().add(userId, roomId, message);
+      if (!result.success) return payloadNoMessageWasAdded(roomId, isProd);
+      return payloadSuccessfulAddMessage(roomId, result.created, isProd);
+    }
+
+    async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
+      const isAllow = await roomAction.checkPermission(roomId, userId);
+      if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
+
+      const result = await internal().read(roomId, range);
+      if (result.isEmpty && result.isError) {
+        return payloadNoOneMessageReadedWithErrors(
+          roomId,
+          result.errorArr,
+          isProd
+        );
+      }
+      if (result.isEmpty) {
+        return payloadNoOneMessageReaded(roomId, isProd);
+      }
+      return payloadSuccessfulReadMessages(roomId, result.messageArr, isProd);
+    }
+
+    async function update(
+      userId: UserId,
+      roomId: RoomId,
+      message: UpdateMessage
+    ) {
+      const isAllow = await roomAction.checkPermission(roomId, userId);
+      if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
+
+      const info = await m.isAuthor(roomId, userId, message.created);
+      if (!info.exist) return payloadMessageDoesNotExist(roomId, isProd);
+      if (!info.isAuthor) return payloadNotAuthorOfMessage(roomId, isProd);
+
+      const result = await internal().update(userId, roomId, message);
+      if (!result.success) return payloadMessageNotUpdated(roomId, isProd);
+
+      return payloadMessageUpdatedSuccessfully(roomId, result.message, isProd);
+    }
+
+    async function remove(userId: UserId, roomId: RoomId, created: string) {
+      const isAllow = await roomAction.checkPermission(roomId, userId);
+      if (!isAllow) {
+        return payloadNotAllowedAddMessages(roomId, isProd);
+      }
+      const info = await m.isAuthor(roomId, userId, created);
+      if (!info.exist) return payloadMessageDoesNotExist(roomId, isProd);
+      if (!info.isAuthor) return payloadNotAuthorOfMessage(roomId, isProd);
+
+      const success = await m.remove(roomId, created);
+      if (!success) return payloadMessageWasNotDeleted(roomId, isProd);
+      return payloadMessageSuccessfullyDeleted(roomId, isProd);
+    }
+
+    async function compare(
+      userId: UserId,
+      roomId: RoomId,
+      toCompare: MessageDate[]
+    ) {
+      const isAllow = await roomAction.checkPermission(roomId, userId);
+      if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
+
+      const { toUpdate, toRemove } = await internal().compare(
+        roomId,
+        toCompare
+      );
+
+      const noUpdate = toUpdate && toUpdate.length === 0;
+      const noRemove = toRemove && toRemove.length === 0;
+      if (noUpdate && noRemove) return payloadAllMessagesEqual(roomId, isProd);
+      return payloadUpdatedMessages(roomId, isProd, toRemove, toUpdate);
+    }
+
+    return {
+      add,
+      read,
+      update,
+      remove,
+      compare,
+    };
+  };
+
+  return { internal, external };
 };

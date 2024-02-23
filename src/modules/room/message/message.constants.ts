@@ -23,7 +23,7 @@ export const messageValues = {};
 
 export const payloadSuccessfulAddMessage = (
   roomId: RoomId,
-  date: number,
+  created: Message["created"],
   isProd: boolean
 ) => {
   const devMessage = "The message was successfully added" as const;
@@ -32,7 +32,7 @@ export const payloadSuccessfulAddMessage = (
     data: {
       success: true as const,
       roomId: roomId,
-      created: date,
+      created: created,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
   };
@@ -41,7 +41,6 @@ export const payloadSuccessfulAddMessage = (
 export const payloadSuccessfulReadMessages = (
   roomId: RoomId,
   messages: Message[],
-  error: string[] | false,
   isProd: boolean
 ) => {
   const devMessage = "The messages was successfully readed" as const;
@@ -51,14 +50,14 @@ export const payloadSuccessfulReadMessages = (
       success: true as const,
       roomId: roomId,
       messages: messages,
-      dev: !isProd ? { message: [devMessage], error: error } : undefined,
+      dev: !isProd ? { message: [devMessage] } : undefined,
     },
   };
 };
 
 export const payloadNoOneMessageReadedWithErrors = (
   roomId: RoomId,
-  readError: string[] | false,
+  readError: string[][],
   isProd: boolean
 ) => {
   const devMessage = "There are no good messages" as const;
@@ -140,7 +139,7 @@ export const payloadMessageNotUpdated = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadMessageUpdatedSuccessfully = (
   roomId: RoomId,
-  date: Message["modified"],
+  message: Message,
   isProd: boolean
 ) => {
   const devMessage = "The message has been successfully modified" as const;
@@ -148,7 +147,7 @@ export const payloadMessageUpdatedSuccessfully = (
     status: 200 as const,
     data: {
       success: true as const,
-      date: date,
+      message: message,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -231,16 +230,18 @@ export const payloadMessageWasNotDeleted = (
 
 export const payloadUpdatedMessages = (
   roomId: RoomId,
-  toUpdate: Message[],
+  isProd: boolean,
   toRemove: Message["created"][],
-  isProd: boolean
+  toUpdate?: Message[]
 ) => {
-  const isToUpdate = toUpdate.length !== 0;
-  const isToRemove = toRemove.length !== 0;
   const devMessageToUpdate =
     "Current versions of messages were sent successfully" as const;
   const devMessageToRemove =
     "Successfully sent creation dates for already deleted messages" as const;
+
+  const isToUpdate = toUpdate && toUpdate.length !== 0;
+  const isToRemove = toRemove.length !== 0;
+
   const devMessage: string[] = [];
   if (isToUpdate) devMessage.push(devMessageToUpdate);
   if (isToRemove) devMessage.push(devMessageToRemove);
@@ -250,6 +251,18 @@ export const payloadUpdatedMessages = (
       success: true as const,
       toUpdate: toUpdate,
       toRemove: toRemove,
+      roomId: roomId,
+      dev: !isProd ? { message: devMessage } : undefined,
+    },
+  };
+};
+
+export const payloadAllMessagesEqual = (roomId: RoomId, isProd: boolean) => {
+  const devMessage = "All messages are relevant" as const;
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
       roomId: roomId,
       dev: !isProd ? { message: devMessage } : undefined,
     },
