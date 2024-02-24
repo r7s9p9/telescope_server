@@ -27,6 +27,16 @@ import {
   payloadNoJoined,
   serviceId,
   serviceRoomAbout,
+  welcomeServiceRoomMessage,
+  welcomeSingleRoomMessage,
+  welcomeRegularRoomMessage,
+  payloadRoomInfoNotUpdated,
+  userKickedOutMessage,
+  userBlockedMessage,
+  userUnblockedMessage,
+  userInvitedMessage,
+  userJoinedMessage,
+  userLeavedMessage,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -40,43 +50,74 @@ import {
 import { randomUUID } from "crypto";
 import { payloadServerError } from "../constants";
 import { checkUserId } from "../../utils/uuid";
+import { message } from "./message/message.controller";
 
 export const room = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
   const internal = () => {
-    const accountAction = account(redis, isProd);
+    const accountAction = account(redis, isProd).internal();
+
+    const addServiceMessage = (
+      roomId: RoomId,
+      text: string,
+      targetId?: UserId
+    ) => message(redis, isProd).internal().serviceAdd(roomId, text, targetId);
 
     const isInviteAllowed = async (
       initiatorUserId: UserId,
       targetUserId: UserId
     ) => {
-      const { data } = await accountAction.readAccount(
+      const { properties } = await accountAction.read(
         initiatorUserId,
         targetUserId,
         {
           properties: [accountFields.properties.isCanAddToRoom],
         }
       );
-      if (data?.properties?.isCanAddToRoom) {
-        return true;
-      }
+      if (properties?.isCanAddToRoom) return true;
       return false;
     };
 
-    const checkPublic = async (roomId: RoomId) => {
+    const isPublicRoom = async (roomId: RoomId) => {
       const { type } = await m.readRoomInfo(roomId, [roomInfoFields.type]);
       return type === roomTypeValues.public;
     };
 
-    const checkPermission = async (roomId: RoomId, userId: UserId) => {
-      const isMember = await m.isUserInRoomSet(roomId, userId);
-      if (!isMember) return false;
-
+    const isAllowedBySoftRule = async (roomId: RoomId, userId: UserId) => {
+      const isPublic = await isPublicRoom(roomId);
       const isBlocked = await m.isUserBlocked(userId, roomId);
-      if (isBlocked) return false;
+      const isCreator = await m.isCreator(roomId, userId);
+      const isMember = await m.isUserInRoomSet(roomId, userId);
 
-      return true;
+      if (isBlocked) return false;
+      if (isPublic || isMember || isCreator) return true;
+      return false;
+    };
+
+    const isAllowedByHardRule = async (roomId: RoomId, userId: UserId) => {
+      const isBlocked = await m.isUserBlocked(userId, roomId);
+      const isMember = await m.isUserInRoomSet(roomId, userId);
+
+      if (isBlocked) return false;
+      if (isMember) return true;
+      return false;
+    };
+
+    const getReadyToInviteUserIdArr = async (
+      initiatorUserId: UserId,
+      userIdArr?: UserId[]
+    ) => {
+      const usersExist = userIdArr && userIdArr.length > 0;
+      if (!usersExist) return [];
+
+      const allowedUsers: UserId[] = [];
+      for (const userId of userIdArr) {
+        if (await isInviteAllowed(initiatorUserId, userId)) {
+          allowedUsers.push(userId);
+        }
+      }
+      return allowedUsers;
     };
 
     async function createServiceRoom(userId: UserId) {
@@ -88,10 +129,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       };
       const roomId = randomUUID();
       const result = await m.createRoom(roomId, [userId], roomInfo);
-      if (result.success) {
-        // TODO post service message to room
-        // separate service room from another?
-      }
+      if (!result.success) return false;
+      return await addServiceMessage(roomId, welcomeServiceRoomMessage);
     }
 
     async function createSingleRoom(
@@ -101,7 +140,10 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     ) {
       // creatorId will added as member
       const roomInfoInternal: RoomInfoInternal = { ...roomInfo, creatorId };
-      return await m.createRoom(roomId, [creatorId], roomInfoInternal);
+      const result = await m.createRoom(roomId, [creatorId], roomInfoInternal);
+      if (result.success)
+        await addServiceMessage(roomId, welcomeSingleRoomMessage);
+      return result;
     }
 
     async function createRegularRoom(
@@ -113,46 +155,102 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       // creatorId will added as member
       const roomInfoInternal: RoomInfoInternal = { ...roomInfo, creatorId };
       userIdArr.push(creatorId);
-      return await m.createRoom(roomId, userIdArr, roomInfoInternal);
+      const result = await m.createRoom(roomId, userIdArr, roomInfoInternal);
+      if (result.success)
+        await addServiceMessage(roomId, welcomeRegularRoomMessage);
+      return result;
     }
 
-    async function getAllowedUsers(
-      initiatorUserId: UserId,
-      userIdArr?: UserId[]
-    ) {
-      const usersExist = userIdArr && userIdArr.length > 0;
-      if (!usersExist) return [];
-
-      const allowedUsers: UserId[] = [];
-      for (const userId of userIdArr) {
-        if (await isInviteAllowed(initiatorUserId, userId)) {
-          allowedUsers.push(userId);
-        }
-      }
-      return allowedUsers;
-    }
-
-    async function inviteUsers(
+    async function invite(
       roomId: RoomId,
-      creatorId: UserId,
+      initiatorUserId: UserId,
       userIdArr: UserId[]
     ) {
-      const allowedUserArr = await getAllowedUsers(creatorId, userIdArr);
-      return await m.addUsers(roomId, allowedUserArr);
+      const allowedUserArr = await getReadyToInviteUserIdArr(
+        initiatorUserId,
+        userIdArr
+      );
+      const addedUserIdArr = await m.addUsers(roomId, allowedUserArr);
+      const nobodyAdded = addedUserIdArr.length === 0;
+      if (nobodyAdded) return { success: false as const };
+      for (const userId of addedUserIdArr) {
+        await addServiceMessage(roomId, userInvitedMessage, userId);
+      }
+      return { success: true as const, userIdArr: addedUserIdArr };
+    }
+
+    async function updateInfo(roomId: RoomId, roomInfo: RoomInfoToUpdate) {
+      const result = await m.updateRoomInfo(roomId, roomInfo);
+      if (result.success) {
+        await addServiceMessage(roomId, welcomeRegularRoomMessage);
+        return { success: true as const, roomInfo: result.roomInfo };
+      }
+      return { success: false as const };
+    }
+
+    async function kick(roomId: RoomId, userIdArr: UserId[]) {
+      const result = await m.removeUsers(roomId, userIdArr);
+      const nobodyKicked = result.length === 0;
+      if (nobodyKicked) return { success: false as const };
+      for (const userId of userIdArr) {
+        await addServiceMessage(roomId, userKickedOutMessage, userId);
+      }
+      return { success: true as const, userIdArr: result };
+    }
+
+    async function block(roomId: RoomId, userIdArr: UserId[]) {
+      const result = await m.blockUsers(roomId, userIdArr);
+      const nobodyBlocked = result.length === 0;
+      if (nobodyBlocked) return { success: false as const };
+      for (const userId of userIdArr) {
+        await addServiceMessage(roomId, userBlockedMessage, userId);
+      }
+      return { success: true as const, userIdArr: result };
+    }
+
+    async function unblock(roomId: RoomId, userIdArr: UserId[]) {
+      const result = await m.unblockUsers(roomId, userIdArr);
+      const nobodyUnblocked = result.length === 0;
+      if (nobodyUnblocked) return { success: false as const };
+      for (const userId of userIdArr) {
+        await addServiceMessage(roomId, userUnblockedMessage, userId);
+      }
+      return { success: true as const, userIdArr: result };
+    }
+
+    async function join(roomId: RoomId, userId: UserId) {
+      const [result] = await m.addUsers(roomId, [userId]);
+      if (!result) return { success: false as const };
+      await addServiceMessage(roomId, userJoinedMessage, userId);
+      return { success: true as const };
+    }
+
+    async function leave(roomId: RoomId, userId: UserId) {
+      const [result] = await m.removeUsers(roomId, [userId]);
+      if (!result) return { success: false as const };
+      await addServiceMessage(roomId, userLeavedMessage, userId);
+      return { success: true as const };
     }
 
     return {
-      checkPermission,
-      checkPublic,
+      isAllowedBySoftRule,
+      isAllowedByHardRule,
+      getReadyToInviteUserIdArr,
       createSingleRoom,
       createRegularRoom,
       createServiceRoom,
-      getAllowedUsers,
-      inviteUsers,
+      invite,
+      updateInfo,
+      kick,
+      block,
+      unblock,
+      join,
+      leave,
     };
   };
 
   const external = () => {
+    // For rooms overview on client !!!
     async function readRooms(
       userId: UserId,
       range: { min: string; max: string }
@@ -169,7 +267,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       ];
       const roomInfoArr: ReadRoomInfoResult[] = [];
       for (const roomId of roomIdArr) {
-        if (await internal().checkPermission(roomId, userId)) {
+        // isPublicCheck!!!
+        if (await internal().isAllowedBySoftRule(roomId, userId)) {
           const roomInfo = await m.readRoomInfo(roomId, infoToRead);
           roomInfoArr.push(roomInfo);
         } else {
@@ -216,8 +315,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         // Change payload to something special for createRoom
         return payloadServerError(isProd);
       }
-
-      const allowedUserArr = await internal().getAllowedUsers(
+      // TODO: Merge users to createRegularRoom
+      const allowedUserIdArr = await internal().getReadyToInviteUserIdArr(
         creatorId,
         userIdArr
       );
@@ -225,7 +324,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         roomId,
         creatorId,
         roomInfo,
-        allowedUserArr
+        allowedUserIdArr
       );
       if (result.success) {
         return payloadSuccessOfCreatingRoom(
@@ -260,10 +359,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const isCreator = await m.isCreator(roomId, userId);
       if (!isCreator) return payloadLackOfPermissionToUpdate(isProd);
 
-      const result = await m.updateRoomInfo(roomId, roomInfo);
-      // TODO post service message to room
-      // TODO customize payloadSuccessOfUpdateRoom
-      return payloadSuccessOfUpdateRoom(roomId, result, isProd);
+      const result = await internal().updateInfo(roomId, roomInfo);
+      if (!result.success) return payloadRoomInfoNotUpdated(roomId, isProd);
+      return payloadSuccessOfUpdateRoom(roomId, result.roomInfo, isProd);
     }
 
     async function kickUsers(
@@ -274,16 +372,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const isCreator = await m.isCreator(roomId, initiatorUserId);
       if (!isCreator) return payloadNoCreator(isProd);
 
-      const result = await m.removeUsers(roomId, userIdArr);
-      const nobodyKicked = result.length === 0;
-      if (nobodyKicked) return payloadNoOneKicked(roomId, isProd);
-      // TODO post service message to room
-      return payloadSuccessfulKickUsers(
-        roomId,
-        userIdArr.length,
-        result,
-        isProd
-      );
+      const result = await internal().kick(roomId, userIdArr);
+      if (!result.success) return payloadNoOneKicked(roomId, isProd);
+      return payloadSuccessfulKickUsers(roomId, result.userIdArr, isProd);
     }
 
     async function blockUsers(
@@ -294,17 +385,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const creator = await m.isCreator(roomId, initiatorUserId);
       if (!creator) return payloadNoCreator(isProd);
 
-      await m.removeUsers(roomId, userIdArr);
-      const result = await m.blockUsers(roomId, userIdArr);
-      const nobodyBlocked = result.length === 0;
-      if (nobodyBlocked) return payloadNoOneBlocked(roomId, isProd);
-      // TODO add service message
-      return payloadSuccessfulBlockUsers(
-        roomId,
-        userIdArr.length,
-        result,
-        isProd
-      );
+      const result = await internal().block(roomId, userIdArr);
+      if (!result.success) return payloadNoOneBlocked(roomId, isProd);
+      return payloadSuccessfulBlockUsers(roomId, result.userIdArr, isProd);
     }
 
     async function unblockUsers(
@@ -315,44 +398,26 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const creator = await m.isCreator(roomId, initiatorUserId);
       if (!creator) return payloadNoCreator(isProd);
 
-      const result = await m.unblockUsers(roomId, userIdArr);
-      if (result.length !== 0) {
-        // TODO add service message
-        return payloadSuccessfulUnblockUsers(
-          roomId,
-          userIdArr.length,
-          result,
-          isProd
-        );
-      }
-      return payloadNoOneUnblocked(roomId, isProd);
+      const result = await internal().unblock(roomId, userIdArr);
+      if (!result.success) return payloadNoOneUnblocked(roomId, isProd);
+      return payloadSuccessfulUnblockUsers(roomId, result.userIdArr, isProd);
     }
 
     async function inviteUsers(
-      creatorId: UserId,
+      userId: UserId,
       roomId: RoomId,
       userIdArr: UserId[]
     ) {
-      const isCreator = await m.isCreator(roomId, creatorId);
+      const isCreator = await internal().isAllowedByHardRule(roomId, userId);
       if (!isCreator) return payloadNoCreator(isProd);
 
-      const addedUserIdArr = await internal().inviteUsers(
-        roomId,
-        creatorId,
-        userIdArr
-      );
-      const nobodyAdded = addedUserIdArr.length === 0;
-      if (nobodyAdded) return payloadNoOneInvited(roomId, isProd);
-      return payloadSuccessOfInvite(
-        roomId,
-        userIdArr.length,
-        addedUserIdArr,
-        isProd
-      );
+      const result = await internal().invite(roomId, userId, userIdArr);
+      if (!result.success) return payloadNoOneInvited(roomId, isProd);
+      return payloadSuccessOfInvite(roomId, result.userIdArr, isProd);
     }
 
     async function readUsers(userId: UserId, roomId: RoomId) {
-      const permission = await internal().checkPermission(roomId, userId);
+      const permission = await internal().isAllowedByHardRule(roomId, userId);
       if (!permission) return payloadLackOfPermissionToReadUsers(isProd);
 
       const result = await m.readUsers(roomId);
@@ -371,28 +436,18 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function joinRoom(userId: UserId, roomId: RoomId) {
-      const isPublic = await internal().checkPublic(roomId);
-      const creator = await m.isCreator(roomId, userId);
-      if (isPublic || creator) {
-        const isBlocked = creator
-          ? false
-          : await m.isUserBlocked(roomId, userId);
-        if (!isBlocked) {
-          const result = await m.addUsers(roomId, [userId]);
-          if (result[0] === userId) {
-            // TODO post service message to room
-            return payloadSuccessOfJoining(roomId, isProd);
-          }
-          return payloadNoJoined(roomId, isProd);
-        }
-      }
-      return payloadLackOfPermissionToJoin(roomId, isProd);
+      const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
+      if (!isAllowed) return payloadLackOfPermissionToJoin(roomId, isProd);
+
+      const success = await internal().join(roomId, userId);
+      if (!success) return payloadNoJoined(roomId, isProd);
+      return payloadSuccessOfJoining(roomId, isProd);
     }
 
     async function leaveRoom(userId: UserId, roomId: RoomId) {
-      const [result] = await m.removeUsers(roomId, [userId]);
-      if (result) return payloadSuccessOfLeave(roomId, isProd);
-      return payloadYouAreNoLongerInRoom(roomId, isProd);
+      const success = await internal().leave(roomId, userId);
+      if (!success) return payloadYouAreNoLongerInRoom(roomId, isProd);
+      return payloadSuccessOfLeave(roomId, isProd);
     }
 
     return {

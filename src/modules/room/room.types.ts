@@ -58,5 +58,5 @@ export interface RoomInfoUpdateResult {
   creatorId?: boolean;
   type?: boolean;
   about?: boolean;
-  modifiedDate?: number | string;
+  modifiedDate?: string;
 }

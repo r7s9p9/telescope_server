@@ -4,14 +4,13 @@ import {
   Message,
   MessageDate,
   MessageRange,
+  ServiceMessage,
   UpdateMessage,
 } from "./message.types";
 import { RoomId, UserId } from "../../types";
 import { room } from "../room.controller";
 import { model } from "./message.model";
 import {
-  payloadAllMessagesEqual,
-  payloadAllRequestedMessagesDeleted,
   payloadMessageDoesNotExist,
   payloadMessageNotUpdated,
   payloadMessageSuccessfullyDeleted,
@@ -19,7 +18,6 @@ import {
   payloadMessageWasNotDeleted,
   payloadNoMessageWasAdded,
   payloadNoOneMessageReaded,
-  payloadNoOneMessageReadedWithErrors,
   payloadNotAllowedAddMessages,
   payloadNotAllowedReadMessages,
   payloadNotAuthorOfMessage,
@@ -32,26 +30,16 @@ import { serviceId } from "../room.constants";
 const touchDate = () => Date.now().toString();
 
 export const message = (redis: FastifyRedis, isProd: boolean) => {
-  const roomAction = room(redis, isProd).internal();
   const m = model(redis);
+  const roomAction = room(redis, isProd).internal;
 
   const internal = () => {
-    function extractCreatedAt(array: MessageDate[]) {
-      const createdArr: MessageDate["created"][] = [];
-      for (const messageDate of array) {
-        if (messageDate.created) {
-          createdArr.push(messageDate.created);
-        }
-      }
-      return createdArr;
-    }
-
     function calcDatesDiff(
       clientDatesArr: MessageDate[],
       storedMessageArr: Message[]
     ) {
       const toUpdate: Message[] = [];
-      const toRemove: MessageDate["created"][] = [];
+      const toRemove: MessageDate[] = [];
 
       for (const client of clientDatesArr) {
         let clientCreatedFound = false;
@@ -65,17 +53,20 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
             }
           }
         }
-        if (!clientCreatedFound) toRemove.push(client.created);
+        if (!clientCreatedFound) toRemove.push(client);
       }
       return { toUpdate, toRemove };
     }
 
-    async function addByService(roomId: RoomId, text: string) {
-      const message = {
+    async function serviceAdd(roomId: RoomId, text: string, targetId?: UserId) {
+      const message: ServiceMessage = {
         content: { text },
         created: touchDate(),
         authorId: serviceId,
       };
+      if (targetId) {
+        message.targetId = targetId;
+      }
       return await m.add(roomId, message);
     }
 
@@ -90,13 +81,9 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     async function read(roomId: RoomId, range: MessageRange) {
       const result = await m.readByRange(roomId, range);
       const isEmpty = result.messageArr.length === 0;
-      const isError = result.errorArr.length !== 0;
-      return {
-        messageArr: result.messageArr,
-        isEmpty,
-        isError,
-        errorArr: result.errorArr,
-      };
+
+      if (isEmpty) return { isEmpty: true as const, errorArr: result.errorArr };
+      return { messageArr: result.messageArr, errorArr: result.errorArr };
     }
 
     async function readLastMessage(roomId: RoomId) {
@@ -112,32 +99,62 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function update(
-      authorId: UserId,
+      userId: UserId,
       roomId: RoomId,
       message: UpdateMessage
     ) {
-      const finalMessage: Message = {
+      const info = await m.isAuthor(roomId, userId, message.created);
+      if (!info.exist)
+        return { success: false as const, isExist: false as const };
+      if (!info.isAuthor)
+        return { success: false as const, isAuthor: false as const };
+
+      const preparedMessage: Message = {
         ...message,
         modified: touchDate(),
-        authorId: authorId,
+        authorId: userId,
       };
-      const removeResult = await m.remove(roomId, finalMessage.created);
-      const addResult = await m.add(roomId, finalMessage);
+      const removeResult = await m.remove(roomId, preparedMessage.created);
+      const addResult = await m.add(roomId, preparedMessage);
       if (removeResult && addResult) {
-        return { success: true as const, message: finalMessage };
+        return {
+          success: true as const,
+          isExist: true as const,
+          isAuthor: true as const,
+          dates: {
+            created: preparedMessage.created,
+            modified: preparedMessage.modified,
+          },
+        };
       }
-      return { success: false as const };
+      return {
+        success: false as const,
+        isExist: true as const,
+        isAuthor: true as const,
+      };
+    }
+
+    async function remove(userId: UserId, roomId: RoomId, created: string) {
+      const info = await m.isAuthor(roomId, userId, created);
+      if (!info.exist)
+        return { success: false as const, isExist: false as const };
+      if (!info.isAuthor)
+        return { success: false as const, isAuthor: false as const };
+
+      const result = await m.remove(roomId, created);
+      return {
+        success: result,
+        isExist: true as const,
+        isAuthor: true as const,
+      };
     }
 
     async function compare(roomId: RoomId, clientDatesArr: MessageDate[]) {
-      // Remove some checks?
-      const clientCreatedArr = extractCreatedAt(clientDatesArr);
-      const storedDatesArr = await m.readByCreated(roomId, clientCreatedArr);
+      const storedDatesArr = await m.readByCreated(roomId, clientDatesArr);
 
       const isAnyExist = storedDatesArr.length > 0;
-      if (!isAnyExist) return { toRemove: clientCreatedArr };
+      if (!isAnyExist) return { toRemove: clientDatesArr as MessageDate[] };
 
-      // Find diff
       const { toUpdate, toRemove } = calcDatesDiff(
         clientDatesArr,
         storedDatesArr
@@ -147,20 +164,20 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     return {
-      extractCreatedAt,
       calcDatesDiff,
-      addByService,
+      serviceAdd,
       add,
       read,
       readLastMessage,
       update,
+      remove,
       compare,
     };
   };
 
   const external = () => {
     async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
-      const isAllow = await roomAction.checkPermission(roomId, userId);
+      const isAllow = await roomAction().isAllowedByHardRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
 
       const result = await internal().add(userId, roomId, message);
@@ -169,21 +186,19 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
-      const isAllow = await roomAction.checkPermission(roomId, userId);
+      const isAllow = await roomAction().isAllowedBySoftRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
 
       const result = await internal().read(roomId, range);
-      if (result.isEmpty && result.isError) {
-        return payloadNoOneMessageReadedWithErrors(
-          roomId,
-          result.errorArr,
-          isProd
-        );
-      }
-      if (result.isEmpty) {
-        return payloadNoOneMessageReaded(roomId, isProd);
-      }
-      return payloadSuccessfulReadMessages(roomId, result.messageArr, isProd);
+      if (result.isEmpty)
+        return payloadNoOneMessageReaded(roomId, result.errorArr, isProd);
+
+      return payloadSuccessfulReadMessages(
+        roomId,
+        result.messageArr,
+        result.errorArr,
+        isProd
+      );
     }
 
     async function update(
@@ -191,30 +206,24 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       message: UpdateMessage
     ) {
-      const isAllow = await roomAction.checkPermission(roomId, userId);
+      const isAllow = await roomAction().isAllowedByHardRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
 
-      const info = await m.isAuthor(roomId, userId, message.created);
-      if (!info.exist) return payloadMessageDoesNotExist(roomId, isProd);
-      if (!info.isAuthor) return payloadNotAuthorOfMessage(roomId, isProd);
-
       const result = await internal().update(userId, roomId, message);
+      if (!result.isExist) return payloadMessageDoesNotExist(roomId, isProd);
+      if (!result.isAuthor) return payloadNotAuthorOfMessage(roomId, isProd);
       if (!result.success) return payloadMessageNotUpdated(roomId, isProd);
-
-      return payloadMessageUpdatedSuccessfully(roomId, result.message, isProd);
+      return payloadMessageUpdatedSuccessfully(roomId, result.dates, isProd);
     }
 
     async function remove(userId: UserId, roomId: RoomId, created: string) {
-      const isAllow = await roomAction.checkPermission(roomId, userId);
-      if (!isAllow) {
-        return payloadNotAllowedAddMessages(roomId, isProd);
-      }
-      const info = await m.isAuthor(roomId, userId, created);
-      if (!info.exist) return payloadMessageDoesNotExist(roomId, isProd);
-      if (!info.isAuthor) return payloadNotAuthorOfMessage(roomId, isProd);
+      const isAllow = await roomAction().isAllowedByHardRule(roomId, userId);
+      if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
 
-      const success = await m.remove(roomId, created);
-      if (!success) return payloadMessageWasNotDeleted(roomId, isProd);
+      const result = await internal().remove(userId, roomId, created);
+      if (!result.isExist) return payloadMessageDoesNotExist(roomId, isProd);
+      if (!result.isAuthor) return payloadNotAuthorOfMessage(roomId, isProd);
+      if (!result.success) return payloadMessageWasNotDeleted(roomId, isProd);
       return payloadMessageSuccessfullyDeleted(roomId, isProd);
     }
 
@@ -223,7 +232,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       toCompare: MessageDate[]
     ) {
-      const isAllow = await roomAction.checkPermission(roomId, userId);
+      const isAllow = await roomAction().isAllowedBySoftRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
 
       const { toUpdate, toRemove } = await internal().compare(
@@ -231,9 +240,6 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
         toCompare
       );
 
-      const noUpdate = toUpdate && toUpdate.length === 0;
-      const noRemove = toRemove && toRemove.length === 0;
-      if (noUpdate && noRemove) return payloadAllMessagesEqual(roomId, isProd);
       return payloadUpdatedMessages(roomId, isProd, toRemove, toUpdate);
     }
 

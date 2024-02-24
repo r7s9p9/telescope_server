@@ -30,7 +30,7 @@ export type ReadTargetUserGeneralField = (typeof accountFields)["general"][
   | "bio"
   | "lastSeen"];
 
-export interface AccountReadData {
+export interface AccountToRead {
   general?: Array<ReadTargetUserGeneralField>;
   friends?: boolean; //////////////
   blocked?: boolean; //////////
@@ -38,34 +38,36 @@ export interface AccountReadData {
   privacy?: Array<ReadTargetUserPrivacyField>; // Will only be available for reading by the same account
 }
 
-export interface AccountReadResult {
+export interface AccountReadPayload {
   success: boolean;
   status: number;
-  data: {
-    userId: UserId | "self";
-    general?: {
-      username?: string | null;
-      name?: string | null;
-      bio?: string | null;
-      lastSeen?: string | null;
-    };
-    properties?: {
-      isBlockedYou?: boolean;
-      isFriend?: boolean;
-      isCanAddToRoom?: boolean;
-      isCanReadUserRooms?: boolean;
-    };
-    privacy?: {
-      seeLastSeen?: AccountPrivacyRules | null;
-      seeName?: AccountPrivacyRules | null;
-      seeBio?: AccountPrivacyRules | null;
-      addToRoom?: AccountPrivacyRules | null;
-      seeRoomsContainingUser?: AccountPrivacyRules | null;
-      seeFriends?: AccountPrivacyRules | null;
-      seeProfilePhotos?: AccountPrivacyRules | null;
-    };
-    dev?: DevData;
+  data: AccountReadResult;
+}
+
+export interface AccountReadResult {
+  targetUserId: UserId | "self";
+  general?: {
+    username?: string | null;
+    name?: string | null;
+    bio?: string | null;
+    lastSeen?: string | null;
   };
+  properties?: {
+    isBlockedYou?: boolean;
+    isFriend?: boolean;
+    isCanAddToRoom?: boolean;
+    isCanReadUserRooms?: boolean;
+  };
+  privacy?: {
+    seeLastSeen?: AccountPrivacyRules | null;
+    seeName?: AccountPrivacyRules | null;
+    seeBio?: AccountPrivacyRules | null;
+    addToRoom?: AccountPrivacyRules | null;
+    seeRoomsContainingUser?: AccountPrivacyRules | null;
+    seeFriends?: AccountPrivacyRules | null;
+    seeProfilePhotos?: AccountPrivacyRules | null;
+  };
+  dev?: DevData;
 }
 
 export type WriteTargetUserField = (typeof accountFields)["general"][
@@ -73,7 +75,7 @@ export type WriteTargetUserField = (typeof accountFields)["general"][
   | "name"
   | "bio"];
 
-export interface AccountWriteData {
+export interface AccountToUpdate {
   general?: {
     username?: string;
     name?: string;
@@ -90,24 +92,26 @@ export interface AccountWriteData {
   };
 }
 
-export interface AccountWriteResult {
+export interface AccountUpdateResult {
+  general?: {
+    username?: boolean;
+    name?: boolean;
+    bio?: boolean;
+  };
+  privacy?: {
+    seeLastSeen?: boolean;
+    seeName?: boolean;
+    seeBio?: boolean;
+    addToRoom?: boolean;
+    seeRoomsContainingUser?: boolean;
+    seeFriends?: boolean;
+    seeProfilePhotos?: boolean;
+  };
+  dev?: DevData;
+}
+
+export interface AccountUpdatePayload {
   success: boolean;
   status: number;
-  data: {
-    general?: {
-      username?: boolean;
-      name?: boolean;
-      bio?: boolean;
-    };
-    privacy?: {
-      seeLastSeen?: boolean;
-      seeName?: boolean;
-      seeBio?: boolean;
-      addToRoom?: boolean;
-      seeRoomsContainingUser?: boolean;
-      seeFriends?: boolean;
-      seeProfilePhotos?: boolean;
-    };
-    dev?: DevData;
-  };
+  data: AccountUpdateResult;
 }

@@ -22,99 +22,162 @@ import { token } from "../../utils/token";
 import { JWT } from "@fastify/jwt";
 
 export const auth = (redis: FastifyRedis, isProd: boolean) => {
-  const a = account(redis, isProd);
-  const s = session(redis, isProd);
-  const t = token();
+  const accountAction = account(redis, isProd).internal();
+  const sessionAction = session(redis, isProd);
+  const tokenAction = token();
 
-  async function registerHandler(body: RegisterBodyType) {
-    try {
-      if (await selectUserByEmail(body.email)) {
-        return payloadEmailExists(isProd);
-      }
-      if (await selectUserByUsername(body.username)) {
-        return payloadUsernameExists(isProd);
-      }
-      const { email, username, password } = body;
+  const internal = () => {
+    async function register(email: string, username: string, password: string) {
       const { hash, salt } = hashPassword(password);
       await createUser({ email, username, salt, password: hash });
-      const user = await selectUserByEmail(body.email);
-      if (!user) {
-        return payloadServerError(isProd);
-      }
-      await a.createAccount(user.id, user.username);
-      return payloadAccountCreated(isProd);
-    } catch (e) {
-      console.log(e);
-      return payloadServerError(isProd);
+      const user = await selectUserByEmail(email);
+      if (!user) return { success: false as const };
+      const result = await accountAction.create(user.id, user.username);
+      if (!result) return { success: false as const };
+      return { success: true as const };
     }
-  }
 
-  async function loginHandler(
-    jwt: JWT,
-    ip: string,
-    ua: string,
-    body: LoginBodyType
-  ) {
-    try {
-      const user = await selectUserByEmail(body.email);
-      if (!user) {
-        return payloadInvalidEmailOrPassword(isProd);
-      }
-      const correctPassword = verifyPassword({
-        candidatePassword: body.password,
+    async function login(
+      jwt: JWT,
+      ip: string,
+      ua: string,
+      email: string,
+      password: string
+    ) {
+      const user = await selectUserByEmail(email);
+      if (!user) return { badAuth: true as const };
+
+      const isPasswordCorrect = verifyPassword({
+        candidatePassword: password,
         salt: user.salt,
         hash: user.password,
       });
-      if (!correctPassword) {
-        return payloadInvalidEmailOrPassword(isProd);
-      }
-      if (await s.isCodeNeeded(user.id)) {
-        return payloadVerificationRequired(isProd);
-      }
-      const tokenData = await t.create(jwt, user.id);
-      if (tokenData) {
-        const result = await s.createSession(
-          tokenData.id,
-          tokenData.exp,
-          ua,
-          ip
-        );
-        if (result) {
-          return payloadLoginSuccessful(tokenData, isProd);
-        }
-      }
-      return payloadServerError(isProd);
-    } catch (e) {
-      console.log(e);
-      return payloadServerError(isProd);
-    }
-  }
+      if (!isPasswordCorrect) return { badPassword: true as const };
 
-  async function codeHandler(
-    jwt: JWT,
-    body: CodeBodyType,
-    ip: string,
-    ua: string
-  ) {
-    try {
-      const user = await selectUserByEmail(body.email);
-      if (!user) {
-        return payloadInvalidEmailOrPassword(isProd);
-      }
-      const isCodeCorrect = await s.checkCode(user.id, body.code);
-      if (!isCodeCorrect) {
-        return payloadWrongCode(isProd);
-      }
-      const tokenData = await t.create(jwt, user.id);
-      if (tokenData) {
-        await s.createSession(tokenData.id, tokenData.exp, ua, ip);
-        return payloadLoginSuccessful(tokenData, isProd);
-      }
-      return payloadServerError(isProd);
-    } catch (e) {
-      console.log(e);
-      return payloadServerError(isProd);
+      const isCodeNeeded = await sessionAction.isCodeNeeded(user.id);
+      if (isCodeNeeded) return { code: true as const };
+
+      const tokenData = await tokenAction.create(jwt, user.id);
+      if (!tokenData) return { success: false as const };
+
+      const sessionResult = await sessionAction.createSession(
+        tokenData.id,
+        tokenData.exp,
+        ua,
+        ip
+      );
+      if (!sessionResult) return { success: false as const };
+
+      return { success: true as const, tokenData };
     }
-  }
-  return { registerHandler, loginHandler, codeHandler };
+
+    async function code(
+      jwt: JWT,
+      userEmail: string,
+      userCode: string,
+      ip: string,
+      ua: string
+    ) {
+      const user = await selectUserByEmail(userEmail);
+      if (!user) return { badAuth: true as const };
+      const isCodeCorrect = await sessionAction.checkCode(user.id, userCode);
+      if (!isCodeCorrect) return { badCode: true as const };
+      const tokenData = await tokenAction.create(jwt, user.id);
+      if (!tokenData) return { success: false as const };
+      await sessionAction.createSession(tokenData.id, tokenData.exp, ua, ip);
+
+      return { success: true as const, tokenData: tokenData };
+    }
+
+    return {
+      register,
+      login,
+      code,
+    };
+  };
+
+  const external = () => {
+    async function register(email: string, username: string, password: string) {
+      try {
+        if (await selectUserByEmail(email)) {
+          return payloadEmailExists(isProd);
+        }
+        if (await selectUserByUsername(username)) {
+          return payloadUsernameExists(isProd);
+        }
+        const { success } = await internal().register(
+          email,
+          username,
+          password
+        );
+        if (!success) return payloadServerError(isProd);
+        return payloadAccountCreated(isProd);
+      } catch (e) {
+        console.log(e);
+        return payloadServerError(isProd);
+      }
+    }
+
+    async function login(
+      jwt: JWT,
+      ip: string,
+      ua: string,
+      email: string,
+      password: string
+    ) {
+      try {
+        const result = await internal().login(jwt, ip, ua, email, password);
+
+        if (result.badAuth || result.badPassword) {
+          return { payload: payloadInvalidEmailOrPassword(isProd) };
+        }
+        if (result.code) {
+          return { payload: payloadVerificationRequired(isProd) };
+        }
+        if (!result.success) {
+          return { payload: payloadServerError(isProd) };
+        }
+
+        return {
+          payload: payloadLoginSuccessful(result.tokenData.raw, isProd),
+          tokenData: result.tokenData,
+        };
+      } catch (e) {
+        console.log(e);
+        return { payload: payloadServerError(isProd) };
+      }
+    }
+
+    async function code(
+      jwt: JWT,
+      ip: string,
+      ua: string,
+      userEmail: string,
+      userCode: string
+    ) {
+      try {
+        const result = await internal().code(jwt, ip, ua, userEmail, userCode);
+        if (result.badAuth) {
+          return { payload: payloadInvalidEmailOrPassword(isProd) };
+        }
+        if (result.badCode) {
+          return { payload: payloadWrongCode(isProd) };
+        }
+        if (!result.success) {
+          return { payload: payloadServerError(isProd) };
+        }
+        return {
+          payload: payloadLoginSuccessful(result.tokenData.raw, isProd),
+          tokenData: result.tokenData,
+        };
+      } catch (e) {
+        console.log(e);
+        return { payload: payloadServerError(isProd) };
+      }
+    }
+
+    return { register, login, code };
+  };
+
+  return { external };
 };

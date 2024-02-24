@@ -1,32 +1,43 @@
 import { FastifyRedis } from "@fastify/redis";
 import { RoomId, UserId } from "../../types";
-import { AddMessage, Message, MessageDate } from "./message.types";
+import {
+  AddMessage,
+  Message,
+  MessageDate,
+  ServiceMessage,
+} from "./message.types";
 import { messageDateSize, roomMessagesKey } from "./message.constants";
 import { checkUserId } from "../../../utils/uuid";
+import { ServiceId } from "../room.types";
+import { serviceId } from "../room.constants";
+
+const stringify = (message: AddMessage | ServiceMessage) => {
+  return JSON.stringify(message);
+};
+
+const parse = (message: string | null) => {
+  if (message === null) return false as const;
+  return JSON.parse(message);
+};
+
+const checkDateLength = (date: string | number | null) => {
+  if (date && typeof date === "string" && date.length !== messageDateSize)
+    return false as const;
+  if (
+    date &&
+    typeof date === "number" &&
+    date.toString().length !== messageDateSize
+  )
+    return false as const;
+  return true as const;
+};
+
+const checkAuthorId = (id: any): id is UserId | ServiceId => {
+  return checkUserId(id) || id === serviceId;
+};
 
 export const model = (redis: FastifyRedis) => {
-  const stringify = (message: AddMessage) => {
-    return JSON.stringify(message);
-  };
-
-  const parse = (message: string | null) => {
-    if (message === null) return false as const;
-    return JSON.parse(message);
-  };
-
-  const checkDateLength = (date: string | number | null) => {
-    if (date && typeof date === "string" && date.length !== messageDateSize)
-      return false as const;
-    if (
-      date &&
-      typeof date === "number" &&
-      date.toString().length !== messageDateSize
-    )
-      return false as const;
-    return true as const;
-  };
-
-  async function add(roomId: RoomId, message: AddMessage) {
+  async function add(roomId: RoomId, message: AddMessage | ServiceMessage) {
     if (!message.created) return false as const;
     const result = await redis.zadd(
       roomMessagesKey(roomId),
@@ -51,6 +62,8 @@ export const model = (redis: FastifyRedis) => {
       `${date} : modified value have wrong type` as const;
     const replyToError = (date: string) =>
       `${date} : replyTo value have wrong type` as const;
+    const targetIdError = (date: string) =>
+      `${date} : targetId value have wrong type` as const;
     const rawMessage = (message: string) => `Bad message: ${message}`;
 
     if (!message) return { error: [noMessageError] };
@@ -58,9 +71,11 @@ export const model = (redis: FastifyRedis) => {
     const parsed = parse(message);
     const badCreated = !checkDateLength(parsed.created);
     const badModified = parsed.modified && !checkDateLength(parsed.modified);
-    const badAuthorId = !checkUserId(parsed.authorId);
+    const badAuthorId = !checkAuthorId(parsed.authorId);
     const badContent = !parsed.content;
     const badReplyTo = parsed.replyTo && !checkUserId(parsed.replyTo);
+    // For ServiceMessage
+    const badServiceTargetId = parsed.targetId && !checkUserId(parsed.targetId);
 
     const error: string[] = [];
     if (badCreated) error.push(createdError(parsed.created));
@@ -68,6 +83,7 @@ export const model = (redis: FastifyRedis) => {
     if (badAuthorId) error.push(authorIdError(parsed.created));
     if (badContent) error.push(contentError(parsed.created));
     if (badReplyTo) error.push(replyToError(parsed.created));
+    if (badServiceTargetId) error.push(targetIdError(parsed.created));
     const isError = badCreated || badModified || badAuthorId || badContent;
     if (isError) {
       error.push(rawMessage(message));
@@ -104,22 +120,18 @@ export const model = (redis: FastifyRedis) => {
     return messageArrValidator(messageArr);
   }
 
-  async function readByCreated(
-    roomId: RoomId,
-    createdArr: MessageDate["created"][]
-  ) {
+  async function readByCreated(roomId: RoomId, messageDatesArr: MessageDate[]) {
     const messageArr: Message[] = [];
-    for (const createdDate of createdArr) {
+    for (const messageDates of messageDatesArr) {
       const [message] = await redis.zrangebyscore(
         roomMessagesKey(roomId),
-        createdDate,
-        createdDate
+        messageDates.created,
+        messageDates.created
       );
       if (!message) continue;
       const result = messageValidator(message);
-      if (!result.error) {
-        messageArr.push(result.message);
-      }
+      if (result.error) continue;
+      messageArr.push(result.message);
     }
     return messageArr;
   }

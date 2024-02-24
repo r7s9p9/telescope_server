@@ -1,35 +1,33 @@
 import { accountKey } from "../constants";
 import { UserId } from "../types";
 import {
-  AccountReadData,
+  AccountToRead,
   AccountReadResult,
-  AccountWriteData,
-  AccountWriteResult,
   Relationships,
+  AccountReadPayload,
+  AccountUpdateResult,
+  AccountUpdatePayload,
+  AccountToUpdate,
 } from "./account.types";
 
 export const valueForReadSelfAccount = "self" as const;
 
-export const accountReaded = (result: AccountReadResult) => {
-  result.status = 200 as const;
-  return result;
+export const accountReaded = (data: AccountReadResult) => {
+  const payload: AccountReadPayload = Object.create(null);
+  payload.status = 200 as const;
+  payload.data = data;
+  return payload;
 };
 
-export const accountUpdated = (result: AccountWriteResult) => {
-  result.status = 200 as const;
-  return result;
-};
-
-export const devUserId = (userId: UserId) => {
-  return `userId: ${userId}`;
-};
-
-export const devTargetUserId = (targetUserId: UserId) => {
-  return `targetUserId: ${targetUserId}`;
+export const accountUpdated = (data: AccountUpdateResult) => {
+  const payload: AccountUpdatePayload = Object.create(null);
+  payload.status = 200 as const;
+  payload.data = data;
+  return payload;
 };
 
 export const devMessageReadAccount = (
-  toRead: AccountReadData,
+  toRead: AccountToRead,
   relationships: Relationships
 ) => {
   return [
@@ -42,15 +40,15 @@ export const devMessageReadAccount = (
   ];
 };
 
-export const devMessageWriteAccount = (toWrite: AccountWriteData) => {
+export const devMessageWriteAccount = (toUpdate: AccountToUpdate) => {
   return [
-    `toWrite: general: ${toWrite.general ? `YES` : `NO`}`,
-    `toWrite: privacy: ${toWrite.privacy ? `YES` : "NO"}`,
+    `toWrite: general: ${toUpdate.general ? `YES` : `NO`}`,
+    `toWrite: privacy: ${toUpdate.privacy ? `YES` : "NO"}`,
   ];
 };
 
 export const updateDevMessage = (
-  toRead: AccountReadData,
+  toRead: AccountToRead,
   relationships: {
     sameUser: boolean;
     friend: boolean;

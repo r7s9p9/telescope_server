@@ -1,15 +1,28 @@
 import { UserId } from "../../types";
 import { ServiceId } from "../room.types";
-import { contentFields, messageFields } from "./message.constants";
+import {
+  contentFields,
+  messageFields,
+  serviceMessageFields,
+} from "./message.constants";
 
 export interface Message {
   [messageFields.content]: {
     [contentFields.text]?: string;
   };
-  [messageFields.authorId]: UserId | ServiceId;
+  [messageFields.authorId]: UserId;
   [messageFields.replyTo]?: UserId;
   [messageFields.created]: string;
   [messageFields.modified]?: string;
+}
+
+export interface ServiceMessage {
+  [serviceMessageFields.content]: {
+    [contentFields.text]: string;
+  };
+  [serviceMessageFields.authorId]: ServiceId;
+  [serviceMessageFields.created]: string;
+  [serviceMessageFields.targetId]?: UserId;
 }
 
 export type AddMessage = {

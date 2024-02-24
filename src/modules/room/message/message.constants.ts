@@ -1,6 +1,6 @@
 import { roomKey } from "../room.constants";
 import { RoomId } from "../../types";
-import { Message } from "./message.types";
+import { Message, MessageDate } from "./message.types";
 
 export const roomMessagesKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:messages`;
@@ -13,6 +13,13 @@ export const messageFields = {
   modified: "modified" as const,
   authorId: "authorId" as const,
   replyTo: "replyTo" as const,
+};
+
+export const serviceMessageFields = {
+  content: "content" as const,
+  created: "created" as const,
+  authorId: "authorId" as const,
+  targetId: "targetId" as const,
 };
 
 export const contentFields = {
@@ -40,46 +47,41 @@ export const payloadSuccessfulAddMessage = (
 
 export const payloadSuccessfulReadMessages = (
   roomId: RoomId,
-  messages: Message[],
+  messageArr: Message[],
+  errorArr: string[][],
   isProd: boolean
 ) => {
   const devMessage = "The messages was successfully readed" as const;
+  const isError = errorArr && errorArr.length !== 0;
   return {
     status: 200 as const,
     data: {
       success: true as const,
       roomId: roomId,
-      messages: messages,
-      dev: !isProd ? { message: [devMessage] } : undefined,
+      messageArr: messageArr,
+      dev: !isProd
+        ? { message: [devMessage], error: isError ? errorArr : undefined }
+        : undefined,
     },
   };
 };
 
-export const payloadNoOneMessageReadedWithErrors = (
+export const payloadNoOneMessageReaded = (
   roomId: RoomId,
-  readError: string[][],
+  errorArr: string[][],
   isProd: boolean
 ) => {
-  const devMessage = "There are no good messages" as const;
-  return {
-    status: 200 as const,
-    data: {
-      success: false as const,
-      roomId: roomId,
-      dev: !isProd ? { message: [devMessage], error: readError } : undefined,
-    },
-  };
-};
-
-export const payloadNoOneMessageReaded = (roomId: RoomId, isProd: boolean) => {
   const devMessage = "There are no messages" as const;
+  const isError = errorArr && errorArr.length !== 0;
   return {
     status: 200 as const,
     data: {
       success: true as const,
       empty: true as const,
       roomId: roomId,
-      dev: !isProd ? { message: [devMessage] } : undefined,
+      dev: !isProd
+        ? { message: [devMessage], error: isError ? errorArr : undefined }
+        : undefined,
     },
   };
 };
@@ -139,7 +141,7 @@ export const payloadMessageNotUpdated = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadMessageUpdatedSuccessfully = (
   roomId: RoomId,
-  message: Message,
+  dates: MessageDate,
   isProd: boolean
 ) => {
   const devMessage = "The message has been successfully modified" as const;
@@ -147,7 +149,7 @@ export const payloadMessageUpdatedSuccessfully = (
     status: 200 as const,
     data: {
       success: true as const,
-      message: message,
+      dates: dates,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -231,57 +233,32 @@ export const payloadMessageWasNotDeleted = (
 export const payloadUpdatedMessages = (
   roomId: RoomId,
   isProd: boolean,
-  toRemove: Message["created"][],
+  toRemove: MessageDate[],
   toUpdate?: Message[]
 ) => {
   const devMessageToUpdate =
     "Current versions of messages were sent successfully" as const;
   const devMessageToRemove =
     "Successfully sent creation dates for already deleted messages" as const;
+  const devMessageAllEqual = "All messages are relevant" as const;
 
   const isToUpdate = toUpdate && toUpdate.length !== 0;
   const isToRemove = toRemove.length !== 0;
+  const isEqual = !isToUpdate && !isToRemove;
 
   const devMessage: string[] = [];
   if (isToUpdate) devMessage.push(devMessageToUpdate);
   if (isToRemove) devMessage.push(devMessageToRemove);
+  if (isEqual) devMessage.push(devMessageAllEqual);
   return {
     status: 200 as const,
     data: {
       success: true as const,
-      toUpdate: toUpdate,
-      toRemove: toRemove,
+      toUpdate: isToUpdate ? toUpdate : undefined,
+      toRemove: isToRemove ? toRemove : undefined,
+      isEqual: isEqual,
       roomId: roomId,
       dev: !isProd ? { message: devMessage } : undefined,
-    },
-  };
-};
-
-export const payloadAllMessagesEqual = (roomId: RoomId, isProd: boolean) => {
-  const devMessage = "All messages are relevant" as const;
-  return {
-    status: 200 as const,
-    data: {
-      success: true as const,
-      roomId: roomId,
-      dev: !isProd ? { message: devMessage } : undefined,
-    },
-  };
-};
-
-export const payloadAllRequestedMessagesDeleted = (
-  roomId: RoomId,
-  toRemove: Message["created"][],
-  isProd: boolean
-) => {
-  const devMessage = "All requested messages have been deleted" as const;
-  return {
-    status: 200 as const,
-    data: {
-      success: true as const,
-      toRemove: toRemove,
-      roomId: roomId,
-      dev: !isProd ? { message: [devMessage] } : undefined,
     },
   };
 };

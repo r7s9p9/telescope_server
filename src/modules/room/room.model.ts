@@ -19,7 +19,7 @@ import {
 import { checkRoomId, checkUserId } from "../../utils/uuid";
 
 const updateInfoModifiedDate = async (redis: FastifyRedis, roomId: RoomId) => {
-  const date = Number(Date.now());
+  const date = Date.now().toString();
   await redis.hset(roomInfoKey(roomId), roomInfoFields.modifiedDate, date);
   return date;
 };
@@ -78,22 +78,21 @@ export const model = (redis: FastifyRedis) => {
     const date = await touchCreatedDate(roomId);
     if (!date.success) return await undoChanges();
 
-    const { name, creatorId, type, about } = await updateRoomInfo(
+    const infoResult = await updateRoomInfo(
       roomId,
       roomInfo,
       true as const // just created
     );
-    const infoSuccess = name && creatorId && type && about;
-    if (!infoSuccess) return await undoChanges();
+    if (!infoResult.success) return await undoChanges();
 
-    const addedUsers = await addUsers(roomId, userIdArr);
-    const usersSuccess = addedUsers.length > 0;
+    const userArr = await addUsers(roomId, userIdArr);
+    const usersSuccess = userArr.length > 0;
     if (!usersSuccess) return await undoChanges();
 
     return {
       success: true as const,
       createdDate: date.value,
-      users: addedUsers,
+      users: userArr,
     };
   }
 
@@ -160,7 +159,7 @@ export const model = (redis: FastifyRedis) => {
     if (isUpdated && !justCreated) {
       result.modifiedDate = await updateInfoModifiedDate(redis, roomId);
     }
-    return result;
+    return { success: isUpdated, roomInfo: result };
   }
 
   async function updateRoomInfoValue(
@@ -243,6 +242,7 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function blockUsers(roomId: RoomId, userIdArr: UserId[]) {
+    await removeUsers(roomId, userIdArr);
     const blockedUsers: UserId[] = [];
     const { creatorId } = await readRoomInfo(roomId, [
       roomInfoFields.creatorId,

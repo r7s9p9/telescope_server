@@ -40,21 +40,6 @@ export const createRoomSchema = {
   body: createRoomBody,
 };
 
-const readRoomInfoArray = z
-  .array(
-    z
-      .union([
-        z.literal(roomInfoFields.name),
-        z.literal(roomInfoFields.creatorId),
-        z.literal(roomInfoFields.type),
-        z.literal(roomInfoFields.about),
-      ])
-      .optional()
-  )
-  .transform((toRead) => {
-    return toRead as Array<ReadRoomInfoValues>;
-  });
-
 const readRoomBody = z.object({
   range: z.object({
     min: z.string(),

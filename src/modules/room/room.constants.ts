@@ -52,8 +52,17 @@ export const internalRoomsKeyPart = "rooms:internal";
 
 export const welcomeServiceRoomMessage =
   "Welcome to Telescope messenger! Here you will learn about new features and functionality, and receive security notifications.";
-export const welcomePersonalRoomMessage =
-  "This is a message store. They are not visible to anyone except you.";
+export const welcomeSingleRoomMessage =
+  "The single room has been successfully created. They are not visible to anyone except you.";
+export const welcomeRegularRoomMessage =
+  "The room has been successfully created";
+
+export const userKickedOutMessage = "was kicked out of this room";
+export const userBlockedMessage = "was banned from this room";
+export const userUnblockedMessage = "is no longer banned in this room";
+export const userInvitedMessage = "has been invited to this room";
+export const userJoinedMessage = "joined the room";
+export const userLeavedMessage = "left the room";
 
 export const userRoomsSetKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${allRoomsKeyPart}`;
@@ -107,7 +116,7 @@ export const payloadSuccessOfCreatingRoom = (
 
 export const payloadSuccessOfUpdateRoom = (
   roomId: RoomId,
-  updated: RoomInfoUpdateResult,
+  roomInfo: RoomInfoUpdateResult,
   isProd: boolean
 ) => {
   return {
@@ -115,9 +124,22 @@ export const payloadSuccessOfUpdateRoom = (
     data: {
       success: true as const,
       roomId: roomId,
-      updated: updated,
+      roomInfo: roomInfo,
       dev: !isProd
         ? { message: ["The room has been successfully updated"] as const }
+        : undefined,
+    },
+  };
+};
+
+export const payloadRoomInfoNotUpdated = (roomId: RoomId, isProd: boolean) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      roomId: roomId,
+      dev: !isProd
+        ? { error: ["The room was not updated successfully"] as const }
         : undefined,
     },
   };
@@ -177,25 +199,20 @@ export const payloadSuccessOfLeave = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadSuccessfulKickUsers = (
   roomId: RoomId,
-  toKickCount: number,
-  kickedUserIdArr: UserId[],
+  userIdArr: UserId[],
   isProd: boolean
 ) => {
-  const kickedCount = kickedUserIdArr.length;
-  const isProblem = toKickCount !== kickedCount;
   const devMessage =
     "You have successfully kicked users out of the room" as const;
-  const devMessageNotAll =
-    `${toKickCount - kickedCount} user/s were not kicked out of the room` as const;
   return {
     status: 200 as const,
     data: {
       success: true as const,
       roomId: roomId,
-      kickedUserIdArr: kickedUserIdArr,
+      userIdArr: userIdArr,
       dev: !isProd
         ? {
-            message: isProblem ? [devMessage, devMessageNotAll] : [devMessage],
+            message: [devMessage],
           }
         : undefined,
     },
@@ -235,24 +252,19 @@ export const payloadYouAreNoLongerInRoom = (
 
 export const payloadSuccessOfInvite = (
   roomId: RoomId,
-  toInviteCount: number,
-  invitedUsers: UserId[],
+  userIdArr: UserId[],
   isProd: boolean
 ) => {
-  const invitedCount = invitedUsers.length;
-  const isProblem = toInviteCount !== invitedCount;
   const devMessage = "You have successfully invite user/s to room" as const;
-  const devMessageNotAll =
-    `${toInviteCount - invitedCount} user/s requested to be invited were not invited` as const;
   return {
     status: 200 as const,
     data: {
       success: true as const,
       roomId: roomId,
-      invitedUserIdArr: invitedUsers,
+      userIdArr: userIdArr,
       dev: !isProd
         ? {
-            message: isProblem ? [devMessage, devMessageNotAll] : [devMessage],
+            message: [devMessage],
           }
         : undefined,
     },
@@ -261,25 +273,20 @@ export const payloadSuccessOfInvite = (
 
 export const payloadSuccessfulBlockUsers = (
   roomId: RoomId,
-  toBlockCount: number,
-  blockedUsers: UserId[],
+  userIdArr: UserId[],
   isProd: boolean
 ) => {
-  const blockedCount = blockedUsers.length;
-  const isProblem = toBlockCount !== blockedCount;
   const devMessage =
     "You have successfully banned users from this room" as const;
-  const devError =
-    `${toBlockCount - blockedCount} users requested to be blocked were not blocked` as const;
   return {
     status: 200 as const,
     data: {
       success: true as const,
       roomId: roomId,
+      userIdArr: userIdArr,
       dev: !isProd
         ? {
             message: [devMessage],
-            error: isProblem ? [devError] : undefined,
           }
         : undefined,
     },
@@ -303,25 +310,20 @@ export const payloadNoOneBlocked = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadSuccessfulUnblockUsers = (
   roomId: RoomId,
-  toUnblockCount: number,
-  unblockedUsers: UserId[],
+  userIdArr: UserId[],
   isProd: boolean
 ) => {
-  const unblockedCount = unblockedUsers.length;
-  const isProblem = toUnblockCount !== unblockedCount;
   const devMessage =
     "You have successfully unblock users from this room" as const;
-  const devError =
-    `${toUnblockCount - unblockedCount} users requested to be unblocked were not unblocked` as const;
   return {
     status: 200 as const,
     data: {
       success: true as const,
       roomId: roomId,
+      userIdArr: userIdArr,
       dev: !isProd
         ? {
             message: [devMessage],
-            error: isProblem ? [devError] : undefined,
           }
         : undefined,
     },

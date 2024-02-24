@@ -10,19 +10,17 @@ import {
   devMessageAboutBadReadPrivacy,
   devMessageReadAccount,
   devMessageWriteAccount,
-  devTargetUserId,
-  devUserId,
 } from "./account.constants";
 import { room } from "../room/room.controller";
 import {
-  AccountReadData,
+  AccountToRead,
   AccountReadResult,
-  AccountWriteData,
-  AccountWriteResult,
   ReadTargetUserGeneralField,
   ReadTargetUserPrivacyField,
   WriteTargetUserField,
   Relationships,
+  AccountToUpdate,
+  AccountUpdateResult,
 } from "./account.types";
 
 const accessSolver = (
@@ -95,232 +93,253 @@ async function checkRelationships(
   return { sameUser: sameUser, friend: friend, ban: ban };
 }
 
-const collectDevData = (isProd: boolean) => {
+const userIdSwitch = (userId: UserId, targetUserId: UserId | "self") => {
+  // Masking your own Id for requests to your own account
+  if (targetUserId === "self") {
+    return { externalTarget: "self" as const, internalTarget: userId };
+  }
+  return { externalTarget: targetUserId, internalTarget: targetUserId };
+};
+
+const collectDevInfo = () => {
   const read = (
-    toRead: AccountReadData,
-    userId: UserId,
-    targetUserId: UserId,
+    toRead: AccountToRead,
     isAccountExist: boolean,
     relationships: Relationships
   ) => {
-    if (!isProd) {
-      const dev: DevData = {};
-      dev.message = [devUserId(userId), devTargetUserId(targetUserId)];
-      if (!isAccountExist) {
-        dev.error = {};
-        dev.error.message = [devMessageAboutAccountDoesNotExist];
-        return dev;
-      }
-      if (toRead.privacy && relationships && !relationships.sameUser) {
-        dev.error = {};
-        dev.error.message = [devMessageAboutBadReadPrivacy];
-      }
-      dev.message = dev.message.concat(
-        devMessageReadAccount(toRead, relationships)
-      );
+    const dev: DevData = {};
+    if (!isAccountExist) {
+      dev.error = {};
+      dev.error.message = [devMessageAboutAccountDoesNotExist];
       return dev;
     }
-  };
-  const write = (toWrite: AccountWriteData, userId: UserId) => {
-    if (!isProd) {
-      const dev: DevData = {};
-      dev.message = devMessageWriteAccount(toWrite);
-      dev.message = dev.message.concat(devUserId(userId));
-      return dev;
+    if (toRead.privacy && relationships && !relationships.sameUser) {
+      dev.error = {};
+      dev.error.message = [devMessageAboutBadReadPrivacy];
     }
+    dev.message = devMessageReadAccount(toRead, relationships);
+    return dev;
   };
-  return { read, write };
+  const update = (toUpdate: AccountToUpdate, userId: UserId) => {
+    const dev: DevData = {};
+    dev.message = devMessageWriteAccount(toUpdate);
+    return dev;
+  };
+  return { read, update };
 };
 
 export const account = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
-  async function readAccount(
-    userId: UserId,
-    targetUserId: UserId | "self",
-    toRead: AccountReadData
-  ) {
-    const result: AccountReadResult = Object.create(null);
-    result.data = Object.create(null);
-
-    if (targetUserId === "self") {
-      targetUserId = userId;
-      result.data.userId = "self";
-    } else {
-      result.data.userId = targetUserId;
+  const internal = () => {
+    async function create(userId: UserId, username: string) {
+      const isInitDone = await m.initAccount(userId, username);
+      const isRoomDone = await room(redis, isProd)
+        .internal()
+        .createServiceRoom(userId);
+      return isInitDone && isRoomDone;
     }
 
-    const isTargetExist = await m.isAccountExist(targetUserId);
-    const relationships = await checkRelationships(m, userId, targetUserId);
-
-    if (isTargetExist) {
-      result.data.properties = await readAccountProperties(
-        targetUserId,
-        relationships,
-        toRead.properties
-      );
-      result.data.general = await readAllowedGeneralField(
-        targetUserId,
-        relationships,
-        toRead.general
-      );
-      result.data.privacy = await readAccountPrivacyField(
-        targetUserId,
-        relationships,
-        toRead.privacy
-      );
+    async function readGeneral(
+      targetUserId: UserId,
+      relationships: Relationships,
+      generalToRead: AccountToRead["general"]
+    ) {
+      if (!generalToRead) return undefined;
+      const result: AccountReadResult["general"] = {};
+      for (const value of generalToRead) {
+        result[value] = await readGeneralValue(
+          targetUserId,
+          relationships,
+          value
+        );
+      }
+      return result;
     }
-    result.data.dev = collectDevData(isProd).read(
-      toRead,
-      userId,
-      targetUserId,
-      isTargetExist,
-      relationships
-    );
-    return accountReaded(result);
-  }
 
-  async function readAccountProperties(
-    targetUserId: UserId,
-    relationships: Relationships,
-    propertiesToRead: AccountReadData["properties"]
-  ) {
-    if (propertiesToRead) {
-      const properties: AccountReadResult["data"]["properties"] = {};
-      let value: string;
-      for (value of propertiesToRead) {
-        if (accountFields.properties.isFriend === value) {
-          properties.isFriend = relationships.friend && !relationships.ban;
+    async function readGeneralValue(
+      targetUserId: UserId,
+      relationships: Relationships,
+      toRead: ReadTargetUserGeneralField
+    ) {
+      if (!toRead) return undefined;
+      const access = await accessChecker(
+        m,
+        targetUserId,
+        relationships,
+        toRead
+      );
+      if (!access) return undefined;
+      return await m.readAccountGeneralValue(targetUserId, toRead);
+    }
+
+    async function readProperties(
+      targetUserId: UserId,
+      relationships: Relationships,
+      toRead: AccountToRead["properties"]
+    ) {
+      if (!toRead) return undefined;
+      const result: AccountReadResult["properties"] = {};
+
+      for (const value of toRead) {
+        if (value === accountFields.properties.isFriend) {
+          result.isFriend = relationships.friend && !relationships.ban;
         }
-        if (accountFields.properties.isCanReadUserRooms === value) {
-          properties.isCanReadUserRooms = await accessChecker(
+
+        if (value === accountFields.properties.isCanReadUserRooms) {
+          result.isCanReadUserRooms = await accessChecker(
             m,
             targetUserId,
             relationships,
             accountFields.properties.isCanReadUserRooms
           );
         }
-        if (accountFields.properties.isCanAddToRoom === value) {
-          properties.isCanAddToRoom = await accessChecker(
+
+        if (value === accountFields.properties.isCanAddToRoom) {
+          result.isCanAddToRoom = await accessChecker(
             m,
             targetUserId,
             relationships,
             accountFields.properties.isCanAddToRoom
           );
         }
-        if (accountFields.properties.isBlockedYou === value) {
-          properties.isBlockedYou = relationships.ban;
+
+        if (value === accountFields.properties.isBlockedYou) {
+          result.isBlockedYou = relationships.ban;
         }
       }
-      return properties;
+      return result;
     }
-  }
 
-  async function readAllowedGeneralField(
-    targetUserId: UserId,
-    relationships: Relationships,
-    generalToRead: AccountReadData["general"]
-  ) {
-    if (generalToRead) {
-      const general: AccountReadResult["data"]["general"] = {};
-      let value: ReadTargetUserGeneralField;
-      for (value of generalToRead) {
-        general[value] = await readAllowedGeneralValue(
-          targetUserId,
-          relationships,
-          value
-        );
-      }
-      return general;
-    }
-  }
-
-  async function readAllowedGeneralValue(
-    targetUserId: UserId,
-    relationships: Relationships,
-    valueToRead: ReadTargetUserGeneralField
-  ) {
-    const access = await accessChecker(
-      m,
-      targetUserId,
-      relationships,
-      valueToRead
-    );
-    if (access) {
-      return await m.readAccountGeneralValue(targetUserId, valueToRead);
-    }
-  }
-
-  async function readAccountPrivacyField(
-    targetUserId: UserId,
-    relationships: Relationships,
-    fieldToRead: AccountReadData["privacy"]
-  ) {
-    if (fieldToRead && relationships.sameUser) {
-      const privacy: AccountReadResult["data"]["privacy"] = {};
-      let item: ReadTargetUserPrivacyField;
-      for (item of fieldToRead) {
+    async function readPrivacy(
+      targetUserId: UserId,
+      relationships: Relationships,
+      toRead: AccountToRead["privacy"]
+    ) {
+      if (!toRead || !relationships.sameUser) return undefined;
+      const result: AccountReadResult["privacy"] = {};
+      for (const item of toRead) {
         const privacyRule = accountFields.privacy[item];
-        privacy[privacyRule] = await m.readAccountPrivacyValue(
+        result[privacyRule] = await m.readAccountPrivacyValue(
           targetUserId,
           privacyRule
         );
       }
-      return privacy;
+      return result;
     }
-  }
 
-  async function updateAccount(userId: UserId, toWrite: AccountWriteData) {
-    const result: AccountWriteResult = Object.create(null);
-    result.data = Object.create(null);
-    result.data.general = await updateAccountGeneralField(
-      userId,
-      toWrite.general
-    );
-    result.data.privacy = await updateAccountPrivacyField(
-      userId,
-      toWrite.privacy
-    );
-    result.data.dev = collectDevData(isProd).write(toWrite, userId);
-    return accountUpdated(result);
-  }
+    async function updateGeneral(
+      userId: UserId,
+      toUpdate: AccountToUpdate["general"]
+    ) {
+      if (!toUpdate) return undefined;
 
-  async function updateAccountGeneralField(
-    userId: UserId,
-    generalToWrite: AccountWriteData["general"]
-  ) {
-    if (generalToWrite) {
-      const general: AccountWriteResult["data"]["general"] = {};
+      const result: AccountUpdateResult["general"] = {};
       let key: WriteTargetUserField;
-      for (key in generalToWrite) {
-        const value = generalToWrite[key];
-        general[key] = await m.writeAccountGeneralValue(userId, key, value);
+      for (key in toUpdate) {
+        const value = toUpdate[key];
+        result[key] = await m.writeAccountGeneralValue(userId, key, value);
       }
-      return general;
+      return result;
     }
-  }
 
-  async function updateAccountPrivacyField(
-    userId: UserId,
-    privacyToWrite: AccountWriteData["privacy"]
-  ) {
-    if (privacyToWrite) {
-      const privacy: AccountWriteResult["data"]["privacy"] = {};
+    async function updatePrivacy(
+      userId: UserId,
+      toUpdate: AccountToUpdate["privacy"]
+    ) {
+      if (!toUpdate) return undefined;
+
+      const result: AccountUpdateResult["privacy"] = {};
       let key: ReadTargetUserPrivacyField;
-      for (key in privacyToWrite) {
-        const value = privacyToWrite[key];
-        privacy[key] = await m.writeAccountPrivacyValue(userId, key, value);
+      for (key in toUpdate) {
+        const value = toUpdate[key];
+        result[key] = await m.writeAccountPrivacyValue(userId, key, value);
       }
-      return privacy;
+      return result;
     }
-  }
 
-  async function createAccount(userId: UserId, username: string) {
-    const initResult = await m.initAccount(userId, username);
-    const roomResult = await room(redis, isProd)
-      .internal()
-      .createServiceRoom(userId);
-  }
+    async function read(
+      userId: UserId,
+      targetUserId: UserId | "self",
+      toRead: AccountToRead
+    ) {
+      const result: AccountReadResult = Object.create(null);
+      const { externalTarget, internalTarget } = userIdSwitch(
+        userId,
+        targetUserId
+      );
+      result.targetUserId = externalTarget;
 
-  return { readAccount, createAccount, updateAccount };
+      const isTargetExist = await m.isAccountExist(internalTarget);
+      const relationships = await checkRelationships(m, userId, internalTarget);
+
+      if (!isTargetExist && !isProd) {
+        result.dev = collectDevInfo().read(
+          toRead,
+          isTargetExist,
+          relationships
+        );
+        return result;
+      }
+
+      result.general = await readGeneral(
+        internalTarget,
+        relationships,
+        toRead.general
+      );
+      result.properties = await readProperties(
+        internalTarget,
+        relationships,
+        toRead.properties
+      );
+      result.privacy = await readPrivacy(
+        internalTarget,
+        relationships,
+        toRead.privacy
+      );
+
+      if (!isProd) {
+        result.dev = collectDevInfo().read(
+          toRead,
+          isTargetExist,
+          relationships
+        );
+      }
+
+      return result;
+    }
+
+    async function update(userId: UserId, toUpdate: AccountToUpdate) {
+      const result: AccountUpdateResult = Object.create(null);
+      result.general = await updateGeneral(userId, toUpdate.general);
+      result.privacy = await updatePrivacy(userId, toUpdate.privacy);
+      if (!isProd) result.dev = collectDevInfo().update(toUpdate, userId);
+      return result;
+    }
+
+    return {
+      create,
+      read,
+      update,
+    };
+  };
+
+  const external = () => {
+    async function read(
+      userId: UserId,
+      targetUserId: UserId | "self",
+      toRead: AccountToRead
+    ) {
+      const data = await internal().read(userId, targetUserId, toRead);
+      return accountReaded(data);
+    }
+
+    async function update(userId: UserId, toUpdate: AccountToUpdate) {
+      const data = await internal().update(userId, toUpdate);
+      return accountUpdated(data);
+    }
+
+    return { read, update };
+  };
+  return { internal, external };
 };

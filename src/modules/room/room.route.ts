@@ -9,7 +9,6 @@ import {
   blockUsersRoomSchema,
   createRoomSchema,
   deleteRoomSchema,
-  getUserRoomsSchema,
   getUsersRoomSchema,
   inviteUsersRoomSchema,
   joinRoomSchema,

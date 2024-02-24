@@ -15,12 +15,14 @@ export async function authRegisterRoute(fastify: FastifyInstance) {
     method: "POST",
     url: "/api/auth/register",
     schema: registerSchema,
-    handler: async (req, res) => {
-      const result = await auth(
-        fastify.redis,
-        fastify.env.isProd
-      ).registerHandler(req.body);
-      return res.code(result.status).send(result.data);
+    handler: async (request, reply) => {
+      const authActions = auth(fastify.redis, fastify.env.isProd).external();
+      const result = await authActions.register(
+        request.body.email,
+        request.body.username,
+        request.body.password
+      );
+      return reply.code(result.status).send(result.data);
     },
   });
 }
@@ -32,26 +34,17 @@ export async function authLoginRoute(fastify: FastifyInstance) {
     method: "POST",
     url: "/api/auth/login",
     schema: loginSchema,
-    handler: async (req, res) => {
-      if (!req.headers["user-agent"]) {
-        return res
-          .code(payloadBadUserAgent(fastify.env.isProd).status)
-          .send(payloadBadUserAgent(fastify.env.isProd).data);
-      }
-
-      const result = await auth(fastify.redis, fastify.env.isProd).loginHandler(
+    handler: async (request, reply) => {
+      const authActions = auth(fastify.redis, fastify.env.isProd).external();
+      const { payload, tokenData } = await authActions.login(
         fastify.jwt,
-        req.ip,
-        req.headers["user-agent"],
-        req.body
+        request.ip,
+        request.ua,
+        request.body.email,
+        request.body.password
       );
-
-      if (result.success && "token" in result) {
-        setTokenCookie(res, result.token);
-        return res.code(result.status).send(result.data);
-      }
-      // Error || need verification code
-      return res.code(result.status).send(result.data);
+      if (tokenData) setTokenCookie(reply, tokenData);
+      return reply.code(payload.status).send(payload.data);
     },
   });
 }
@@ -64,23 +57,16 @@ export async function authCodeRoute(fastify: FastifyInstance) {
     url: "/api/auth/code",
     schema: codeSchema,
     handler: async (req, res) => {
-      if (!req.headers["user-agent"]) {
-        return res
-          .code(payloadBadUserAgent(fastify.env.isProd).status)
-          .send(payloadBadUserAgent(fastify.env.isProd).data);
-      }
-      const result = await auth(fastify.redis, fastify.env.isProd).codeHandler(
+      const authActions = auth(fastify.redis, fastify.env.isProd).external();
+      const { payload, tokenData } = await authActions.code(
         fastify.jwt,
-        req.body,
         req.ip,
-        req.headers["user-agent"]
+        req.ua,
+        req.body.email,
+        req.body.code
       );
-      if (result.success) {
-        setTokenCookie(res, result.token);
-        return res.code(result.status).send(result.data);
-      } else {
-        return res.code(result.status).send(result.data);
-      }
+      if (tokenData) setTokenCookie(res, tokenData);
+      return res.code(payload.status).send(payload.data);
     },
   });
 }
