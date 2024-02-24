@@ -89,10 +89,11 @@ const app = async () => {
     "sessionVerifier",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const sessionData = await session(
+        const sessionAction = session(
           fastify.redis,
           fastify.env.isProd
-        ).sessionWrapper(fastify, request);
+        ).internal();
+        const sessionData = await sessionAction.verifier(fastify, request);
         if (sessionData.success) {
           if (sessionData.token.isNew) setTokenCookie(reply, sessionData.token);
           request.session = sessionData;

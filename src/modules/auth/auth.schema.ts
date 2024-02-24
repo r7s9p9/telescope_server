@@ -31,12 +31,6 @@ const codeBody = z.object({
   code: z.string(),
 });
 
-export type RegisterBodyType = z.infer<typeof registerBody>;
-
-export type LoginBodyType = z.infer<typeof loginBody>;
-
-export type CodeBodyType = z.infer<typeof codeBody>;
-
 export const registerSchema = {
   body: registerBody,
 };

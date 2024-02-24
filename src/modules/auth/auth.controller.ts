@@ -2,8 +2,7 @@ import {
   createUser,
   selectUserByEmail,
   selectUserByUsername,
-} from "./auth.repository";
-import { RegisterBodyType, LoginBodyType, CodeBodyType } from "./auth.schema";
+} from "./auth.model";
 import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyRedis } from "@fastify/redis";
 import { payloadServerError } from "../constants";
@@ -23,7 +22,7 @@ import { JWT } from "@fastify/jwt";
 
 export const auth = (redis: FastifyRedis, isProd: boolean) => {
   const accountAction = account(redis, isProd).internal();
-  const sessionAction = session(redis, isProd);
+  const sessionAction = session(redis, isProd).internal();
   const tokenAction = token();
 
   const internal = () => {
@@ -60,7 +59,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       const tokenData = await tokenAction.create(jwt, user.id);
       if (!tokenData) return { success: false as const };
 
-      const sessionResult = await sessionAction.createSession(
+      const sessionResult = await sessionAction.create(
         tokenData.id,
         tokenData.exp,
         ua,
@@ -84,7 +83,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       if (!isCodeCorrect) return { badCode: true as const };
       const tokenData = await tokenAction.create(jwt, user.id);
       if (!tokenData) return { success: false as const };
-      await sessionAction.createSession(tokenData.id, tokenData.exp, ua, ip);
+      await sessionAction.create(tokenData.id, tokenData.exp, ua, ip);
 
       return { success: true as const, tokenData: tokenData };
     }

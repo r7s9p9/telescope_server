@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyReply } from "fastify";
+import { FastifyInstance } from "fastify";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -6,7 +6,7 @@ import {
 } from "fastify-type-provider-zod";
 import { registerSchema, loginSchema, codeSchema } from "./auth.schema";
 import { auth } from "./auth.controller";
-import { setTokenCookie, payloadBadUserAgent } from "../constants";
+import { setTokenCookie } from "../constants";
 
 export async function authRegisterRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
@@ -16,13 +16,13 @@ export async function authRegisterRoute(fastify: FastifyInstance) {
     url: "/api/auth/register",
     schema: registerSchema,
     handler: async (request, reply) => {
-      const authActions = auth(fastify.redis, fastify.env.isProd).external();
-      const result = await authActions.register(
+      const authAction = auth(fastify.redis, fastify.env.isProd).external();
+      const payload = await authAction.register(
         request.body.email,
         request.body.username,
         request.body.password
       );
-      return reply.code(result.status).send(result.data);
+      return reply.code(payload.status).send(payload.data);
     },
   });
 }
@@ -35,8 +35,8 @@ export async function authLoginRoute(fastify: FastifyInstance) {
     url: "/api/auth/login",
     schema: loginSchema,
     handler: async (request, reply) => {
-      const authActions = auth(fastify.redis, fastify.env.isProd).external();
-      const { payload, tokenData } = await authActions.login(
+      const authAction = auth(fastify.redis, fastify.env.isProd).external();
+      const { payload, tokenData } = await authAction.login(
         fastify.jwt,
         request.ip,
         request.ua,
@@ -57,8 +57,8 @@ export async function authCodeRoute(fastify: FastifyInstance) {
     url: "/api/auth/code",
     schema: codeSchema,
     handler: async (req, res) => {
-      const authActions = auth(fastify.redis, fastify.env.isProd).external();
-      const { payload, tokenData } = await authActions.code(
+      const authAction = auth(fastify.redis, fastify.env.isProd).external();
+      const { payload, tokenData } = await authAction.code(
         fastify.jwt,
         req.ip,
         req.ua,

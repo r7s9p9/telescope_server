@@ -17,187 +17,182 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 
 export const session = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
-  const t = token();
+  const tokenAction = token();
 
-  async function sessionWrapper(
-    fastify: FastifyInstance,
-    request: FastifyRequest
-  ) {
-    const ip = request.ip;
-    const ua = request.ua;
-    const remainingTokenSecondsToRefresh =
-      fastify.env.tokenRemainingSecondsToBeUpdated;
-    //const tokenDays = 0;
-    const tokenResult = await t.check(request, isProd);
-
-    if (tokenResult.success) {
-      const sessionResult = await checkSession({
-        id: tokenResult.id,
-        exp: tokenResult.exp,
-        ip: ip,
-        ua: ua,
-      });
-
-      if (sessionResult.success) {
-        if (t.isNeedRefresh(tokenResult.exp, remainingTokenSecondsToRefresh)) {
-          return await refreshSession(fastify.jwt, tokenResult, ip, ua);
-        }
-        return payloadVerifiedSession(isProd, tokenResult);
-      }
-      return sessionResult;
+  const internal = () => {
+    async function create(userId: UserId, exp: number, ua: string, ip: string) {
+      const isCreated = await m.createSession(
+        userId,
+        exp,
+        sessionStartValues(ua, ip)
+      );
+      if (isCreated) return true;
+      return false;
     }
-    return tokenResult;
-  }
 
-  async function checkSession(client: {
-    id: UserId;
-    exp: number;
-    ip: string;
-    ua: string;
-  }) {
-    const sessionFound = await m.isSessionExist(client.id, client.exp);
-    if (sessionFound) {
-      const isBlocked = await m.getSessionData(client.id, client.exp).ban();
-      if (isBlocked) {
-        return payloadBlockedSession(isProd);
+    async function verifier(fastify: FastifyInstance, request: FastifyRequest) {
+      const remainingTokenSecondsToRefresh =
+        fastify.env.tokenRemainingSecondsToBeUpdated;
+      const tokenResult = await tokenAction.check(request, isProd);
+
+      if (tokenResult.success) {
+        const sessionResult = await check({
+          id: tokenResult.id,
+          exp: tokenResult.exp,
+          ip: request.ip,
+          ua: request.ua,
+        });
+
+        if (sessionResult.success) {
+          const isNeedRefresh = tokenAction.isNeedRefresh(
+            tokenResult.exp,
+            remainingTokenSecondsToRefresh
+          );
+          if (isNeedRefresh) {
+            return await refresh(
+              fastify.jwt,
+              tokenResult,
+              request.ip,
+              request.ua
+            );
+          }
+          return payloadVerifiedSession(isProd, tokenResult);
+        }
+        return sessionResult;
       }
+      return tokenResult;
+    }
+
+    async function check(client: {
+      id: UserId;
+      exp: number;
+      ip: string;
+      ua: string;
+    }) {
+      const sessionFound = await m.isSessionExist(client.id, client.exp);
+      if (!sessionFound) return payloadNoSession(isProd);
+
+      const isBlocked = await m.getSessionData(client.id, client.exp).ban();
+      if (isBlocked) return payloadBlockedSession(isProd);
+
       const isEqualIP = await m
         .isSessionDataEqual(client.id, client.exp)
         .ip(client.ip);
-      if (!isEqualIP) {
+      if (!isEqualIP)
         await m.updateSessionData(client.id, client.exp).ip(client.ip);
-      }
+
       const uaIsGood = await uaChecker(
         await m.getSessionData(client.id, client.exp).ua(),
         client.ua
       );
-      if (uaIsGood) {
-        await m.updateSessionData(client.id, client.exp).ua(client.ua);
-        await m.updateSessionData(client.id, client.exp).online(Date.now());
-        return payloadSessionOK(isProd);
-      } else {
+      if (!uaIsGood) {
         await m.updateSessionData(client.id, client.exp).ban(true);
         return payloadBlockedSession(isProd);
       }
+
+      await m.updateSessionData(client.id, client.exp).ua(client.ua);
+      await m.updateSessionData(client.id, client.exp).online(Date.now());
+      return payloadSessionOK(isProd);
     }
-    return payloadNoSession(isProd);
-  }
 
-  async function createSession(
-    userId: UserId,
-    exp: number,
-    ua: string,
-    ip: string
-  ) {
-    const isCreated = await m.createSession(
-      userId,
-      exp,
-      sessionStartValues(ua, ip)
-    );
-    if (isCreated) return true;
-    return false;
-  }
-
-  async function refreshSession(
-    jwt: JWT,
-    oldToken: {
-      id: UserId;
-      exp: number;
-    },
-    ip: string,
-    ua: string
-  ) {
-    const newToken = await t.create(jwt, oldToken.id);
-    if (newToken) {
-      if (oldToken.id === newToken.id) {
-        const removeOldSessionResult = await m.removeSession(
-          oldToken.id,
-          oldToken.exp
-        );
-        const createNewSessionResult = await createSession(
-          newToken.id,
-          newToken.exp,
-          ua,
-          ip
-        );
-        if (removeOldSessionResult && createNewSessionResult) {
-          return payloadSessionRefreshed(isProd, newToken);
+    async function refresh(
+      jwt: JWT,
+      oldToken: {
+        id: UserId;
+        exp: number;
+      },
+      ip: string,
+      ua: string
+    ) {
+      const newToken = await tokenAction.create(jwt, oldToken.id);
+      if (newToken) {
+        if (oldToken.id === newToken.id) {
+          const removeOldSessionResult = await m.removeSession(
+            oldToken.id,
+            oldToken.exp
+          );
+          const createNewSessionResult = await create(
+            newToken.id,
+            newToken.exp,
+            ua,
+            ip
+          );
+          if (removeOldSessionResult && createNewSessionResult) {
+            return payloadSessionRefreshed(isProd, newToken);
+          }
         }
       }
+      return payloadServerError(isProd);
     }
-    return payloadServerError(isProd);
-  }
 
-  async function isCodeNeeded(userId: UserId) {
-    const sessionCount = await m.getSessionCountFromSet(userId);
-    if (sessionCount === 0) {
-      return false;
-    }
-    const sessionsArray = await m.getAllSessionsFromSet(userId);
-    if (sessionCount >= 1) {
-      const suitableSessions = new Map<number, number>();
+    async function isCodeNeeded(userId: UserId) {
+      const sessionCount = await m.getSessionCountFromSet(userId);
+      if (sessionCount === 0) return false;
 
-      for (const expValue of sessionsArray) {
-        const expNumber = Number(expValue);
+      const sessionsArray = await m.getAllSessionsFromSet(userId);
+
+      const suitableSessionMap = new Map<number, number>();
+
+      for (const exp of sessionsArray) {
+        const expNumber = Number(exp);
+
         const sessionFound = await m.isSessionExist(userId, expNumber);
         const sessionIsBlocked = await m
           .getSessionData(userId, expNumber)
           .ban();
+
         const sessionGood = sessionFound && !sessionIsBlocked;
         if (!sessionGood) continue;
         // Adding the last access time from this session to Map
         const online = await m.getSessionData(userId, expNumber).online();
-        suitableSessions.set(expNumber, online);
+        suitableSessionMap.set(expNumber, online);
       }
-      if (suitableSessions.size === 0) {
-        return false;
-      }
+
+      if (suitableSessionMap.size === 0) return false;
+
       // Finding the most recent session from those that are suitable
-      let expResult = 0;
-      for (const [sessionExp, sessionOnline] of suitableSessions) {
-        if (expResult === 0) {
+      let targetExp = 0;
+      for (const [exp, online] of suitableSessionMap) {
+        if (targetExp === 0) {
           // First run
-          expResult = sessionExp;
+          targetExp = exp;
           continue;
         }
-        const prevOnline = suitableSessions.get(expResult);
-        if (prevOnline && prevOnline < sessionOnline) {
-          expResult = sessionExp;
-        }
+
+        const prevOnline = suitableSessionMap.get(targetExp);
+        if (prevOnline && prevOnline < online) targetExp = exp;
       }
-      await createCode(userId, expResult);
-      return true;
+      return await createCode(userId, targetExp);
     }
-    return false;
-  }
 
-  async function createCode(userId: UserId, exp: number) {
-    const code = Math.floor(100000 + Math.random() * 900000);
-    return await m.writeCode(userId, exp, code);
-  }
+    async function createCode(userId: UserId, exp: number) {
+      const code = Math.floor(100000 + Math.random() * 900000);
+      return await m.writeCode(userId, exp, code);
+    }
 
-  async function checkCode(userId: UserId, code: string) {
-    const existResult = m.isCodeExist(userId);
-    if (!existResult) {
-      return false;
-    }
-    const sessionExpWithCode = await m.getCodeLocation(userId);
-    if (sessionExpWithCode === null) {
-      return false;
-    }
-    const storedCode = await m.readCode(userId, sessionExpWithCode);
-    if (Number(code) === storedCode) {
+    async function checkCode(userId: UserId, code: string) {
+      const existResult = m.isCodeExist(userId);
+      if (!existResult) return false;
+
+      const sessionExpWithCode = await m.getCodeLocation(userId);
+      if (sessionExpWithCode === null) return false;
+
+      const storedCode = await m.readCode(userId, sessionExpWithCode);
+      if (Number(code) !== storedCode) return false;
+
       await m.removeCode(userId, sessionExpWithCode);
       return true;
     }
-    return false;
-  }
+
+    return { verifier, create, isCodeNeeded, checkCode };
+  };
+
+  const external = () => {
+    return {};
+  };
 
   return {
-    sessionWrapper,
-    isCodeNeeded,
-    createSession,
-    createCode,
-    checkCode,
+    internal,
+    external,
   };
 };
