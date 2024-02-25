@@ -1,7 +1,6 @@
 import z from "zod";
 import { RoomId, UserId } from "../types";
-import { roomInfoFields, roomTypeValues } from "./room.constants";
-import { ReadRoomInfoValues, RoomInfoValues } from "./room.types";
+import { roomTypeValues } from "./room.constants";
 
 const userId = z
   .string()
@@ -10,6 +9,8 @@ const userId = z
     return id as UserId;
   });
 
+const userIdArr = z.array(userId).min(1);
+
 const roomId = z
   .string()
   .uuid()
@@ -17,134 +18,123 @@ const roomId = z
     return id as RoomId;
   });
 
+const date = z.string();
+
+const roomName = z.string().min(4);
 const roomType = z.union([
   z.literal(roomTypeValues.public),
   z.literal(roomTypeValues.private),
   z.literal(roomTypeValues.single),
 ]);
+const roomAbout = z.string();
 
-const createRoomBody = z.object({
-  roomInfo: z
-    .object({
-      name: z.string().min(6),
-      type: roomType,
-      about: z.string().min(6),
-    })
-    .transform((roomInfo) => {
-      return roomInfo as RoomInfoValues;
-    }),
-  userIdArr: userId.array().optional(),
+const createRoomInfoSchema = z.object({
+  name: roomName,
+  type: roomType,
+  about: roomAbout,
 });
 
-export const createRoomSchema = {
-  body: createRoomBody,
-};
-
-const readMyRoomsBody = z.object({
-  range: z.object({
-    min: z.string(),
-    max: z.string(),
-  }),
-});
-
-export const readMyRoomsSchema = {
-  body: readMyRoomsBody,
-};
-
-const readRoomInfoBody = z.object({
-  roomId: roomId,
-});
-
-export const readRoomInfoSchema = {
-  body: readRoomInfoBody,
-};
-
-const updateRoomInfoObject = z.object({
-  name: z.string().optional(),
+const updateRoomInfoSchema = z.object({
+  name: roomName.optional(),
+  type: roomType.optional(),
+  about: roomType.optional(),
   creatorId: userId.optional(),
-  type: z
-    .union([
-      z.literal(roomTypeValues.single),
-      z.literal(roomTypeValues.private),
-      z.literal(roomTypeValues.public),
-    ])
-    .optional(),
-  about: z.string().optional(),
 });
 
-const updateRoomBody = z.object({
-  roomId: roomId,
-  toWrite: updateRoomInfoObject,
-});
+export const routeSchema = () => {
+  const readMyRooms = {
+    body: z.object({
+      range: z.object({
+        min: date,
+        max: date,
+      }),
+    }),
+  };
 
-export const updateRoomSchema = {
-  body: updateRoomBody,
-};
+  const readRoomInfo = {
+    body: z.object({
+      roomId: roomId,
+    }),
+  };
 
-const getUsersRoomBody = z.object({
-  roomId: roomId,
-});
+  const updateRoomInfo = {
+    body: z.object({
+      roomId: roomId,
+      toWrite: updateRoomInfoSchema,
+    }),
+  };
 
-export const getUsersRoomSchema = {
-  body: getUsersRoomBody,
-};
+  const createRoom = {
+    body: z.object({
+      roomInfo: createRoomInfoSchema,
+      userIdArr: userIdArr.optional(),
+    }),
+  };
 
-const kickUsersRoomBody = z.object({
-  roomId: roomId,
-  toKick: userId.array(),
-});
+  const deleteRoom = {
+    body: z.object({
+      roomId: roomId,
+    }),
+  };
 
-export const kickUsersRoomSchema = {
-  body: kickUsersRoomBody,
-};
+  const getUsers = {
+    body: z.object({
+      roomId: roomId,
+    }),
+  };
 
-const blockUsersRoomBody = z.object({
-  roomId: roomId,
-  toBlock: userId.array(),
-});
+  const joinRoom = {
+    body: z.object({
+      roomId: roomId,
+    }),
+  };
 
-export const blockUsersRoomSchema = {
-  body: blockUsersRoomBody,
-};
+  const leaveRoom = {
+    body: z.object({
+      roomId: roomId,
+    }),
+  };
 
-const unblockUsersRoomBody = z.object({
-  roomId: roomId,
-  toUnblock: userId.array(),
-});
+  const kickUsers = {
+    body: z.object({
+      roomId: roomId,
+      toKick: userIdArr,
+    }),
+  };
 
-export const unblockUsersRoomSchema = {
-  body: unblockUsersRoomBody,
-};
+  const blockUsers = {
+    body: z.object({
+      roomId: roomId,
+      toBlock: userIdArr,
+    }),
+  };
 
-const joinRoomBody = z.object({
-  roomId: roomId,
-});
+  const unblockUsers = {
+    body: z.object({
+      roomId: roomId,
+      toUnblock: userIdArr,
+    }),
+  };
 
-export const joinRoomSchema = {
-  body: joinRoomBody,
-};
+  const inviteUsers = {
+    body: z.object({
+      roomId: roomId,
+      toInvite: userIdArr,
+    }),
+  };
 
-const leaveRoomBody = z.object({
-  roomId: roomId,
-});
-
-export const leaveRoomSchema = {
-  body: leaveRoomBody,
-};
-
-const inviteUsersRoomBody = z.object({
-  roomId: roomId,
-  toInvite: userId.array(),
-});
-
-export const inviteUsersRoomSchema = {
-  body: inviteUsersRoomBody,
-};
-
-const deleteRoomBody = z.object({
-  roomId: roomId,
-});
-
-export const deleteRoomSchema = {
-  body: deleteRoomBody,
+  return {
+    readMyRooms,
+    readRoomInfo,
+    updateRoomInfo,
+    createRoom,
+    deleteRoom,
+    getUsers,
+    joinRoom,
+    leaveRoom,
+    kickUsers,
+    blockUsers,
+    unblockUsers,
+    inviteUsers,
+  };
 };

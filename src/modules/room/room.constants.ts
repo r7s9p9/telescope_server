@@ -2,7 +2,6 @@ import { userKeyPart } from "../constants";
 import { RoomId, UserId } from "../types";
 import {
   ReadRoomInfoResult,
-  RoomInfoExternal,
   RoomInfoValues,
   RoomInfoUpdateResult,
   ReadRoomResult,
@@ -20,9 +19,16 @@ export const roomInfoFields = {
   creatorId: "creatorId" as const,
   type: "type" as const,
   about: "about" as const,
-  createdDate: "createdDate" as const,
-  modifiedDate: "modifiedDate" as const,
+  created: "created" as const,
 };
+
+export const roomInfoFieldsAllArr = [
+  roomInfoFields.name,
+  roomInfoFields.creatorId,
+  roomInfoFields.type,
+  roomInfoFields.about,
+  roomInfoFields.created,
+];
 
 export const roomInfoStartValues = (
   roomInfoValues: {
@@ -38,8 +44,6 @@ export const roomInfoStartValues = (
   roomInfoValues.type,
   roomInfoFields.about,
   roomInfoValues.about,
-  roomInfoFields.modifiedDate,
-  Number(Date.now),
   roomInfoFields.creatorId,
   creatorId,
 ];
@@ -96,9 +100,6 @@ export const payloadSuccessfulReadInfo = (
 
 export const payloadSuccessOfCreatingRoom = (
   roomId: RoomId,
-  roomInfo: RoomInfoExternal,
-  userIdArr: UserId[],
-  createdDate: number | string,
   isProd: boolean
 ) => {
   return {
@@ -106,8 +107,6 @@ export const payloadSuccessOfCreatingRoom = (
     data: {
       success: true as const,
       roomId: roomId,
-      roomInfo: { ...roomInfo, createdDate },
-      userIdArr: userIdArr,
       dev: !isProd
         ? { message: ["The room was created successfully"] as const }
         : undefined,
@@ -115,9 +114,9 @@ export const payloadSuccessOfCreatingRoom = (
   };
 };
 
-export const payloadSuccessOfUpdateRoom = (
+export const payloadSuccessOfReadRoomInfo = (
   roomId: RoomId,
-  roomInfo: RoomInfoUpdateResult,
+  roomInfo: ReadRoomInfoResult,
   isProd: boolean
 ) => {
   return {
@@ -127,7 +126,40 @@ export const payloadSuccessOfUpdateRoom = (
       roomId: roomId,
       roomInfo: roomInfo,
       dev: !isProd
-        ? { message: ["The room has been successfully updated"] as const }
+        ? { message: ["The room info has been successfully readed"] as const }
+        : undefined,
+    },
+  };
+};
+
+export const payloadLackOfPermissionToReadRoomInfo = (
+  roomId: RoomId,
+  isProd: boolean
+) => {
+  return {
+    status: 403 as const,
+    data: {
+      success: false as const,
+      roomId: roomId,
+      dev: !isProd
+        ? {
+            message: [
+              "You don't have the right to read the room info",
+            ] as const,
+          }
+        : undefined,
+    },
+  };
+};
+
+export const payloadSuccessOfUpdateRoom = (roomId: RoomId, isProd: boolean) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      roomId: roomId,
+      dev: !isProd
+        ? { message: ["The room info has been successfully updated"] as const }
         : undefined,
     },
   };
@@ -450,11 +482,15 @@ export const payloadNoValuesRequestedToRead = (isProd: boolean) => {
   };
 };
 
-export const payloadLackOfPermissionToUpdate = (isProd: boolean) => {
+export const payloadLackOfPermissionToUpdate = (
+  roomId: RoomId,
+  isProd: boolean
+) => {
   return {
     status: 403 as const,
     data: {
       success: false as const,
+      roomId: roomId,
       dev: !isProd
         ? {
             message: [

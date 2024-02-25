@@ -5,20 +5,7 @@ import {
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { room } from "./room.controller";
-import {
-  blockUsersRoomSchema,
-  createRoomSchema,
-  deleteRoomSchema,
-  getUsersRoomSchema,
-  inviteUsersRoomSchema,
-  joinRoomSchema,
-  kickUsersRoomSchema,
-  leaveRoomSchema,
-  readMyRoomsSchema,
-  readRoomInfoSchema,
-  unblockUsersRoomSchema,
-  updateRoomSchema,
-} from "./room.schema";
+import { routeSchema } from "./room.schema";
 
 export async function roomCreateRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
@@ -26,7 +13,7 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/create",
-    schema: createRoomSchema,
+    schema: routeSchema().createRoom,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -46,7 +33,7 @@ export async function roomReadRoomInfoRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/read-info",
-    schema: readRoomInfoSchema,
+    schema: routeSchema().readRoomInfo,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       // const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -65,7 +52,7 @@ export async function roomReadMyRoomsRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/read-my-rooms",
-    schema: readMyRoomsSchema,
+    schema: routeSchema().readMyRooms,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -84,7 +71,7 @@ export async function roomUpdateRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/update",
-    schema: updateRoomSchema,
+    schema: routeSchema().updateRoomInfo,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -104,7 +91,7 @@ export async function roomReadUsersRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/users",
-    schema: getUsersRoomSchema,
+    schema: routeSchema().getUsers,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -123,7 +110,7 @@ export async function roomKickUsersRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/kick",
-    schema: kickUsersRoomSchema,
+    schema: routeSchema().kickUsers,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -143,7 +130,7 @@ export async function roomBlockUsersRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/block",
-    schema: blockUsersRoomSchema,
+    schema: routeSchema().blockUsers,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -163,7 +150,7 @@ export async function roomUnblockUsersRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/unblock",
-    schema: unblockUsersRoomSchema,
+    schema: routeSchema().unblockUsers,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -183,7 +170,7 @@ export async function roomJoinRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/join",
-    schema: joinRoomSchema,
+    schema: routeSchema().joinRoom,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -202,7 +189,7 @@ export async function roomLeaveRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/leave",
-    schema: leaveRoomSchema,
+    schema: routeSchema().leaveRoom,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -221,7 +208,7 @@ export async function roomInviteUsersRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/invite",
-    schema: inviteUsersRoomSchema,
+    schema: routeSchema().inviteUsers,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -241,7 +228,7 @@ export async function roomDeleteRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/room/delete",
-    schema: deleteRoomSchema,
+    schema: routeSchema().deleteRoom,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();

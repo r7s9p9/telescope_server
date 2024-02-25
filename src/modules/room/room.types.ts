@@ -7,8 +7,7 @@ export interface RoomInfoValues {
   [roomInfoFields.creatorId]?: UserId;
   [roomInfoFields.type]: keyof typeof roomTypeValues;
   [roomInfoFields.about]: string;
-  [roomInfoFields.createdDate]: string | number;
-  [roomInfoFields.modifiedDate]: string | number;
+  [roomInfoFields.created]: string | number;
 }
 
 export type ReadRoomInfoValues = keyof typeof roomInfoFields;
@@ -34,8 +33,7 @@ export type ReadRoomInfoResult = {
   [roomInfoFields.creatorId]?: UserId;
   [roomInfoFields.type]?: RoomTypeValues;
   [roomInfoFields.about]?: string;
-  [roomInfoFields.createdDate]?: string | number;
-  [roomInfoFields.modifiedDate]?: string | number;
+  [roomInfoFields.created]?: string | number;
 };
 
 export interface RoomInfoInternal {
@@ -63,5 +61,4 @@ export interface RoomInfoUpdateResult {
   creatorId?: boolean;
   type?: boolean;
   about?: boolean;
-  modifiedDate?: string;
 }

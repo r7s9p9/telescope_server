@@ -9,7 +9,7 @@ import {
 } from "./message.types";
 import { RoomId, UserId } from "../../types";
 import { room } from "../room.controller";
-import z, { ZodError } from "zod";
+import { ZodError } from "zod";
 import { model } from "./message.model";
 import {
   payloadMessageDoesNotExist,
@@ -86,7 +86,19 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
   const roomAction = room(redis, isProd).internal;
 
   const internal = () => {
-    async function serviceAdd(roomId: RoomId, text: string, targetId?: UserId) {
+    async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
+      message.authorId = userId;
+      message.created = touchDate();
+      const isAdded = await m.add(roomId, message);
+      if (!isAdded) return { success: false as const };
+      return { success: true as const, created: message.created };
+    }
+
+    async function addByService(
+      roomId: RoomId,
+      text: string,
+      targetId?: UserId
+    ) {
       const message: ServiceMessage = {
         content: { text },
         created: touchDate(),
@@ -96,14 +108,6 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
         message.targetId = targetId;
       }
       return await m.add(roomId, message);
-    }
-
-    async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
-      message.authorId = userId;
-      message.created = touchDate();
-      const isAdded = await m.add(roomId, message);
-      if (!isAdded) return { success: false as const };
-      return { success: true as const, created: message.created };
     }
 
     async function read(roomId: RoomId, range: MessageRange) {
@@ -178,7 +182,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
 
     return {
       calcDatesDiff,
-      serviceAdd,
+      addByService,
       getInfo,
       add,
       read,
