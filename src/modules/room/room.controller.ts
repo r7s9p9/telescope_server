@@ -37,12 +37,14 @@ import {
   userInvitedMessage,
   userJoinedMessage,
   userLeavedMessage,
+  payloadNoRoomsFound,
+  payloadSuccessfulReadMyRooms,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
 import { model } from "./room.model";
 import {
-  ReadRoomInfoResult,
+  ReadRoomResult,
   RoomInfoExternal,
   RoomInfoInternal,
   RoomInfoToUpdate,
@@ -57,6 +59,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
 
   const internal = () => {
     const accountAction = account(redis, isProd).internal();
+    const messageAction = message(redis, isProd).internal();
 
     const addServiceMessage = (
       roomId: RoomId,
@@ -232,6 +235,65 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return { success: true as const };
     }
 
+    async function readMyRooms(
+      userId: UserId,
+      range: { min: string; max: string }
+    ) {
+      // Find out what rooms the user has
+      const roomIdArr = await m.readUserRooms(userId);
+      const infoToRead = [
+        roomInfoFields.name,
+        roomInfoFields.creatorId,
+        roomInfoFields.createdDate,
+        roomInfoFields.modifiedDate,
+        roomInfoFields.about,
+        roomInfoFields.type,
+      ];
+      const noRoomId = roomIdArr.length === 0;
+      if (noRoomId) return { empty: true as const };
+
+      // Get roomId, roomInfo, lastMessage using roomIdArr
+      const roomDataArr: ReadRoomResult[] = [];
+      for (const roomId of roomIdArr) {
+        const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
+        if (!isAllowed) continue;
+        const roomInfo = await m.readRoomInfo(roomId, infoToRead);
+        const message = await messageAction.readLastMessage(roomId);
+        const roomData = {
+          roomId,
+          roomInfo,
+          lastMessage: message,
+        };
+        roomDataArr.push(roomData);
+      }
+
+      const noRoomData = roomDataArr.length === 0;
+      if (noRoomData) return { empty: true as const };
+
+      function roomDataComparator(a: ReadRoomResult, b: ReadRoomResult) {
+        const aCreated = a.lastMessage?.created;
+        const bCreated = b.lastMessage?.created;
+        const aExist = !!aCreated;
+        const bExist = !!bCreated;
+        // REVERSED ??????
+        if (aExist && bExist) {
+          if (aCreated > bCreated) {
+            return -1;
+          } else {
+            return 1;
+          }
+        }
+        if (aExist && !bExist) return -1;
+        if (!aExist && bExist) return 1;
+        return 0;
+      }
+
+      roomDataArr.sort(roomDataComparator);
+      roomDataArr.slice(Number(range.min), Number(range.max));
+
+      return { empty: false as const, roomDataArr: roomDataArr };
+    }
+
     return {
       isAllowedBySoftRule,
       isAllowedByHardRule,
@@ -246,48 +308,12 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       unblock,
       join,
       leave,
+      readMyRooms,
     };
   };
 
   const external = () => {
     // For rooms overview on client !!!
-    async function readRooms(
-      userId: UserId,
-      range: { min: string; max: string }
-    ) {
-      // Find out what rooms the user has
-      const roomIdArr = await m.readUserRooms(userId);
-      const infoToRead = [
-        roomInfoFields.name,
-        roomInfoFields.creatorId,
-        roomInfoFields.createdDate,
-        roomInfoFields.modifiedDate,
-        roomInfoFields.about,
-        roomInfoFields.type,
-      ];
-      const roomInfoArr: ReadRoomInfoResult[] = [];
-      for (const roomId of roomIdArr) {
-        // isPublicCheck!!!
-        if (await internal().isAllowedBySoftRule(roomId, userId)) {
-          const roomInfo = await m.readRoomInfo(roomId, infoToRead);
-          roomInfoArr.push(roomInfo);
-        } else {
-          roomInfoArr.push({
-            roomId,
-            success: false as const,
-          });
-        }
-      }
-      //
-      // sort array by last message date // grub from message controller
-      //
-      for (const roomInfo of roomInfoArr) {
-        if (!roomInfo.success) continue;
-        roomInfo.roomId; // get last message from message controller
-      }
-      //
-      //return payloadSuccessfulReadInfo(result, isProd);
-    }
 
     async function createRoom(
       creatorId: UserId,
@@ -450,13 +476,22 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return payloadSuccessOfLeave(roomId, isProd);
     }
 
+    async function readMyRooms(
+      userId: UserId,
+      range: { min: string; max: string }
+    ) {
+      const result = await internal().readMyRooms(userId, range);
+      if (result.empty) return payloadNoRoomsFound(isProd);
+      return payloadSuccessfulReadMyRooms(result.roomDataArr, isProd);
+    }
+
     return {
+      readMyRooms,
       inviteUsers,
       blockUsers,
       unblockUsers,
       deleteRoom,
       createRoom,
-      readRooms,
       updateRoomInfo,
       readUsers,
       joinRoom,

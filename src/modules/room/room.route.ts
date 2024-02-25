@@ -14,7 +14,8 @@ import {
   joinRoomSchema,
   kickUsersRoomSchema,
   leaveRoomSchema,
-  readRoomSchema,
+  readMyRoomsSchema,
+  readRoomInfoSchema,
   unblockUsersRoomSchema,
   updateRoomSchema,
 } from "./room.schema";
@@ -39,13 +40,13 @@ export async function roomCreateRoute(fastify: FastifyInstance) {
   });
 }
 
-export async function roomReadRoute(fastify: FastifyInstance) {
+export async function roomReadRoomInfoRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/read",
-    schema: readRoomSchema,
+    url: "/api/room/read-info",
+    schema: readRoomInfoSchema,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       // const roomAction = room(fastify.redis, fastify.env.isProd).external();
@@ -54,6 +55,25 @@ export async function roomReadRoute(fastify: FastifyInstance) {
       //   req.body.range
       // );
       // return rep.code(result.status).send(result.data);
+    },
+  });
+}
+
+export async function roomReadMyRoomsRoute(fastify: FastifyInstance) {
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+  fastify.withTypeProvider<ZodTypeProvider>().route({
+    method: ["POST"],
+    url: "/api/room/read-my-rooms",
+    schema: readMyRoomsSchema,
+    preHandler: [fastify.sessionVerifier],
+    handler: async (req, rep) => {
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      const result = await roomAction.readMyRooms(
+        req.session.token.id,
+        req.body.range
+      );
+      return rep.code(result.status).send(result.data);
     },
   });
 }

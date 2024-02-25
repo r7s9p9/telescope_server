@@ -6,34 +6,23 @@ import {
   MessageDate,
   ServiceMessage,
 } from "./message.types";
-import { messageDateSize, roomMessagesKey } from "./message.constants";
-import { checkUserId } from "../../../utils/uuid";
-import { ServiceId } from "../room.types";
-import { serviceId } from "../room.constants";
+import { roomMessagesKey } from "./message.constants";
 
 const stringify = (message: AddMessage | ServiceMessage) => {
   return JSON.stringify(message);
 };
 
-const parse = (message: string | null) => {
-  if (message === null) return false as const;
+const parse = (message?: string | null) => {
+  if (message === null || message === undefined) return false as const;
   return JSON.parse(message);
 };
 
-const checkDateLength = (date: string | number | null) => {
-  if (date && typeof date === "string" && date.length !== messageDateSize)
-    return false as const;
-  if (
-    date &&
-    typeof date === "number" &&
-    date.toString().length !== messageDateSize
-  )
-    return false as const;
-  return true as const;
-};
-
-const checkAuthorId = (id: any): id is UserId | ServiceId => {
-  return checkUserId(id) || id === serviceId;
+const parseArr = (messageArr: string[] | null) => {
+  const result: any[] = [];
+  for (const message in messageArr) {
+    messageArr.push(parse(message));
+  }
+  return result;
 };
 
 export const model = (redis: FastifyRedis) => {
@@ -44,119 +33,55 @@ export const model = (redis: FastifyRedis) => {
       message.created,
       stringify(message)
     );
-    if (result === 1) {
-      return true as const;
-    }
+    if (result === 1) return true as const;
     return false as const;
-  }
-
-  function messageValidator(message?: string) {
-    const noMessageError = `Empty message` as const;
-    const contentError = (date: string) =>
-      `${date} : There is no content value` as const;
-    const authorIdError = (date: string) =>
-      `${date} : authorId value have wrong type` as const;
-    const createdError = (date: string) =>
-      `${date} : created value have wrong type` as const;
-    const modifiedError = (date: string) =>
-      `${date} : modified value have wrong type` as const;
-    const replyToError = (date: string) =>
-      `${date} : replyTo value have wrong type` as const;
-    const targetIdError = (date: string) =>
-      `${date} : targetId value have wrong type` as const;
-    const rawMessage = (message: string) => `Bad message: ${message}`;
-
-    if (!message) return { error: [noMessageError] };
-
-    const parsed = parse(message);
-    const badCreated = !checkDateLength(parsed.created);
-    const badModified = parsed.modified && !checkDateLength(parsed.modified);
-    const badAuthorId = !checkAuthorId(parsed.authorId);
-    const badContent = !parsed.content;
-    const badReplyTo = parsed.replyTo && !checkUserId(parsed.replyTo);
-    // For ServiceMessage
-    const badServiceTargetId = parsed.targetId && !checkUserId(parsed.targetId);
-
-    const error: string[] = [];
-    if (badCreated) error.push(createdError(parsed.created));
-    if (badModified) error.push(modifiedError(parsed.created));
-    if (badAuthorId) error.push(authorIdError(parsed.created));
-    if (badContent) error.push(contentError(parsed.created));
-    if (badReplyTo) error.push(replyToError(parsed.created));
-    if (badServiceTargetId) error.push(targetIdError(parsed.created));
-    const isError = badCreated || badModified || badAuthorId || badContent;
-    if (isError) {
-      error.push(rawMessage(message));
-      return { error };
-    }
-    const result: Message = parsed;
-    return { message: result };
-  }
-
-  function messageArrValidator(messageArr: string[]) {
-    const resultArr: Message[] = [];
-    const errorArr: string[][] = [];
-
-    for (const message of messageArr) {
-      const messageResult = messageValidator(message);
-      if (messageResult.error) errorArr.push(messageResult.error);
-      if (messageResult.message) resultArr.push(messageResult.message);
-    }
-    return {
-      messageArr: resultArr,
-      errorArr,
-    };
   }
 
   async function readByRange(
     roomId: RoomId,
-    range: { minDate: string | number; maxDate: string | number }
+    range: { minCreated: string | number; maxCreated: string | number }
   ) {
     const messageArr = await redis.zrevrangebyscore(
       roomMessagesKey(roomId),
-      range.maxDate,
-      range.minDate
+      range.maxCreated,
+      range.minCreated
     );
-    return messageArrValidator(messageArr);
+    return parseArr(messageArr);
   }
 
-  async function readByCreated(roomId: RoomId, messageDatesArr: MessageDate[]) {
-    const messageArr: Message[] = [];
+  async function readByCreated(roomId: RoomId, created: string) {
+    const [message] = await redis.zrange(
+      roomMessagesKey(roomId),
+      created,
+      created,
+      "BYSCORE"
+    );
+    console.log(created);
+    console.log(message);
+
+    if (!message) return false as const;
+    return parse(message);
+  }
+
+  async function readArrByCreated(
+    roomId: RoomId,
+    messageDatesArr: MessageDate[]
+  ) {
+    const messageArr: any[] = [];
     for (const messageDates of messageDatesArr) {
-      const [message] = await redis.zrangebyscore(
-        roomMessagesKey(roomId),
-        messageDates.created,
-        messageDates.created
-      );
-      if (!message) continue;
-      const result = messageValidator(message);
-      if (result.error) continue;
-      messageArr.push(result.message);
+      const message = await readByCreated(roomId, messageDates.created);
+      messageArr.push(message);
     }
     return messageArr;
   }
 
-  async function readLastMessage(roomId: RoomId) {
-    const message = await redis.zrevrange(roomMessagesKey(roomId), 0, 0);
-    return messageArrValidator(message);
-  }
-
-  async function isAuthor(
-    roomId: RoomId,
-    userId: UserId,
-    created: string | number
-  ) {
-    const [message] = await redis.zrangebyscore(
+  async function readMessageByRevRange(roomId: RoomId, index: number) {
+    const [message] = await redis.zrevrange(
       roomMessagesKey(roomId),
-      created,
-      created
+      index,
+      index
     );
-    const result = messageValidator(message);
-    const isAuthor = result.message && result.message.authorId === userId;
-
-    if (!result.message) return { exist: false as const };
-    if (!isAuthor) return { isAuthor: false as const };
-    return { exist: true as const, isAuthor: true as const };
+    return parse(message);
   }
 
   async function remove(roomId: RoomId, created: Message["created"]) {
@@ -165,12 +90,27 @@ export const model = (redis: FastifyRedis) => {
       created,
       created
     );
-    console.log(result);
     if (result === 1) {
       return true;
     }
     return false;
   }
 
-  return { readByRange, add, remove, isAuthor, readByCreated, readLastMessage };
+  async function update(roomId: RoomId, message: Message) {
+    const removeSuccess = await remove(roomId, message.created);
+    if (!removeSuccess) return false;
+    const addSuccess = await add(roomId, message);
+    if (!addSuccess) return false;
+    return true;
+  }
+
+  return {
+    readByRange,
+    add,
+    remove,
+    update,
+    readByCreated,
+    readArrByCreated,
+    readMessageByRevRange,
+  };
 };

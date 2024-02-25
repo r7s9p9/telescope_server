@@ -5,6 +5,7 @@ import {
   RoomInfoExternal,
   RoomInfoValues,
   RoomInfoUpdateResult,
+  ReadRoomResult,
 } from "./room.types";
 
 export const roomTypeValues = {
@@ -540,24 +541,6 @@ export const payloadNoJoined = (roomId: RoomId, isProd: boolean) => {
   };
 };
 
-export const payloadNoAllowedReadRooms = (
-  userId: UserId | "self",
-  isProd: boolean
-) => {
-  return {
-    status: 403 as const,
-    data: {
-      success: false as const,
-      userId: userId,
-      dev: !isProd
-        ? {
-            message: ["You are not allowed to read this user's rooms"] as const,
-          }
-        : undefined,
-    },
-  };
-};
-
 export const payloadSuccessfulReadUserRooms = (
   userId: UserId | "self",
   roomIdArr: RoomId[],
@@ -573,6 +556,36 @@ export const payloadSuccessfulReadUserRooms = (
         ? {
             message: ["You have successfully read this user's rooms"] as const,
           }
+        : undefined,
+    },
+  };
+};
+
+export const payloadSuccessfulReadMyRooms = (
+  roomDataArr: ReadRoomResult[],
+  isProd: boolean
+) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      empty: false as const,
+      roomDataArr: roomDataArr,
+      dev: !isProd
+        ? { message: ["You have successfully read self rooms"] }
+        : undefined,
+    },
+  };
+};
+
+export const payloadNoRoomsFound = (isProd: boolean) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      empty: true as const,
+      dev: !isProd
+        ? { message: ["There are no rooms in this range"] }
         : undefined,
     },
   };

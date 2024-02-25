@@ -5,13 +5,7 @@ import {
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { message } from "./message.controller";
-import {
-  addMessageSchema,
-  checkMessageSchema,
-  readMessagesSchema,
-  removeMessageSchema,
-  updateMessageSchema,
-} from "./message.schema";
+import { routeSchema } from "./message.schema";
 
 export async function messageReadRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
@@ -19,7 +13,7 @@ export async function messageReadRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/message/read",
-    schema: readMessagesSchema,
+    schema: routeSchema().read,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(
@@ -42,7 +36,7 @@ export async function messageAddRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/message/add",
-    schema: addMessageSchema,
+    schema: routeSchema().add,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(
@@ -65,7 +59,7 @@ export async function messageUpdateRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/message/update",
-    schema: updateMessageSchema,
+    schema: routeSchema().update,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(
@@ -88,7 +82,7 @@ export async function messageRemoveRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/message/remove",
-    schema: removeMessageSchema,
+    schema: routeSchema().remove,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(
@@ -111,7 +105,7 @@ export async function messageCompareRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
     url: "/api/message/compare",
-    schema: checkMessageSchema,
+    schema: routeSchema().compare,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const messageAction = message(

@@ -111,7 +111,7 @@ export const model = (redis: FastifyRedis) => {
   async function readRoomInfo(
     roomId: RoomId,
     toRead: Array<ReadRoomInfoValues>
-  ): Promise<Omit<ReadRoomInfoResult, "haveAccess">> {
+  ): Promise<ReadRoomInfoResult> {
     const result = Object.create(null);
     let goodCount = 0;
     for (const field of toRead) {

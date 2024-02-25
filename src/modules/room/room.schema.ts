@@ -40,15 +40,23 @@ export const createRoomSchema = {
   body: createRoomBody,
 };
 
-const readRoomBody = z.object({
+const readMyRoomsBody = z.object({
   range: z.object({
     min: z.string(),
     max: z.string(),
   }),
 });
 
-export const readRoomSchema = {
-  body: readRoomBody,
+export const readMyRoomsSchema = {
+  body: readMyRoomsBody,
+};
+
+const readRoomInfoBody = z.object({
+  roomId: roomId,
+});
+
+export const readRoomInfoSchema = {
+  body: readRoomInfoBody,
 };
 
 const updateRoomInfoObject = z.object({
@@ -139,12 +147,4 @@ const deleteRoomBody = z.object({
 
 export const deleteRoomSchema = {
   body: deleteRoomBody,
-};
-
-const getUserRoomsBody = z.object({
-  userId: userId.or(z.literal("self")),
-});
-
-export const getUserRoomsSchema = {
-  body: getUserRoomsBody,
 };

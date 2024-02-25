@@ -1,5 +1,6 @@
 import { RoomId, UserId } from "../types";
 import { roomInfoFields, roomTypeValues, serviceId } from "./room.constants";
+import { Message } from "./message/message.types";
 
 export interface RoomInfoValues {
   [roomInfoFields.name]: string;
@@ -22,9 +23,13 @@ export type RoomState = {
   lastMessageDate: string;
 };
 
-export type ReadRoomInfoResult = {
+export type ReadRoomResult = {
   roomId: RoomId;
-  success: boolean;
+  roomInfo: ReadRoomInfoResult;
+  lastMessage?: Message;
+};
+
+export type ReadRoomInfoResult = {
   [roomInfoFields.name]?: string;
   [roomInfoFields.creatorId]?: UserId;
   [roomInfoFields.type]?: RoomTypeValues;

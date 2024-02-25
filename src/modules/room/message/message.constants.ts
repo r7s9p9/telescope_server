@@ -1,6 +1,7 @@
 import { roomKey } from "../room.constants";
 import { RoomId } from "../../types";
 import { Message, MessageDate } from "./message.types";
+import { ZodError } from "zod";
 
 export const roomMessagesKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:messages`;
@@ -48,11 +49,10 @@ export const payloadSuccessfulAddMessage = (
 export const payloadSuccessfulReadMessages = (
   roomId: RoomId,
   messageArr: Message[],
-  errorArr: string[][],
+  errorArr: ZodError[] | false,
   isProd: boolean
 ) => {
   const devMessage = "The messages was successfully readed" as const;
-  const isError = errorArr && errorArr.length !== 0;
   return {
     status: 200 as const,
     data: {
@@ -60,7 +60,7 @@ export const payloadSuccessfulReadMessages = (
       roomId: roomId,
       messageArr: messageArr,
       dev: !isProd
-        ? { message: [devMessage], error: isError ? errorArr : undefined }
+        ? { message: [devMessage], error: errorArr ? errorArr : undefined }
         : undefined,
     },
   };
@@ -68,11 +68,10 @@ export const payloadSuccessfulReadMessages = (
 
 export const payloadNoOneMessageReaded = (
   roomId: RoomId,
-  errorArr: string[][],
+  errorArr: ZodError[] | false,
   isProd: boolean
 ) => {
   const devMessage = "There are no messages" as const;
-  const isError = errorArr && errorArr.length !== 0;
   return {
     status: 200 as const,
     data: {
@@ -80,7 +79,7 @@ export const payloadNoOneMessageReaded = (
       empty: true as const,
       roomId: roomId,
       dev: !isProd
-        ? { message: [devMessage], error: isError ? errorArr : undefined }
+        ? { message: [devMessage], error: errorArr ? errorArr : undefined }
         : undefined,
     },
   };

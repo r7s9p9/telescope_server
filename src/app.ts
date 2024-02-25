@@ -28,10 +28,11 @@ import {
   roomJoinRoute,
   roomKickUsersRoute,
   roomLeaveRoute,
-  roomReadRoute,
   roomUnblockUsersRoute,
   roomUpdateRoute,
   roomReadUsersRoute,
+  roomReadMyRoomsRoute,
+  roomReadRoomInfoRoute,
 } from "./modules/room/room.route";
 import {
   messageAddRoute,
@@ -94,17 +95,19 @@ const app = async () => {
           fastify.env.isProd
         ).internal();
         const sessionData = await sessionAction.verifier(fastify, request);
-        if (sessionData.success) {
-          if (sessionData.token.isNew) setTokenCookie(reply, sessionData.token);
-          request.session = sessionData;
-        } else {
+
+        if (!sessionData.success) {
           clearTokenCookie(reply);
           return reply
             .code(sessionData.status)
             .send(!fastify.env.isProd ? sessionData : undefined);
         }
+        if (sessionData.token.isNew) {
+          setTokenCookie(reply, sessionData.token);
+        }
+        request.session = sessionData;
       } catch (e) {
-        return reply.send(e);
+        if (!fastify.env.isProd) return reply.send(e);
       }
     }
   );
@@ -123,8 +126,9 @@ const app = async () => {
   await fastify.register(accountReadRoute);
   await fastify.register(accountUpdateRoute);
 
+  await fastify.register(roomReadMyRoomsRoute);
+  await fastify.register(roomReadRoomInfoRoute);
   await fastify.register(roomCreateRoute);
-  await fastify.register(roomReadRoute);
   await fastify.register(roomUpdateRoute);
   await fastify.register(roomReadUsersRoute);
   await fastify.register(roomKickUsersRoute);

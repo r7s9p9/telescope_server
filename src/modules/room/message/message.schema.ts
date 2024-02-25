@@ -1,6 +1,7 @@
 import z from "zod";
 import { RoomId, UserId } from "../../types";
 import { messageDateSize } from "./message.constants";
+import { serviceId } from "../room.constants";
 
 const userId = z
   .string()
@@ -16,66 +17,78 @@ const roomId = z
     return id as RoomId;
   });
 
-const addMessageBody = z.object({
-  roomId: roomId,
-  message: z.object({
-    content: z.object({
-      text: z.string().optional(),
+const messageContent = z.object({ text: z.string().min(1) });
+const messageAuthorId = userId.or(z.literal(serviceId));
+const messageReplyTo = userId.optional();
+const messageTargetId = userId.optional(); // For Service Message
+const messageCreated = z.string().length(messageDateSize);
+const messageModified = z.string().length(messageDateSize).optional();
+
+export const messageSchema = z.object({
+  content: messageContent,
+  authorId: messageAuthorId,
+  replyTo: messageReplyTo,
+  targetId: messageTargetId, // For Service Message
+  created: messageCreated,
+  modified: messageModified,
+});
+
+const addMessageSchema = z.object({
+  content: messageContent,
+  replyTo: messageReplyTo,
+});
+
+const updateMessageSchema = z.object({
+  content: messageContent,
+  replyTo: messageReplyTo,
+  created: messageCreated,
+});
+
+const compareMessageSchema = z
+  .object({
+    created: messageCreated,
+    modified: messageModified,
+  })
+  .array();
+
+export const routeSchema = () => {
+  const read = {
+    body: z.object({
+      roomId: roomId,
+      range: z.object({
+        minCreated: messageCreated,
+        maxCreated: messageCreated,
+      }),
     }),
-    replyTo: userId.optional(),
-  }),
-});
+  };
 
-export const addMessageSchema = {
-  body: addMessageBody,
-};
-
-const readMessagesBody = z.object({
-  roomId: roomId,
-  range: z.object({
-    minDate: z.string().length(messageDateSize),
-    maxDate: z.string().length(messageDateSize),
-  }),
-});
-
-export const readMessagesSchema = {
-  body: readMessagesBody,
-};
-
-const updateMessageBody = z.object({
-  roomId: roomId,
-  message: z.object({
-    created: z.string().length(messageDateSize),
-    content: z.object({
-      text: z.string().optional(),
+  const add = {
+    body: z.object({
+      roomId: roomId,
+      message: addMessageSchema,
     }),
-    replyTo: userId.optional(),
-  }),
-});
+  };
 
-export const updateMessageSchema = {
-  body: updateMessageBody,
-};
+  const update = {
+    body: z.object({
+      roomId: roomId,
+      message: updateMessageSchema,
+    }),
+  };
 
-const removeMessageBody = z.object({
-  roomId: roomId,
-  created: z.string().length(messageDateSize),
-});
+  const remove = {
+    body: z.object({
+      roomId: roomId,
+      created: messageCreated,
+    }),
+  };
 
-export const removeMessageSchema = {
-  body: removeMessageBody,
-};
+  const compare = {
+    body: z.object({
+      roomId: roomId,
+      toCompare: compareMessageSchema,
+    }),
+  };
 
-const checkMessageBody = z.object({
-  roomId: roomId,
-  toCompare: z
-    .object({
-      created: z.string().length(messageDateSize),
-      modified: z.string().length(messageDateSize).optional(),
-    })
-    .array(),
-});
-
-export const checkMessageSchema = {
-  body: checkMessageBody,
+  return { read, add, update, remove, compare };
 };
