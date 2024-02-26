@@ -1,44 +1,46 @@
 import z from "zod";
 
-const authCore = {
-  email: z
-    .string({
-      required_error: "Email is required",
-      invalid_type_error: "Email must be a string",
-    })
-    .email(),
-};
-
-const registerBody = z.object({
-  ...authCore,
-  username: z.string(),
-  password: z.string({
+const email = z
+  .string({
+    required_error: "Email is required",
+    invalid_type_error: "Email must be a string",
+  })
+  .email();
+const username = z
+  .string({
+    required_error: "Username is required",
+    invalid_type_error: "Username have wrong type",
+  })
+  .min(4);
+const password = z
+  .string({
     required_error: "Password is required",
-    invalid_type_error: "Password must be a string",
-  }),
-});
+    invalid_type_error: "Password have wrong type",
+  })
+  .min(4);
+const code = z.string().min(6);
 
-const loginBody = z.object({
-  ...authCore,
-  password: z.string({
-    required_error: "Password is required",
-    invalid_type_error: "Password must be a string",
-  }),
-});
+export const routeSchema = () => {
+  const register = {
+    body: z.object({
+      email: email,
+      username: username,
+      password: password,
+    }),
+  };
 
-const codeBody = z.object({
-  ...authCore,
-  code: z.string(),
-});
+  const login = {
+    body: z.object({
+      email: email,
+      password: password,
+    }),
+  };
 
-export const registerSchema = {
-  body: registerBody,
-};
-
-export const loginSchema = {
-  body: loginBody,
-};
-
-export const codeSchema = {
-  body: codeBody,
+  const confirmationCode = {
+    body: z.object({
+      email: email,
+      code: code,
+    }),
+  };
+  return { register, login, confirmationCode };
 };

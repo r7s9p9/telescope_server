@@ -36,27 +36,27 @@ export async function roomReadRoomInfoRoute(fastify: FastifyInstance) {
     schema: routeSchema().readRoomInfo,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
-      // const roomAction = room(fastify.redis, fastify.env.isProd).external();
-      // const result = await roomAction.readRooms(
-      //   req.session.token.id,
-      //   req.body.range
-      // );
-      // return rep.code(result.status).send(result.data);
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      const result = await roomAction.readRoomInfo(
+        req.session.token.id,
+        req.body.roomId
+      );
+      return rep.code(result.status).send(result.data);
     },
   });
 }
 
-export async function roomReadMyRoomsRoute(fastify: FastifyInstance) {
+export async function roomOverviewMyRoomsRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/read-my-rooms",
+    url: "/api/room/overview-my-rooms",
     schema: routeSchema().readMyRooms,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
-      const result = await roomAction.readMyRooms(
+      const result = await roomAction.roomsOverview(
         req.session.token.id,
         req.body.range
       );

@@ -10,7 +10,7 @@ export interface RoomInfoValues {
   [roomInfoFields.created]: string | number;
 }
 
-export type ReadRoomInfoValues = keyof typeof roomInfoFields;
+export type RoomInfoToRead = Array<keyof typeof roomInfoFields>;
 
 export type RoomTypeValues = keyof typeof roomTypeValues;
 

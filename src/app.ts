@@ -12,7 +12,7 @@ import {
 } from "./modules/constants";
 import { session } from "./modules/auth/session/session.controller";
 import {
-  authCodeRoute,
+  authConfirmationCodeRoute,
   authLoginRoute,
   authRegisterRoute,
 } from "./modules/auth/auth.route";
@@ -31,8 +31,8 @@ import {
   roomUnblockUsersRoute,
   roomUpdateRoute,
   roomReadUsersRoute,
-  roomReadMyRoomsRoute,
   roomReadRoomInfoRoute,
+  roomOverviewMyRoomsRoute,
 } from "./modules/room/room.route";
 import {
   messageAddRoute,
@@ -121,12 +121,12 @@ const app = async () => {
 
   await fastify.register(authRegisterRoute);
   await fastify.register(authLoginRoute);
-  await fastify.register(authCodeRoute);
+  await fastify.register(authConfirmationCodeRoute);
 
   await fastify.register(accountReadRoute);
   await fastify.register(accountUpdateRoute);
 
-  await fastify.register(roomReadMyRoomsRoute);
+  await fastify.register(roomOverviewMyRoomsRoute);
   await fastify.register(roomReadRoomInfoRoute);
   await fastify.register(roomCreateRoute);
   await fastify.register(roomUpdateRoute);

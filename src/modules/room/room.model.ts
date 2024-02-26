@@ -4,17 +4,14 @@ import {
   roomBlockedUsersKey,
   roomInfoFields,
   roomInfoKey,
-  roomTypeValues,
   roomUsersKey,
   userRoomsSetKey,
 } from "./room.constants";
 import {
   RoomInfoInternal,
   ReadRoomInfoResult,
-  ReadRoomInfoValues,
-  RoomInfoValues,
   RoomInfoToUpdate,
-  RoomInfoUpdateResult,
+  RoomInfoToRead,
 } from "./room.types";
 import { checkRoomId, checkUserId } from "../../utils/uuid";
 
@@ -66,7 +63,7 @@ export const model = (redis: FastifyRedis) => {
 
   async function readRoomInfo(
     roomId: RoomId,
-    toRead: Array<ReadRoomInfoValues>
+    toRead: RoomInfoToRead
   ): Promise<ReadRoomInfoResult> {
     const result = Object.create(null);
     for (const field of toRead) {

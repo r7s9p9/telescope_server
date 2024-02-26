@@ -1,9 +1,9 @@
+import { ZodError } from "zod";
 import { userKeyPart } from "../constants";
 import { RoomId, UserId } from "../types";
 import {
   ReadRoomInfoResult,
   RoomInfoValues,
-  RoomInfoUpdateResult,
   ReadRoomResult,
 } from "./room.types";
 
@@ -127,6 +127,28 @@ export const payloadSuccessOfReadRoomInfo = (
       roomInfo: roomInfo,
       dev: !isProd
         ? { message: ["The room info has been successfully readed"] as const }
+        : undefined,
+    },
+  };
+};
+
+export const payloadNoSuccessfulReadRoomInfo = (
+  roomId: RoomId,
+  error: ZodError,
+  isProd: boolean
+) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: false as const,
+      roomId: roomId,
+      dev: !isProd
+        ? {
+            message: [
+              "The room information was not read successfully",
+            ] as const,
+            error: error,
+          }
         : undefined,
     },
   };
@@ -605,7 +627,7 @@ export const payloadSuccessfulReadMyRooms = (
     status: 200 as const,
     data: {
       success: true as const,
-      empty: false as const,
+      isEmpty: false as const,
       roomDataArr: roomDataArr,
       dev: !isProd
         ? { message: ["You have successfully read self rooms"] }
@@ -619,7 +641,7 @@ export const payloadNoRoomsFound = (isProd: boolean) => {
     status: 200 as const,
     data: {
       success: true as const,
-      empty: true as const,
+      isEmpty: true as const,
       dev: !isProd
         ? { message: ["There are no rooms in this range"] }
         : undefined,

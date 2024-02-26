@@ -27,6 +27,16 @@ const roomType = z.union([
   z.literal(roomTypeValues.single),
 ]);
 const roomAbout = z.string();
+const roomCreatorId = userId;
+const roomCreated = date;
+
+export const readRoomInfoSchema = z.object({
+  name: roomName.optional(),
+  type: roomType.optional(),
+  about: roomAbout.optional(),
+  creatorId: roomCreatorId.optional(),
+  created: roomCreated.optional(),
+});
 
 const createRoomInfoSchema = z.object({
   name: roomName,
@@ -38,7 +48,7 @@ const updateRoomInfoSchema = z.object({
   name: roomName.optional(),
   type: roomType.optional(),
   about: roomType.optional(),
-  creatorId: userId.optional(),
+  creatorId: roomCreatorId.optional(),
 });
 
 export const routeSchema = () => {

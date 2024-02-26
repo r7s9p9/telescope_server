@@ -4,9 +4,9 @@ import {
   validatorCompiler,
   ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { registerSchema, loginSchema, codeSchema } from "./auth.schema";
 import { auth } from "./auth.controller";
 import { setTokenCookie } from "../constants";
+import { routeSchema } from "./auth.schema";
 
 export async function authRegisterRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
@@ -14,7 +14,7 @@ export async function authRegisterRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
     url: "/api/auth/register",
-    schema: registerSchema,
+    schema: routeSchema().register,
     handler: async (request, reply) => {
       const authAction = auth(fastify.redis, fastify.env.isProd).external();
       const payload = await authAction.register(
@@ -33,7 +33,7 @@ export async function authLoginRoute(fastify: FastifyInstance) {
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
     url: "/api/auth/login",
-    schema: loginSchema,
+    schema: routeSchema().login,
     handler: async (request, reply) => {
       const authAction = auth(fastify.redis, fastify.env.isProd).external();
       const { payload, tokenData } = await authAction.login(
@@ -49,13 +49,13 @@ export async function authLoginRoute(fastify: FastifyInstance) {
   });
 }
 
-export async function authCodeRoute(fastify: FastifyInstance) {
+export async function authConfirmationCodeRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: "POST",
     url: "/api/auth/code",
-    schema: codeSchema,
+    schema: routeSchema().confirmationCode,
     handler: async (req, res) => {
       const authAction = auth(fastify.redis, fastify.env.isProd).external();
       const { payload, tokenData } = await authAction.code(
