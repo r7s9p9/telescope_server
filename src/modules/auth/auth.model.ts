@@ -2,7 +2,7 @@ import { FastifyRedis } from "@fastify/redis";
 import { db } from "../../db/database";
 import { SelectUser, UpdateUser, CreateUser } from "../../db/types";
 import { UserId } from "../types";
-import { accountKey, sessionConfirmationCodeField } from "../constants";
+import { codeHashFields, confirmationCodeKey } from "./auth.constants";
 
 export async function selectUserByEmail(email: SelectUser["email"]) {
   return await db
@@ -51,32 +51,59 @@ export async function deleteUser(id: SelectUser["id"]) {
 }
 
 export const model = (redis: FastifyRedis) => {
-  async function writeCode(userId: UserId, code: number) {
-    const result = await redis.hset(
-      accountKey(userId),
-      sessionConfirmationCodeField,
-      code
+  async function writeCode(userId: UserId, code: number, userAgent: string) {
+    const result = await redis.hmset(
+      confirmationCodeKey(userId),
+      codeHashFields.code,
+      code,
+      codeHashFields.attemptCount,
+      0,
+      codeHashFields.userAgent,
+      userAgent
     );
-    if (result === 1) return true as const;
+    if (result === "OK") return true as const;
     return false as const;
   }
 
   async function readCode(userId: UserId) {
-    const result = await redis.hget(
-      accountKey(userId),
-      sessionConfirmationCodeField
+    const code = await redis.hget(
+      confirmationCodeKey(userId),
+      codeHashFields.code
     );
-    if (!result) return { success: false as const };
-    return { success: true as const, storedCode: result };
+    const attemptCount = await redis.hget(
+      confirmationCodeKey(userId),
+      codeHashFields.attemptCount
+    );
+    const userAgent = await redis.hget(
+      confirmationCodeKey(userId),
+      codeHashFields.userAgent
+    );
+
+    if (!code || !attemptCount || !userAgent) {
+      return { success: false as const };
+    }
+    return {
+      success: true as const,
+      storedCode: code,
+      attemptCount: Number(attemptCount),
+      userAgent: userAgent,
+    };
+  }
+
+  async function increaseAttemptCount(userId: UserId) {
+    const result = await redis.hincrby(
+      confirmationCodeKey(userId),
+      codeHashFields.attemptCount,
+      1
+    );
+    if (result === 0) return false as const;
+    return true as const;
   }
 
   async function removeCode(userId: UserId) {
-    const result = await redis.hdel(
-      accountKey(userId),
-      sessionConfirmationCodeField
-    );
+    const result = await redis.del(confirmationCodeKey(userId));
     if (result !== 1) return false as const;
     return true as const;
   }
-  return { writeCode, readCode, removeCode };
+  return { writeCode, readCode, increaseAttemptCount, removeCode };
 };

@@ -9,9 +9,11 @@ import { FastifyRedis } from "@fastify/redis";
 import { payloadServerError } from "../constants";
 import {
   payloadAccountCreated,
+  payloadBadUserAgent,
   payloadEmailExists,
   payloadInvalidEmailOrPassword,
   payloadLoginSuccessful,
+  payloadTooManyAttemptsToConfirmCode,
   payloadUsernameExists,
   payloadVerificationRequired,
   payloadWrongCode,
@@ -29,18 +31,35 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
   const tokenAction = token();
 
   const internal = () => {
-    async function createCode(userId: UserId) {
+    async function createCode(userId: UserId, userAgent: string) {
       await m.removeCode(userId);
       const code = Math.floor(100000 + Math.random() * 900000);
-      return await m.writeCode(userId, code);
+      return await m.writeCode(userId, code, userAgent);
     }
 
-    async function compareCode(userId: UserId, code: string) {
+    async function compareCode(
+      userId: UserId,
+      code: string,
+      userAgent: string
+    ) {
       const result = await m.readCode(userId);
-      if (!result.success) return false as const;
-      if (result.storedCode !== code) return false as const;
+      if (!result.success) return { success: false as const };
+
+      if (result.userAgent !== userAgent) {
+        return { success: false as const, badUserAgent: true as const };
+      }
+
+      if (result.attemptCount >= 5) {
+        // Move attempt count allowed to fastify.env
+        await m.removeCode(userId);
+        return { success: false as const, badAttemptCount: true as const };
+      }
+      if (result.storedCode !== code) {
+        await m.increaseAttemptCount(userId);
+        return { success: false as const, badCodeEntered: true as const };
+      }
       await m.removeCode(userId);
-      return true;
+      return { success: true as const };
     }
 
     async function checkCode(
@@ -51,11 +70,14 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       userCode: string
     ) {
       const user = await selectUserByEmail(userEmail);
-      if (!user) return { success: false as const, badAuth: true as const };
+      if (!user) {
+        return { success: false as const, badAuth: true as const };
+      }
 
-      const isCodeCorrect = await compareCode(user.id, userCode);
-      if (!isCodeCorrect)
-        return { success: false as const, badCode: true as const };
+      const codeResult = await compareCode(user.id, userCode, userAgent);
+      if (!codeResult.success) {
+        return { success: false as const, codeResult };
+      }
 
       const tokenData = await tokenAction.create(jwt, user.id);
       if (!tokenData) return { success: false as const };
@@ -84,7 +106,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
     async function login(
       jwt: JWT,
       ip: string,
-      ua: string,
+      userAgent: string,
       email: string,
       password: string
     ) {
@@ -102,7 +124,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
 
       const isCodeNeeded = await sessionAction.isCodeNeeded(user.id);
       if (isCodeNeeded) {
-        const success = await createCode(user.id);
+        const success = await createCode(user.id, userAgent);
         if (!success) return { success: false as const, code: true as const };
         return { success: true as const, code: true as const };
       }
@@ -113,7 +135,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       const sessionResult = await sessionAction.create(
         tokenData.id,
         tokenData.exp,
-        ua,
+        userAgent,
         ip
       );
       if (!sessionResult) return { success: false as const };
@@ -187,25 +209,34 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       userCode: string
     ) {
       try {
-        const result = await internal().checkCode(
+        const info = await internal().checkCode(
           jwt,
           ip,
           userAgent,
           userEmail,
           userCode
         );
-        if (result.badAuth) {
-          return { payload: payloadInvalidEmailOrPassword(isProd) };
+        if (!info.success) {
+          if (info.badAuth) {
+            return { payload: payloadInvalidEmailOrPassword(isProd) };
+          }
+          if (info.codeResult?.badCodeEntered) {
+            return { payload: payloadWrongCode(isProd) };
+          }
+          if (info.codeResult?.badUserAgent) {
+            return { payload: payloadBadUserAgent(isProd) };
+          }
+          if (info.codeResult?.badAttemptCount) {
+            return { payload: payloadTooManyAttemptsToConfirmCode(isProd) };
+          }
+          if (!info.success) {
+            return { payload: payloadServerError(isProd) };
+          }
         }
-        if (result.badCode) {
-          return { payload: payloadWrongCode(isProd) };
-        }
-        if (!result.success) {
-          return { payload: payloadServerError(isProd) };
-        }
+
         return {
-          payload: payloadLoginSuccessful(result.tokenData.raw, isProd),
-          tokenData: result.tokenData,
+          payload: payloadLoginSuccessful(info.tokenData.raw, isProd),
+          tokenData: info.tokenData,
         };
       } catch (e) {
         console.log(e);

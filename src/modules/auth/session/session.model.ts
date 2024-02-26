@@ -1,12 +1,7 @@
 import { FastifyRedis } from "@fastify/redis";
 import { sessionFields } from "./session.constants";
 import { UserId } from "../../types";
-import {
-  accountKey,
-  sessionConfirmationCodeField,
-  sessionHashKey,
-  sessionSetKey,
-} from "../../constants";
+import { sessionHashKey, sessionSetKey } from "../../constants";
 
 const model = (redis: FastifyRedis) => {
   async function getSessionCountFromSet(userId: UserId) {

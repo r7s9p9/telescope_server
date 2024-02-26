@@ -1,3 +1,15 @@
+import { accountKey } from "../constants";
+import { UserId } from "../types";
+
+export const confirmationCodeKey = (userId: UserId) =>
+  `${accountKey(userId)}:code`;
+
+export const codeHashFields = {
+  code: "code" as const,
+  attemptCount: "attemptCount" as const,
+  userAgent: "userAgent" as const,
+};
+
 export const payloadLoginSuccessful = (rawToken: string, isProd: boolean) => {
   return {
     status: 200 as const,
@@ -79,6 +91,34 @@ export const payloadWrongCode = (isProd: boolean) => {
       success: false as const,
       dev: !isProd
         ? { message: ["The entered code is incorrect"] as const }
+        : undefined,
+    },
+  };
+};
+
+export const payloadTooManyAttemptsToConfirmCode = (isProd: boolean) => {
+  return {
+    status: 400 as const,
+    data: {
+      success: false as const,
+      dev: !isProd
+        ? { message: ["Too many failed code verification attempts"] as const }
+        : undefined,
+    },
+  };
+};
+
+export const payloadBadUserAgent = (isProd: boolean) => {
+  return {
+    status: 400 as const,
+    data: {
+      success: false as const,
+      dev: !isProd
+        ? {
+            message: [
+              "The user agent does not match the saved user agent",
+            ] as const,
+          }
         : undefined,
     },
   };
