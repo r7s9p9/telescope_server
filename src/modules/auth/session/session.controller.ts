@@ -127,7 +127,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
 
     async function isCodeNeeded(userId: UserId) {
       const sessionCount = await m.getSessionCountFromSet(userId);
-      if (sessionCount === 0) return false;
+      if (sessionCount === 0) return false as const;
 
       const sessionsArray = await m.getAllSessionsFromSet(userId);
 
@@ -148,7 +148,7 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
         suitableSessionMap.set(expNumber, online);
       }
 
-      if (suitableSessionMap.size === 0) return false;
+      if (suitableSessionMap.size === 0) return false as const;
 
       // Finding the most recent session from those that are suitable
       let targetExp = 0;
@@ -162,29 +162,10 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
         const prevOnline = suitableSessionMap.get(targetExp);
         if (prevOnline && prevOnline < online) targetExp = exp;
       }
-      return await createCode(userId, targetExp);
+      return true as const;
     }
 
-    async function createCode(userId: UserId, exp: number) {
-      const code = Math.floor(100000 + Math.random() * 900000);
-      return await m.writeCode(userId, exp, code);
-    }
-
-    async function checkCode(userId: UserId, code: string) {
-      const existResult = m.isCodeExist(userId);
-      if (!existResult) return false;
-
-      const sessionExpWithCode = await m.getCodeLocation(userId);
-      if (sessionExpWithCode === null) return false;
-
-      const storedCode = await m.readCode(userId, sessionExpWithCode);
-      if (Number(code) !== storedCode) return false;
-
-      await m.removeCode(userId, sessionExpWithCode);
-      return true;
-    }
-
-    return { verifier, create, isCodeNeeded, checkCode };
+    return { verifier, create, isCodeNeeded };
   };
 
   const external = () => {

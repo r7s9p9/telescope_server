@@ -1,5 +1,3 @@
-import { UserId } from "../types";
-
 export const payloadLoginSuccessful = (rawToken: string, isProd: boolean) => {
   return {
     status: 200 as const,

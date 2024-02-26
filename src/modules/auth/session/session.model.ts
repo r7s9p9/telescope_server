@@ -1,7 +1,12 @@
 import { FastifyRedis } from "@fastify/redis";
-import { sessionFields, sessionStartValues } from "./session.constants";
+import { sessionFields } from "./session.constants";
 import { UserId } from "../../types";
-import { accountKey, sessionHashKey, sessionSetKey } from "../../constants";
+import {
+  accountKey,
+  sessionConfirmationCodeField,
+  sessionHashKey,
+  sessionSetKey,
+} from "../../constants";
 
 const model = (redis: FastifyRedis) => {
   async function getSessionCountFromSet(userId: UserId) {
@@ -151,72 +156,6 @@ const model = (redis: FastifyRedis) => {
     return false;
   }
 
-  async function writeCode(userId: UserId, exp: number, code: number) {
-    const codeLocationResult = await redis.hset(
-      accountKey(userId),
-      "codePassedToSession",
-      exp
-    );
-    const codeInSessionResult = await redis.hset(
-      sessionHashKey(userId, exp),
-      "security-code",
-      code
-    );
-    if (codeLocationResult === 1 && codeInSessionResult === 1) {
-      return true;
-    }
-    return false;
-  }
-
-  async function isCodeExist(userId: UserId) {
-    const sessionExp = await redis.hget(
-      accountKey(userId),
-      "codePassedToSession"
-    );
-    const storedCode = await redis.hget(
-      sessionHashKey(userId, Number(sessionExp)),
-      "security-code"
-    );
-    if (sessionExp === null || storedCode === null) {
-      return false;
-    }
-    return true;
-  }
-
-  async function getCodeLocation(userId: UserId) {
-    const result = await redis.hget(accountKey(userId), "codePassedToSession");
-    if (result) {
-      return Number(result);
-    }
-    return null;
-  }
-
-  async function readCode(userId: UserId, exp: number) {
-    const result = await redis.hget(
-      sessionHashKey(userId, exp),
-      "security-code"
-    );
-    if (result) {
-      return Number(result);
-    }
-    return null;
-  }
-
-  async function removeCode(userId: UserId, exp: number) {
-    const locationResult = await redis.hdel(
-      accountKey(userId),
-      "codePassedToSession"
-    );
-    const codeResult = await redis.hdel(
-      sessionHashKey(userId, exp),
-      "security-code"
-    );
-    if (locationResult === 1 && codeResult === 1) {
-      return true;
-    }
-    return false;
-  }
-
   return {
     getSessionCountFromSet,
     getAllSessionsFromSet,
@@ -226,11 +165,6 @@ const model = (redis: FastifyRedis) => {
     updateSessionData,
     createSession,
     removeSession,
-    writeCode,
-    isCodeExist,
-    getCodeLocation,
-    readCode,
-    removeCode,
   };
 };
 

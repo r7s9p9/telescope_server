@@ -11,6 +11,8 @@ export const accountKeyPart = "account";
 export const accountKey = (userId: UserId) =>
   `${userKeyPart}:${userId}:${accountKeyPart}`;
 
+export const sessionConfirmationCodeField = "confirmationCode" as const;
+
 export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;
 export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;

@@ -1,5 +1,6 @@
 import {
   createUser,
+  model,
   selectUserByEmail,
   selectUserByUsername,
 } from "./auth.model";
@@ -19,13 +20,57 @@ import { account } from "../account/account.controller";
 import { session } from "./session/session.controller";
 import { token } from "../../utils/token";
 import { JWT } from "@fastify/jwt";
+import { UserId } from "../types";
 
 export const auth = (redis: FastifyRedis, isProd: boolean) => {
+  const m = model(redis);
   const accountAction = account(redis, isProd).internal();
   const sessionAction = session(redis, isProd).internal();
   const tokenAction = token();
 
   const internal = () => {
+    async function createCode(userId: UserId) {
+      await m.removeCode(userId);
+      const code = Math.floor(100000 + Math.random() * 900000);
+      return await m.writeCode(userId, code);
+    }
+
+    async function compareCode(userId: UserId, code: string) {
+      const result = await m.readCode(userId);
+      if (!result.success) return false as const;
+      if (result.storedCode !== code) return false as const;
+      await m.removeCode(userId);
+      return true;
+    }
+
+    async function checkCode(
+      jwt: JWT,
+      userIP: string,
+      userAgent: string,
+      userEmail: string,
+      userCode: string
+    ) {
+      const user = await selectUserByEmail(userEmail);
+      if (!user) return { success: false as const, badAuth: true as const };
+
+      const isCodeCorrect = await compareCode(user.id, userCode);
+      if (!isCodeCorrect)
+        return { success: false as const, badCode: true as const };
+
+      const tokenData = await tokenAction.create(jwt, user.id);
+      if (!tokenData) return { success: false as const };
+
+      const sessionSuccess = await sessionAction.create(
+        tokenData.id,
+        tokenData.exp,
+        userAgent,
+        userIP
+      );
+      if (!sessionSuccess) return { success: false as const };
+
+      return { success: true as const, tokenData: tokenData };
+    }
+
     async function register(email: string, username: string, password: string) {
       const { hash, salt } = hashPassword(password);
       await createUser({ email, username, salt, password: hash });
@@ -51,10 +96,16 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         salt: user.salt,
         hash: user.password,
       });
-      if (!isPasswordCorrect) return { badPassword: true as const };
+      if (!isPasswordCorrect) {
+        return { success: false as const, badPassword: true as const };
+      }
 
       const isCodeNeeded = await sessionAction.isCodeNeeded(user.id);
-      if (isCodeNeeded) return { code: true as const };
+      if (isCodeNeeded) {
+        const success = await createCode(user.id);
+        if (!success) return { success: false as const, code: true as const };
+        return { success: true as const, code: true as const };
+      }
 
       const tokenData = await tokenAction.create(jwt, user.id);
       if (!tokenData) return { success: false as const };
@@ -66,32 +117,13 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         ip
       );
       if (!sessionResult) return { success: false as const };
-
       return { success: true as const, tokenData };
-    }
-
-    async function code(
-      jwt: JWT,
-      userEmail: string,
-      userCode: string,
-      ip: string,
-      ua: string
-    ) {
-      const user = await selectUserByEmail(userEmail);
-      if (!user) return { badAuth: true as const };
-      const isCodeCorrect = await sessionAction.checkCode(user.id, userCode);
-      if (!isCodeCorrect) return { badCode: true as const };
-      const tokenData = await tokenAction.create(jwt, user.id);
-      if (!tokenData) return { success: false as const };
-      await sessionAction.create(tokenData.id, tokenData.exp, ua, ip);
-
-      return { success: true as const, tokenData: tokenData };
     }
 
     return {
       register,
       login,
-      code,
+      checkCode,
     };
   };
 
@@ -150,12 +182,18 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
     async function code(
       jwt: JWT,
       ip: string,
-      ua: string,
+      userAgent: string,
       userEmail: string,
       userCode: string
     ) {
       try {
-        const result = await internal().code(jwt, ip, ua, userEmail, userCode);
+        const result = await internal().checkCode(
+          jwt,
+          ip,
+          userAgent,
+          userEmail,
+          userCode
+        );
         if (result.badAuth) {
           return { payload: payloadInvalidEmailOrPassword(isProd) };
         }

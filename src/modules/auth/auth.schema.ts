@@ -3,7 +3,7 @@ import z from "zod";
 const email = z
   .string({
     required_error: "Email is required",
-    invalid_type_error: "Email must be a string",
+    invalid_type_error: "Email have wrong type",
   })
   .email();
 const username = z
