@@ -150,6 +150,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       };
       const roomId = randomUUID();
       const success = await m.createRoom(roomId, [userId], roomInfo);
+      console.log(roomId, success, roomInfo);
       if (!success) return false as const;
       await messageAction.addByService(roomId, welcomeServiceRoomMessage);
       return true as const;
@@ -311,6 +312,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
         if (!isAllowed) continue;
         const info = await readRoomInfo(roomId, infoToRead);
+        console.log(info);
         if (!info.success) continue;
         const message = await messageAction.readLastMessage(roomId);
         const roomData = {

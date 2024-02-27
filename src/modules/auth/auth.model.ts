@@ -90,7 +90,7 @@ export const model = (redis: FastifyRedis) => {
     };
   }
 
-  async function increaseAttemptCount(userId: UserId) {
+  async function incCodeAttemptCount(userId: UserId) {
     const result = await redis.hincrby(
       confirmationCodeKey(userId),
       codeHashFields.attemptCount,
@@ -105,5 +105,5 @@ export const model = (redis: FastifyRedis) => {
     if (result !== 1) return false as const;
     return true as const;
   }
-  return { writeCode, readCode, increaseAttemptCount, removeCode };
+  return { writeCode, readCode, incCodeAttemptCount, removeCode };
 };

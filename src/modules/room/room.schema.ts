@@ -1,6 +1,6 @@
 import z from "zod";
 import { RoomId, UserId } from "../types";
-import { roomTypeValues } from "./room.constants";
+import { roomTypeValues, serviceId } from "./room.constants";
 
 const userId = z
   .string()
@@ -25,16 +25,18 @@ const roomType = z.union([
   z.literal(roomTypeValues.public),
   z.literal(roomTypeValues.private),
   z.literal(roomTypeValues.single),
+  z.literal(roomTypeValues.service),
 ]);
 const roomAbout = z.string();
 const roomCreatorId = userId;
+const roomCreatorService = z.literal(serviceId);
 const roomCreated = date;
 
 export const readRoomInfoSchema = z.object({
   name: roomName.optional(),
   type: roomType.optional(),
   about: roomAbout.optional(),
-  creatorId: roomCreatorId.optional(),
+  creatorId: roomCreatorId.or(roomCreatorService).optional(),
   created: roomCreated.optional(),
 });
 

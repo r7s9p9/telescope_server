@@ -55,7 +55,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
         return { success: false as const, badAttemptCount: true as const };
       }
       if (result.storedCode !== code) {
-        await m.increaseAttemptCount(userId);
+        await m.incCodeAttemptCount(userId);
         return { success: false as const, badCodeEntered: true as const };
       }
       await m.removeCode(userId);
