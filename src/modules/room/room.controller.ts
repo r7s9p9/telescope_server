@@ -70,12 +70,11 @@ function infoValidator(roomInfo: ReadRoomInfoResult) {
 }
 
 export const room = (redis: FastifyRedis, isProd: boolean) => {
+  const accountAction = account(redis, isProd).internal();
+  const messageAction = message(redis, isProd).internal();
   const m = model(redis);
 
   const internal = () => {
-    const accountAction = account(redis, isProd).internal();
-    const messageAction = message(redis, isProd).internal();
-
     const isInviteAllowed = async (
       initiatorUserId: UserId,
       targetUserId: UserId
@@ -150,7 +149,6 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       };
       const roomId = randomUUID();
       const success = await m.createRoom(roomId, [userId], roomInfo);
-      console.log(roomId, success, roomInfo);
       if (!success) return false as const;
       await messageAction.addByService(roomId, welcomeServiceRoomMessage);
       return true as const;
@@ -315,9 +313,14 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         console.log(info);
         if (!info.success) continue;
         const message = await messageAction.readLastMessage(roomId);
+        const unreadCount = await messageAction.getCountOfUnreadMessages(
+          userId,
+          roomId
+        );
         const roomData = {
           roomId,
           roomInfo: info.data,
+          unreadCount: unreadCount,
           lastMessage: message,
         };
         roomDataArr.push(roomData);

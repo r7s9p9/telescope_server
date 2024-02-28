@@ -1,6 +1,6 @@
 import { FastifyRedis } from "@fastify/redis";
 import { model } from "./account.model";
-import { DevData, UserId } from "../types";
+import { DevData, RoomId, UserId } from "../types";
 import {
   accountFields,
   accountPrivacyRules,
@@ -22,14 +22,14 @@ import {
   AccountToUpdate,
   AccountUpdateResult,
 } from "./account.types";
+import { friend } from "./friend/friend.controller";
 
 const accessSolver = (
   valueToRead:
     | ReadTargetUserGeneralField
-    | typeof accountFields.friends
-    | typeof accountFields.blocked ////
     | typeof accountFields.properties.isCanReadUserRooms
     | typeof accountFields.properties.isCanAddToRoom
+    | typeof accountFields.properties.isCanReadFriends
 ) => {
   switch (valueToRead) {
     case accountFields.general.name:
@@ -38,7 +38,7 @@ const accessSolver = (
       return accountFields.privacy.seeBio;
     case accountFields.general.lastSeen:
       return accountFields.privacy.seeLastSeen;
-    case accountFields.friends:
+    case accountFields.properties.isCanReadFriends:
       return accountFields.privacy.seeFriends;
     case accountFields.properties.isCanReadUserRooms:
       return accountFields.privacy.seeRoomsContainingUser;
@@ -55,10 +55,9 @@ async function accessChecker(
   relationships: Relationships,
   valueToRead:
     | ReadTargetUserGeneralField
-    | typeof accountFields.friends
-    | typeof accountFields.blocked ///
     | typeof accountFields.properties.isCanReadUserRooms
     | typeof accountFields.properties.isCanAddToRoom
+    | typeof accountFields.properties.isCanReadFriends
 ) {
   if (relationships.sameUser) return true; // If same user - give full access
   if (valueToRead === accountFields.general.username) return true; // Username must always be accessible, even userId is banned
@@ -74,23 +73,12 @@ async function accessChecker(
     return true;
   }
   if (privacyValue === accountPrivacyRules.friends) {
-    return relationships.friend;
+    return relationships.isFriends;
   }
   if (privacyValue === accountPrivacyRules.nobody) {
     return false;
   }
   return false;
-}
-
-async function checkRelationships(
-  m: ReturnType<typeof model>,
-  userId: UserId,
-  targetUserId: UserId
-): Promise<Relationships> {
-  const sameUser = userId === targetUserId;
-  const friend = await m.isFriend(userId, targetUserId);
-  const ban = await m.isUserBlockedByUser(userId, targetUserId);
-  return { sameUser: sameUser, friend: friend, ban: ban };
 }
 
 const userIdSwitch = (userId: UserId, targetUserId: UserId | "self") => {
@@ -130,6 +118,19 @@ const collectDevInfo = () => {
 
 export const account = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
+
+  async function checkRelationships(
+    m: ReturnType<typeof model>,
+    userId: UserId,
+    targetUserId: UserId
+  ): Promise<Relationships> {
+    const sameUser = userId === targetUserId;
+    const isFriends = await friend(redis, isProd)
+      .internal()
+      .isFriends(userId, targetUserId);
+    const ban = await m.isUserBlockedByUser(userId, targetUserId);
+    return { sameUser: sameUser, isFriends: isFriends, ban: ban };
+  }
 
   const internal = () => {
     async function create(userId: UserId, username: string) {
@@ -183,7 +184,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
 
       for (const value of toRead) {
         if (value === accountFields.properties.isFriend) {
-          result.isFriend = relationships.friend && !relationships.ban;
+          result.isFriend = relationships.isFriends && !relationships.ban;
         }
 
         if (value === accountFields.properties.isCanReadUserRooms) {
@@ -192,6 +193,15 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
             targetUserId,
             relationships,
             accountFields.properties.isCanReadUserRooms
+          );
+        }
+
+        if (value === accountFields.properties.isCanReadFriends) {
+          result.isCanReadFriends = await accessChecker(
+            m,
+            targetUserId,
+            relationships,
+            accountFields.properties.isCanReadFriends
           );
         }
 
@@ -317,10 +327,24 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       return result;
     }
 
+    async function setLastMessageCreated(
+      userId: UserId,
+      roomId: RoomId,
+      created: string
+    ) {
+      return await m.setLastSeenMessageCreated(userId, roomId, created);
+    }
+
+    async function getLastMessageCreated(userId: UserId, roomId: RoomId) {
+      return await m.getLastSeenMessageCreated(userId, roomId);
+    }
+
     return {
       create,
       read,
       update,
+      setLastMessageCreated,
+      getLastMessageCreated,
     };
   };
 

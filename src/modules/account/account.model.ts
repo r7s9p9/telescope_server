@@ -1,12 +1,12 @@
 import { FastifyRedis } from "@fastify/redis";
 import {
+  accountKey,
   accountPrivacyRules,
   accountStartValues,
   blockedKey,
-  friendsKey,
+  lastSeenMessageKey,
 } from "./account.constants";
-import { accountKey } from "../constants";
-import { UserId } from "../types";
+import { RoomId, UserId } from "../types";
 import {
   AccountPrivacyRules,
   ReadTargetUserGeneralField,
@@ -15,10 +15,6 @@ import {
 } from "./account.types";
 
 export const model = (redis: FastifyRedis) => {
-  async function isFriend(userId: UserId, targetUserId: UserId) {
-    return !!(await redis.sismember(friendsKey(targetUserId), userId));
-  }
-
   async function isUserBlockedByUser(userId: UserId, targetUserId: UserId) {
     return !!(await redis.sismember(blockedKey(targetUserId), userId));
   }
@@ -113,8 +109,27 @@ export const model = (redis: FastifyRedis) => {
     return false;
   }
 
+  async function setLastSeenMessageCreated(
+    userId: UserId,
+    roomId: RoomId,
+    created: string
+  ) {
+    const result = await redis.hset(
+      lastSeenMessageKey(userId),
+      roomId,
+      created
+    );
+    if (result === 1 || result === 0) return true as const;
+    return false as const;
+  }
+
+  async function getLastSeenMessageCreated(userId: UserId, roomId: RoomId) {
+    const result = await redis.hget(lastSeenMessageKey(userId), roomId);
+    if (!result) return { success: false as const };
+    return { success: true as const, created: result };
+  }
+
   return {
-    isFriend,
     isUserBlockedByUser,
     isAccountExist,
     initAccount,
@@ -122,5 +137,7 @@ export const model = (redis: FastifyRedis) => {
     writeAccountGeneralValue,
     readAccountPrivacyValue,
     writeAccountPrivacyValue,
+    setLastSeenMessageCreated,
+    getLastSeenMessageCreated,
   };
 };

@@ -1,4 +1,3 @@
-import { accountKey } from "../constants";
 import { UserId } from "../types";
 import {
   AccountToRead,
@@ -11,6 +10,17 @@ import {
 } from "./account.types";
 
 export const valueForReadSelfAccount = "self" as const;
+
+export const accountKey = (userId: UserId) => `user:${userId}:account`;
+
+export const accountRoomsKey = (userId: UserId) =>
+  `${accountKey(userId)}:rooms`;
+
+export const accountRoomsSetKey = (userId: UserId) =>
+  `${accountRoomsKey(userId)}:roomIdSet`;
+
+export const lastSeenMessageKey = (userId: UserId) =>
+  `${accountKey(userId)}:lastSeenMessage`;
 
 export const accountReaded = (data: AccountReadResult) => {
   const payload: AccountReadPayload = Object.create(null);
@@ -35,7 +45,7 @@ export const devMessageReadAccount = (
     `toRead: properties: ${toRead.properties ? toRead.properties : "NO"}`,
     `toRead: privacy: ${toRead.privacy ? toRead.privacy : "NO"}`,
     `relationships: sameUser: ${relationships.sameUser}`,
-    `relationships: friend: ${relationships.friend}`,
+    `relationships: friend: ${relationships.isFriends}`,
     `relationships: ban: ${relationships.ban}`,
   ];
 };
@@ -77,8 +87,6 @@ export const devMessageAboutAccountDoesNotExist =
 export const devMessageAboutBadReadPrivacy =
   "The user cannot read privacy that is not his own";
 
-export const friendsKey = (userId: UserId) => `${accountKey(userId)}:friends`;
-
 export const blockedKey = (userId: UserId) => `${accountKey(userId)}:blocked`;
 
 export const accountFields = {
@@ -88,14 +96,12 @@ export const accountFields = {
     bio: "bio" as const,
     lastSeen: "lastSeen" as const,
   },
-  friends: "friends" as const,
-  rooms: "rooms" as const,
-  blocked: "blocked" as const,
   properties: {
     isBlockedYou: "isBlockedYou" as const,
     isFriend: "isFriend" as const,
     isCanAddToRoom: "isCanAddToRoom" as const,
     isCanReadUserRooms: "isCanReadUserRooms" as const,
+    isCanReadFriends: "isCanReadFriends" as const,
   },
   privacy: {
     seeLastSeen: "seeLastSeen" as const,

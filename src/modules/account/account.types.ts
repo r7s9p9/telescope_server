@@ -3,7 +3,7 @@ import { accountFields } from "./account.constants";
 
 export type Relationships = {
   sameUser: boolean;
-  friend: boolean;
+  isFriends: boolean;
   ban: boolean;
 };
 
@@ -13,7 +13,8 @@ export type ReadTargetUserProperties = (typeof accountFields)["properties"][
   | "isBlockedYou"
   | "isFriend"
   | "isCanAddToRoom"
-  | "isCanReadUserRooms"];
+  | "isCanReadUserRooms"
+  | "isCanReadFriends"];
 
 export type ReadTargetUserPrivacyField = (typeof accountFields)["privacy"][
   | "seeLastSeen"
@@ -32,8 +33,6 @@ export type ReadTargetUserGeneralField = (typeof accountFields)["general"][
 
 export interface AccountToRead {
   general?: Array<ReadTargetUserGeneralField>;
-  friends?: boolean; //////////////
-  blocked?: boolean; //////////
   properties?: Array<ReadTargetUserProperties>;
   privacy?: Array<ReadTargetUserPrivacyField>; // Will only be available for reading by the same account
 }
@@ -57,6 +56,7 @@ export interface AccountReadResult {
     isFriend?: boolean;
     isCanAddToRoom?: boolean;
     isCanReadUserRooms?: boolean;
+    isCanReadFriends?: boolean;
   };
   privacy?: {
     seeLastSeen?: AccountPrivacyRules | null;

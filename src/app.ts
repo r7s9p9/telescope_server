@@ -41,6 +41,7 @@ import {
   messageRemoveRoute,
   messageUpdateRoute,
 } from "./modules/room/message/message.route";
+import { friendReadRoute } from "./modules/account/friend/friend.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -125,6 +126,8 @@ const app = async () => {
 
   await fastify.register(accountReadRoute);
   await fastify.register(accountUpdateRoute);
+
+  await fastify.register(friendReadRoute);
 
   await fastify.register(roomOverviewMyRoomsRoute);
   await fastify.register(roomReadRoomInfoRoute);

@@ -2,14 +2,7 @@ import { FastifyReply } from "fastify";
 import { UserId } from "./types";
 import { EnvValues } from "../plugins/env";
 
-export const envFile = ".env";
-
-export const userKeyPart = "user";
-
-export const accountKeyPart = "account";
-
-export const accountKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${accountKeyPart}`;
+export const envFile = ".env" as const;
 
 export const sessionHashKey = (userId: UserId, tokenExp: number) =>
   `user:${userId}:sessions:${tokenExp}`;

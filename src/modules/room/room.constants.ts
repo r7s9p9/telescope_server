@@ -1,5 +1,4 @@
 import { ZodError } from "zod";
-import { userKeyPart } from "../constants";
 import { RoomId, UserId } from "../types";
 import {
   ReadRoomInfoResult,
@@ -52,7 +51,6 @@ export const serviceRoomAbout = "Service notifications" as const;
 export const serviceId = "service" as const;
 export const personalRoomName = "Saved Messages";
 export const roomKeyPart = "room";
-export const allRoomsKeyPart = "rooms:all";
 export const internalRoomsKeyPart = "rooms:internal";
 
 export const welcomeServiceRoomMessage =
@@ -68,9 +66,6 @@ export const userUnblockedMessage = "is no longer banned in this room";
 export const userInvitedMessage = "has been invited to this room";
 export const userJoinedMessage = "joined the room";
 export const userLeavedMessage = "left the room";
-
-export const userRoomsSetKey = (userId: UserId) =>
-  `${userKeyPart}:${userId}:${allRoomsKeyPart}`;
 
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;

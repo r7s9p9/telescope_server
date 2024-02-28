@@ -1,4 +1,4 @@
-import { accountKey } from "../constants";
+import { accountKey } from "../account/account.constants";
 import { UserId } from "../types";
 
 export const confirmationCodeKey = (userId: UserId) =>

@@ -28,6 +28,7 @@ import {
 } from "./message.constants";
 import { serviceId } from "../room.constants";
 import { messageSchema } from "./message.schema";
+import { account } from "../../account/account.controller";
 
 const touchDate = () => Date.now().toString();
 
@@ -83,9 +84,38 @@ function calcDatesDiff(
 
 export const message = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
-  const roomAction = room(redis, isProd).internal;
+  const accountAction = account(redis, isProd).internal();
 
   const internal = () => {
+    async function setLastSeenMessage(
+      userId: UserId,
+      roomId: RoomId,
+      messageArr: Message[]
+    ) {
+      const lastCreated = messageArr.at(-1)?.created;
+      if (lastCreated) {
+        const stored = await accountAction.getLastMessageCreated(
+          userId,
+          roomId
+        );
+        const isCurrentValueGreater =
+          lastCreated &&
+          stored.created &&
+          Number(lastCreated) > Number(stored.created);
+        if (!stored.created || isCurrentValueGreater) {
+          accountAction.setLastMessageCreated(userId, roomId, lastCreated);
+        }
+      }
+    }
+
+    async function getCountOfUnreadMessages(userId: UserId, roomId: RoomId) {
+      const stored = await accountAction.getLastMessageCreated(userId, roomId);
+      if (!stored.created) return 0 as const;
+      // the model returns a number including the date of the message the user last read,
+      // so we need to subtract one.
+      return (await m.getMessageCountByCreated(roomId, stored.created)) - 1;
+    }
+
     async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
       message.authorId = userId;
       message.created = touchDate();
@@ -110,13 +140,15 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       return await m.add(roomId, message);
     }
 
-    async function read(roomId: RoomId, range: MessageRange) {
+    async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
       const messageArr = await m.readByRange(roomId, range);
       const result = messageArrValidator(messageArr);
-
       if (!result.messageArr) {
         return { isEmpty: true as const, errorArr: result.errorArr };
       }
+      // Read success -> record the creation date of the read message to account
+      await setLastSeenMessage(userId, roomId, result.messageArr);
+
       return {
         isEmpty: false as const,
         messageArr: result.messageArr,
@@ -125,7 +157,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function readLastMessage(roomId: RoomId) {
-      const attemptCount = 3;
+      const attemptCount = 3; // TODO move to .env
 
       for (let i = 0; i < attemptCount; i++) {
         const message = await m.readMessageByRevRange(roomId, i);
@@ -184,6 +216,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       calcDatesDiff,
       addByService,
       getInfo,
+      getCountOfUnreadMessages,
       add,
       read,
       readLastMessage,
@@ -195,7 +228,9 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
 
   const external = () => {
     async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
-      const isAllow = await roomAction().isAllowedByHardRule(roomId, userId);
+      const isAllow = await room(redis, isProd)
+        .internal()
+        .isAllowedByHardRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
 
       const result = await internal().add(userId, roomId, message);
@@ -204,10 +239,13 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
-      const isAllow = await roomAction().isAllowedBySoftRule(roomId, userId);
+      const isAllow = await room(redis, isProd)
+        .internal()
+        .isAllowedBySoftRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
 
       const { messageArr, errorArr, isEmpty } = await internal().read(
+        userId,
         roomId,
         range
       );
@@ -225,7 +263,9 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       message: UpdateMessage
     ) {
-      const isAllow = await roomAction().isAllowedByHardRule(roomId, userId);
+      const isAllow = await room(redis, isProd)
+        .internal()
+        .isAllowedByHardRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
 
       const info = await internal().getInfo(userId, roomId, message.created);
@@ -242,7 +282,9 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function remove(userId: UserId, roomId: RoomId, created: string) {
-      const isAllow = await roomAction().isAllowedByHardRule(roomId, userId);
+      const isAllow = await room(redis, isProd)
+        .internal()
+        .isAllowedByHardRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
 
       const info = await internal().getInfo(userId, roomId, created);
@@ -259,7 +301,9 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       toCompare: MessageDate[]
     ) {
-      const isAllow = await roomAction().isAllowedBySoftRule(roomId, userId);
+      const isAllow = await room(redis, isProd)
+        .internal()
+        .isAllowedBySoftRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
 
       const { toUpdate, toRemove } = await internal().compare(

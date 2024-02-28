@@ -17,10 +17,10 @@ const parse = (message?: string | null) => {
   return JSON.parse(message);
 };
 
-const parseArr = (messageArr: string[] | null) => {
+const parseArr = (messageArr: string[]) => {
   const result: any[] = [];
-  for (const message in messageArr) {
-    messageArr.push(parse(message));
+  for (const message of messageArr) {
+    result.push(parse(message));
   }
   return result;
 };
@@ -41,10 +41,10 @@ export const model = (redis: FastifyRedis) => {
     roomId: RoomId,
     range: { minCreated: string | number; maxCreated: string | number }
   ) {
-    const messageArr = await redis.zrevrangebyscore(
+    const messageArr = await redis.zrangebyscore(
       roomMessagesKey(roomId),
-      range.maxCreated,
-      range.minCreated
+      range.minCreated,
+      range.maxCreated
     );
     return parseArr(messageArr);
   }
@@ -56,9 +56,6 @@ export const model = (redis: FastifyRedis) => {
       created,
       "BYSCORE"
     );
-    console.log(created);
-    console.log(message);
-
     if (!message) return false as const;
     return parse(message);
   }
@@ -104,6 +101,10 @@ export const model = (redis: FastifyRedis) => {
     return true;
   }
 
+  async function getMessageCountByCreated(roomId: RoomId, minCreated: string) {
+    return await redis.zcount(roomMessagesKey(roomId), minCreated, "+inf");
+  }
+
   return {
     readByRange,
     add,
@@ -112,5 +113,6 @@ export const model = (redis: FastifyRedis) => {
     readByCreated,
     readArrByCreated,
     readMessageByRevRange,
+    getMessageCountByCreated,
   };
 };
