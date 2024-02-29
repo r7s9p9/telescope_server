@@ -46,6 +46,11 @@ import {
   friendReadRoute,
   friendRemoveRoute,
 } from "./modules/account/friend/friend.route";
+import {
+  blockAddRoute,
+  blockReadRoute,
+  blockRemoveRoute,
+} from "./modules/account/block/block.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -134,6 +139,10 @@ const app = async () => {
   await fastify.register(friendReadRoute);
   await fastify.register(friendAddRoute);
   await fastify.register(friendRemoveRoute);
+
+  await fastify.register(blockReadRoute);
+  await fastify.register(blockAddRoute);
+  await fastify.register(blockRemoveRoute);
 
   await fastify.register(roomOverviewMyRoomsRoute);
   await fastify.register(roomReadRoomInfoRoute);

@@ -115,7 +115,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
     };
   }
 
-  const accessSolver = (
+  const privacyFieldSelector = (
     valueToRead: ReadTargetUserGeneralField | ReadTargetUserAccess
   ) => {
     switch (valueToRead) {
@@ -151,7 +151,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
     if (relationships.ban) return false as const;
     // If ban - only username can be readed
 
-    const privacyKey = accessSolver(toCheck);
+    const privacyKey = privacyFieldSelector(toCheck);
     if (!privacyKey) return false as const;
 
     const privacyValue = await m.getPrivacyValue(userId, privacyKey);

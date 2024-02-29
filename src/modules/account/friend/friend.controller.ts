@@ -19,19 +19,16 @@ import {
 import { AccountReadResult } from "../account.types";
 import { userIdArrSchema } from "./friend.schema";
 
+function userIdValidator(userIdArr: string[]) {
+  const result = userIdArrSchema.safeParse(userIdArr);
+  if (!result.success) return { success: false as const, error: result.error };
+  return {
+    success: true as const,
+    userIdArr: result.data as UserId[],
+  };
+}
+
 export const friend = (redis: FastifyRedis, isProd: boolean) => {
-  const m = model(redis);
-
-  function userIdValidator(userIdArr: string[]) {
-    const result = userIdArrSchema.safeParse(userIdArr);
-    if (!result.success)
-      return { success: false as const, error: result.error };
-    return {
-      success: true as const,
-      userIdArr: result.data as UserId[],
-    };
-  }
-
   const isCanReadFriends = async (
     userId: UserId,
     targetUserId: UserId | "self"
@@ -56,6 +53,8 @@ export const friend = (redis: FastifyRedis, isProd: boolean) => {
   };
 
   const internal = () => {
+    const m = model(redis);
+
     async function isFriend(forUserId: UserId, userId: UserId) {
       return await m.isFriend(userId, forUserId);
     }
