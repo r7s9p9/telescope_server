@@ -8,6 +8,8 @@ const userId = z
     return id as UserId;
   });
 
+export const userIdArrSchema = z.array(userId);
+
 export const routeSchema = () => {
   const read = {
     body: z.object({
@@ -15,5 +17,17 @@ export const routeSchema = () => {
     }),
   };
 
-  return { read };
+  const add = {
+    body: z.object({
+      targetUserId: userId,
+    }),
+  };
+
+  const remove = {
+    body: z.object({
+      targetUserId: userId,
+    }),
+  };
+
+  return { read, add, remove };
 };

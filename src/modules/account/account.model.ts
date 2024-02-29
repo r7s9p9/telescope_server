@@ -1,7 +1,8 @@
 import { FastifyRedis } from "@fastify/redis";
 import {
   accountKey,
-  accountPrivacyRules,
+  accountPrivacyKey,
+  accountPrivacyStartValues,
   accountStartValues,
   blockedKey,
   lastSeenMessageKey,
@@ -19,94 +20,58 @@ export const model = (redis: FastifyRedis) => {
     return !!(await redis.sismember(blockedKey(targetUserId), userId));
   }
 
-  async function initAccount(targetUserId: UserId, username: string) {
-    const result = await redis.hmset(
-      accountKey(targetUserId),
+  async function initAccount(userId: UserId, username: string) {
+    const generalResult = await redis.hmset(
+      accountKey(userId),
       accountStartValues(username)
     );
-    if (result === "OK") {
-      return true;
-    }
-    return false;
+    const privacyResult = await redis.hmset(
+      accountPrivacyKey(userId),
+      accountPrivacyStartValues
+    );
+    const done = generalResult === "OK" && privacyResult === "OK";
+    if (done) return true as const;
+    return false as const;
   }
 
   async function isAccountExist(userId: UserId) {
     const result = await redis.hlen(accountKey(userId));
-    if (result > 0) {
-      return true;
-    }
-    return false;
+    if (result > 0) return true as const;
+    return false as const;
   }
 
-  async function readAccountGeneralValue(
-    targetUserId: UserId,
-    fieldToRead: ReadTargetUserGeneralField
+  async function getGeneralValue(
+    userId: UserId,
+    field: ReadTargetUserGeneralField
   ) {
-    return await redis.hget(accountKey(targetUserId), fieldToRead);
+    return await redis.hget(accountKey(userId), field);
   }
 
-  async function writeAccountGeneralValue(
-    targetUserId: UserId,
-    fieldToWrite: WriteTargetUserField,
-    valueToWrite?: string
+  async function setGeneralValue(
+    userId: UserId,
+    field: WriteTargetUserField,
+    value: string
   ) {
-    if (valueToWrite) {
-      const result = await redis.hset(
-        accountKey(targetUserId),
-        fieldToWrite,
-        valueToWrite
-      );
-      if (result === 0 || result === 1) {
-        // field exist, if not -> result === 1
-        return true;
-      }
-    }
-    return false;
+    const result = await redis.hset(accountKey(userId), field, value);
+    if (result === 0 || result === 1) return true as const;
+    return false as const;
   }
 
-  async function readAccountPrivacyValue(
-    targetUserId: UserId,
-    ReadtargetUserPrivacyField: ReadTargetUserPrivacyField
+  async function getPrivacyValue(
+    userId: UserId,
+    field: ReadTargetUserPrivacyField
   ) {
-    const data = await redis.hget(
-      accountKey(targetUserId), // TODO Change privacy fields location
-      ReadtargetUserPrivacyField
-    );
-    const noData = data === null; // TODO add special error for empty data
-    const correctData =
-      data === accountPrivacyRules.everybody ||
-      data === accountPrivacyRules.friends ||
-      data === accountPrivacyRules.nobody;
-    if (correctData) {
-      return data;
-    }
-    if (noData) {
-      console.log(`No data on ${accountKey(targetUserId)}`);
-    }
-    if (!correctData) {
-      console.log(`No correct data on ${accountKey(targetUserId)}`);
-    }
-    return null;
+    return await redis.hget(accountPrivacyKey(userId), field);
   }
 
-  async function writeAccountPrivacyValue(
-    targetUserId: UserId,
-    ReadtargetUserPrivacyField: ReadTargetUserPrivacyField,
-    targetUserPrivacyValue?: AccountPrivacyRules
+  async function setPrivacyValue(
+    userId: UserId,
+    field: ReadTargetUserPrivacyField,
+    value: AccountPrivacyRules
   ) {
-    if (targetUserPrivacyValue) {
-      const result = await redis.hset(
-        accountKey(targetUserId),
-        ReadtargetUserPrivacyField,
-        targetUserPrivacyValue
-      );
-      console.log(result);
-      if (result === 0 || result === 1) {
-        // field exist, if not -> result === 1
-        return true;
-      }
-    }
-    return false;
+    const result = await redis.hset(accountPrivacyKey(userId), field, value);
+    if (result === 0 || result === 1) return true as const;
+    return false as const;
   }
 
   async function setLastSeenMessageCreated(
@@ -133,10 +98,10 @@ export const model = (redis: FastifyRedis) => {
     isUserBlockedByUser,
     isAccountExist,
     initAccount,
-    readAccountGeneralValue,
-    writeAccountGeneralValue,
-    readAccountPrivacyValue,
-    writeAccountPrivacyValue,
+    getGeneralValue,
+    setGeneralValue,
+    getPrivacyValue,
+    setPrivacyValue,
     setLastSeenMessageCreated,
     getLastSeenMessageCreated,
   };

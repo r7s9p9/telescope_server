@@ -6,10 +6,6 @@ import {
   accountPrivacyRules,
   accountReaded,
   accountUpdated,
-  devMessageAboutAccountDoesNotExist,
-  devMessageAboutBadReadPrivacy,
-  devMessageReadAccount,
-  devMessageWriteAccount,
 } from "./account.constants";
 import { room } from "../room/room.controller";
 import {
@@ -21,64 +17,63 @@ import {
   Relationships,
   AccountToUpdate,
   AccountUpdateResult,
+  ReadTargetUserAccess,
+  AccountPrivacyRules,
 } from "./account.types";
 import { friend } from "./friend/friend.controller";
+import {
+  bioValueSchema,
+  lastSeenValueSchema,
+  nameValueSchema,
+  privacyRuleLimitedSchema,
+  privacyRuleSchema,
+  usernameValueSchema,
+} from "./account.schema";
 
-const accessSolver = (
-  valueToRead:
-    | ReadTargetUserGeneralField
-    | typeof accountFields.properties.isCanReadUserRooms
-    | typeof accountFields.properties.isCanAddToRoom
-    | typeof accountFields.properties.isCanReadFriends
-) => {
-  switch (valueToRead) {
+function generalValidator(key: string | null, value: string | null) {
+  let result;
+  switch (key) {
     case accountFields.general.name:
-      return accountFields.privacy.seeName;
-    case accountFields.general.bio:
-      return accountFields.privacy.seeBio;
+      result = nameValueSchema.safeParse(value);
+      break;
+    case accountFields.general.username:
+      result = usernameValueSchema.safeParse(value);
+      break;
     case accountFields.general.lastSeen:
-      return accountFields.privacy.seeLastSeen;
-    case accountFields.properties.isCanReadFriends:
-      return accountFields.privacy.seeFriends;
-    case accountFields.properties.isCanReadUserRooms:
-      return accountFields.privacy.seeRoomsContainingUser;
-    case accountFields.properties.isCanAddToRoom:
-      return accountFields.privacy.addToRoom;
+      result = lastSeenValueSchema.safeParse(value);
+      break;
+    case accountFields.general.bio:
+      result = bioValueSchema.safeParse(value);
+      break;
     default:
-      return false;
+      return { success: false as const };
   }
-};
+  if (!result.success) return { success: false as const, error: result.error };
+  return { success: true as const, key, value: result.data };
+}
 
-async function accessChecker(
-  m: ReturnType<typeof model>,
-  targetUserId: UserId,
-  relationships: Relationships,
-  valueToRead:
-    | ReadTargetUserGeneralField
-    | typeof accountFields.properties.isCanReadUserRooms
-    | typeof accountFields.properties.isCanAddToRoom
-    | typeof accountFields.properties.isCanReadFriends
-) {
-  if (relationships.sameUser) return true; // If same user - give full access
-  if (valueToRead === accountFields.general.username) return true; // Username must always be accessible, even userId is banned
-  if (relationships.ban) return false; // If ban - only username can be readed
-
-  const privacyField = accessSolver(valueToRead);
-  if (!privacyField) return false;
-  const privacyValue = await m.readAccountPrivacyValue(
-    targetUserId,
-    privacyField
-  );
-  if (privacyValue === accountPrivacyRules.everybody) {
-    return true;
+function privacyRuleValidator(key: string | null, value: string | null) {
+  if (key === accountFields.privacy.canBeFriend) {
+    const result = privacyRuleLimitedSchema.safeParse(value);
+    if (!result.success) {
+      return { success: false as const, error: result.error };
+    }
+    return {
+      success: true as const,
+      key: key as "canBeFriend",
+      value: result.data as Exclude<AccountPrivacyRules, "friends">,
+    };
+  } else {
+    const result = privacyRuleSchema.safeParse(value);
+    if (!result.success) {
+      return { success: false as const, error: result.error };
+    }
+    return {
+      success: true as const,
+      key: key as Exclude<ReadTargetUserPrivacyField, "canBeFriend">,
+      value: result.data as AccountPrivacyRules,
+    };
   }
-  if (privacyValue === accountPrivacyRules.friends) {
-    return relationships.isFriends;
-  }
-  if (privacyValue === accountPrivacyRules.nobody) {
-    return false;
-  }
-  return false;
 }
 
 const userIdSwitch = (userId: UserId, targetUserId: UserId | "self") => {
@@ -89,151 +84,117 @@ const userIdSwitch = (userId: UserId, targetUserId: UserId | "self") => {
   return { externalTarget: targetUserId, internalTarget: targetUserId };
 };
 
-const collectDevInfo = () => {
-  const read = (
-    toRead: AccountToRead,
-    isAccountExist: boolean,
-    relationships: Relationships
-  ) => {
-    const dev: DevData = {};
-    if (!isAccountExist) {
-      dev.error = {};
-      dev.error.message = [devMessageAboutAccountDoesNotExist];
-      return dev;
-    }
-    if (toRead.privacy && relationships && !relationships.sameUser) {
-      dev.error = {};
-      dev.error.message = [devMessageAboutBadReadPrivacy];
-    }
-    dev.message = devMessageReadAccount(toRead, relationships);
-    return dev;
-  };
-  const update = (toUpdate: AccountToUpdate, userId: UserId) => {
-    const dev: DevData = {};
-    dev.message = devMessageWriteAccount(toUpdate);
-    return dev;
-  };
-  return { read, update };
-};
-
 export const account = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
   async function checkRelationships(
-    m: ReturnType<typeof model>,
     userId: UserId,
     targetUserId: UserId
   ): Promise<Relationships> {
     const sameUser = userId === targetUserId;
-    const isFriends = await friend(redis, isProd)
+    const isAccountExist = await m.isAccountExist(targetUserId);
+
+    const isBlocked = await m.isUserBlockedByUser(userId, targetUserId); // move
+    const isYourFriend = await friend(redis, isProd)
       .internal()
-      .isFriends(userId, targetUserId);
-    const ban = await m.isUserBlockedByUser(userId, targetUserId);
-    return { sameUser: sameUser, isFriends: isFriends, ban: ban };
+      .isFriend(userId, targetUserId);
+    const isYouHisFriend = await friend(redis, isProd)
+      .internal()
+      .isFriend(targetUserId, userId);
+    const { isFriendOfFriends } = await friend(redis, isProd)
+      .internal()
+      .isFriendOfFriends(userId, targetUserId);
+
+    return {
+      sameUser: sameUser,
+      isAccountExist: isAccountExist,
+      isYourFriend: isYourFriend,
+      isYouHisFriend: isYouHisFriend,
+      isFriendOfFriends: isFriendOfFriends,
+      ban: isBlocked,
+    };
+  }
+
+  const accessSolver = (
+    valueToRead: ReadTargetUserGeneralField | ReadTargetUserAccess
+  ) => {
+    switch (valueToRead) {
+      case accountFields.general.name:
+        return accountFields.privacy.name;
+      case accountFields.general.bio:
+        return accountFields.privacy.bio;
+      case accountFields.general.lastSeen:
+        return accountFields.privacy.lastSeen;
+
+      case accountFields.permission.isCanInviteToRoom:
+        return accountFields.privacy.inviteToRoom;
+      case accountFields.permission.isCanReadFriends:
+        return accountFields.privacy.seeFriends;
+      case accountFields.permission.isCanBeFriend:
+        return accountFields.privacy.canBeFriend;
+      default:
+        return false as const;
+    }
+  };
+
+  async function accessChecker(
+    userId: UserId,
+    relationships: Relationships,
+    toCheck: ReadTargetUserGeneralField | ReadTargetUserAccess
+  ) {
+    if (relationships.sameUser) return true as const;
+    // If same user - give full access
+
+    if (toCheck === accountFields.general.username) return true as const;
+    // Username must always be accessible, even userId is banned
+
+    if (relationships.ban) return false as const;
+    // If ban - only username can be readed
+
+    const privacyKey = accessSolver(toCheck);
+    if (!privacyKey) return false as const;
+
+    const privacyValue = await m.getPrivacyValue(userId, privacyKey);
+
+    switch (privacyValue) {
+      case accountPrivacyRules.everybody:
+        return true as const;
+      case accountPrivacyRules.friends:
+        return relationships.isYouHisFriend;
+      case accountPrivacyRules.friendOfFriends:
+        return relationships.isFriendOfFriends;
+      case accountPrivacyRules.nobody:
+        return false as const;
+      default:
+        return false as const;
+    }
   }
 
   const internal = () => {
-    async function create(userId: UserId, username: string) {
-      const isInitDone = await m.initAccount(userId, username);
-      const isRoomDone = await room(redis, isProd)
-        .internal()
-        .createServiceRoom(userId);
-      return isInitDone && isRoomDone;
+    async function permissionChecker(
+      userId: UserId,
+      targetUserId: UserId | "self",
+      toCheck: ReadTargetUserAccess
+    ) {
+      if (targetUserId === "self") targetUserId = userId;
+      const relationships = await checkRelationships(userId, targetUserId);
+      return await accessChecker(userId, relationships, toCheck);
     }
 
     async function readGeneral(
-      targetUserId: UserId,
+      userId: UserId,
       relationships: Relationships,
-      generalToRead: AccountToRead["general"]
+      toRead: AccountToRead["general"]
     ) {
-      if (!generalToRead) return undefined;
+      if (!toRead) return undefined;
       const result: AccountReadResult["general"] = {};
-      for (const value of generalToRead) {
-        result[value] = await readGeneralValue(
-          targetUserId,
-          relationships,
-          value
-        );
-      }
-      return result;
-    }
-
-    async function readGeneralValue(
-      targetUserId: UserId,
-      relationships: Relationships,
-      toRead: ReadTargetUserGeneralField
-    ) {
-      if (!toRead) return undefined;
-      const access = await accessChecker(
-        m,
-        targetUserId,
-        relationships,
-        toRead
-      );
-      if (!access) return undefined;
-      return await m.readAccountGeneralValue(targetUserId, toRead);
-    }
-
-    async function readProperties(
-      targetUserId: UserId,
-      relationships: Relationships,
-      toRead: AccountToRead["properties"]
-    ) {
-      if (!toRead) return undefined;
-      const result: AccountReadResult["properties"] = {};
-
-      for (const value of toRead) {
-        if (value === accountFields.properties.isFriend) {
-          result.isFriend = relationships.isFriends && !relationships.ban;
-        }
-
-        if (value === accountFields.properties.isCanReadUserRooms) {
-          result.isCanReadUserRooms = await accessChecker(
-            m,
-            targetUserId,
-            relationships,
-            accountFields.properties.isCanReadUserRooms
-          );
-        }
-
-        if (value === accountFields.properties.isCanReadFriends) {
-          result.isCanReadFriends = await accessChecker(
-            m,
-            targetUserId,
-            relationships,
-            accountFields.properties.isCanReadFriends
-          );
-        }
-
-        if (value === accountFields.properties.isCanAddToRoom) {
-          result.isCanAddToRoom = await accessChecker(
-            m,
-            targetUserId,
-            relationships,
-            accountFields.properties.isCanAddToRoom
-          );
-        }
-
-        if (value === accountFields.properties.isBlockedYou) {
-          result.isBlockedYou = relationships.ban;
-        }
-      }
-      return result;
-    }
-
-    async function readPrivacy(
-      targetUserId: UserId,
-      relationships: Relationships,
-      toRead: AccountToRead["privacy"]
-    ) {
-      if (!toRead || !relationships.sameUser) return undefined;
-      const result: AccountReadResult["privacy"] = {};
       for (const item of toRead) {
-        const privacyRule = accountFields.privacy[item];
-        result[privacyRule] = await m.readAccountPrivacyValue(
-          targetUserId,
-          privacyRule
-        );
+        const access = await accessChecker(userId, relationships, item);
+        if (!access) continue;
+        const value = await m.getGeneralValue(userId, item);
+        const verified = generalValidator(item, value);
+        if (!verified.success) continue;
+        result[verified.key] = verified.value;
       }
       return result;
     }
@@ -243,14 +204,31 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       toUpdate: AccountToUpdate["general"]
     ) {
       if (!toUpdate) return undefined;
-
-      const result: AccountUpdateResult["general"] = {};
-      let key: WriteTargetUserField;
+      let key: keyof typeof toUpdate;
       for (key in toUpdate) {
         const value = toUpdate[key];
-        result[key] = await m.writeAccountGeneralValue(userId, key, value);
+        if (!value) continue;
+        const setSuccess = await m.setGeneralValue(userId, key, value);
+        if (!setSuccess) {
+          return { success: false as const, isNotUpdated: true as const };
+        }
       }
-      return result;
+      return { success: true as const };
+    }
+
+    async function readPrivacy(
+      targetUserId: UserId,
+      toRead: AccountToRead["privacy"]
+    ) {
+      if (!toRead) return undefined;
+      const result = Object.create(null);
+      for (const item of toRead) {
+        const privacyValue = await m.getPrivacyValue(targetUserId, item);
+        const verified = privacyRuleValidator(item, privacyValue);
+        if (!verified.success) continue;
+        result[verified.key] = verified.value;
+      }
+      return result as AccountReadResult["privacy"];
     }
 
     async function updatePrivacy(
@@ -258,14 +236,16 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       toUpdate: AccountToUpdate["privacy"]
     ) {
       if (!toUpdate) return undefined;
-
-      const result: AccountUpdateResult["privacy"] = {};
-      let key: ReadTargetUserPrivacyField;
+      let key: keyof typeof toUpdate;
       for (key in toUpdate) {
         const value = toUpdate[key];
-        result[key] = await m.writeAccountPrivacyValue(userId, key, value);
+        if (!value) continue;
+        const setSuccess = await m.setPrivacyValue(userId, key, value);
+        if (!setSuccess) {
+          return { success: false as const, isNotUpdated: true as const };
+        }
       }
-      return result;
+      return { success: true as const };
     }
 
     async function read(
@@ -280,15 +260,9 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       );
       result.targetUserId = externalTarget;
 
-      const isTargetExist = await m.isAccountExist(internalTarget);
-      const relationships = await checkRelationships(m, userId, internalTarget);
+      const relationships = await checkRelationships(userId, internalTarget);
 
-      if (!isTargetExist && !isProd) {
-        result.dev = collectDevInfo().read(
-          toRead,
-          isTargetExist,
-          relationships
-        );
+      if (!relationships.isAccountExist && !isProd) {
         return result;
       }
 
@@ -297,23 +271,8 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
         relationships,
         toRead.general
       );
-      result.properties = await readProperties(
-        internalTarget,
-        relationships,
-        toRead.properties
-      );
-      result.privacy = await readPrivacy(
-        internalTarget,
-        relationships,
-        toRead.privacy
-      );
-
-      if (!isProd) {
-        result.dev = collectDevInfo().read(
-          toRead,
-          isTargetExist,
-          relationships
-        );
+      if (relationships.sameUser) {
+        result.privacy = await readPrivacy(internalTarget, toRead.privacy);
       }
 
       return result;
@@ -323,7 +282,6 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       const result: AccountUpdateResult = Object.create(null);
       result.general = await updateGeneral(userId, toUpdate.general);
       result.privacy = await updatePrivacy(userId, toUpdate.privacy);
-      if (!isProd) result.dev = collectDevInfo().update(toUpdate, userId);
       return result;
     }
 
@@ -339,10 +297,19 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       return await m.getLastSeenMessageCreated(userId, roomId);
     }
 
+    async function create(userId: UserId, username: string) {
+      const isInitDone = await m.initAccount(userId, username);
+      const isRoomDone = await room(redis, isProd)
+        .internal()
+        .createServiceRoom(userId);
+      return isInitDone && isRoomDone;
+    }
+
     return {
-      create,
+      permissionChecker, // for controllers
       read,
       update,
+      create,
       setLastMessageCreated,
       getLastMessageCreated,
     };

@@ -1,35 +1,45 @@
-import { DevData, RoomId, UserId } from "../types";
-import { accountFields } from "./account.constants";
+import { ZodError } from "zod";
+import { DevData, UserId } from "../types";
+import { accountFields, accountPrivacyRules } from "./account.constants";
 
 export type Relationships = {
   sameUser: boolean;
-  isFriends: boolean;
+  isAccountExist: boolean;
+  isYourFriend: boolean;
+  isYouHisFriend: boolean;
+  isFriendOfFriends: boolean;
   ban: boolean;
 };
 
-export type AccountPrivacyRules = "everybody" | "friends" | "nobody";
-
-export type ReadTargetUserProperties = (typeof accountFields)["properties"][
-  | "isBlockedYou"
-  | "isFriend"
-  | "isCanAddToRoom"
-  | "isCanReadUserRooms"
-  | "isCanReadFriends"];
-
-export type ReadTargetUserPrivacyField = (typeof accountFields)["privacy"][
-  | "seeLastSeen"
-  | "seeName"
-  | "seeBio"
-  | "seeProfilePhotos"
-  | "addToRoom"
-  | "seeRoomsContainingUser"
-  | "seeFriends"];
+export type AccountPrivacyRules = (typeof accountPrivacyRules)[
+  | "everybody"
+  | "friendOfFriends"
+  | "friends"
+  | "nobody"];
 
 export type ReadTargetUserGeneralField = (typeof accountFields)["general"][
   | "username"
   | "name"
   | "bio"
   | "lastSeen"];
+
+export type ReadTargetUserProperties = (typeof accountFields)["properties"][
+  | "isYouHisFriend"
+  | "isYourFriend"];
+
+export type ReadTargetUserAccess = (typeof accountFields)["permission"][
+  | "isCanBeFriend"
+  | "isCanInviteToRoom"
+  | "isCanReadFriends"];
+
+export type ReadTargetUserPrivacyField = (typeof accountFields)["privacy"][
+  | "name"
+  | "bio"
+  | "lastSeen"
+  | "seeProfilePhotos"
+  | "inviteToRoom"
+  | "seeFriends"
+  | "canBeFriend"];
 
 export interface AccountToRead {
   general?: Array<ReadTargetUserGeneralField>;
@@ -46,26 +56,31 @@ export interface AccountReadPayload {
 export interface AccountReadResult {
   targetUserId: UserId | "self";
   general?: {
-    username?: string | null;
-    name?: string | null;
-    bio?: string | null;
-    lastSeen?: string | null;
+    username?: string;
+    name?: string;
+    bio?: string;
+    lastSeen?: string;
   };
   properties?: {
-    isBlockedYou?: boolean;
-    isFriend?: boolean;
-    isCanAddToRoom?: boolean;
-    isCanReadUserRooms?: boolean;
+    //???
+    //isBlockedYou?: boolean;
+    isYouHisFriend?: boolean;
+    isYourFriend?: boolean;
+  };
+  permission?: {
+    isCanInviteToRoom?: boolean;
     isCanReadFriends?: boolean;
+    isCanBeFriend?: boolean;
   };
   privacy?: {
-    seeLastSeen?: AccountPrivacyRules | null;
-    seeName?: AccountPrivacyRules | null;
-    seeBio?: AccountPrivacyRules | null;
-    addToRoom?: AccountPrivacyRules | null;
-    seeRoomsContainingUser?: AccountPrivacyRules | null;
-    seeFriends?: AccountPrivacyRules | null;
-    seeProfilePhotos?: AccountPrivacyRules | null;
+    name?: AccountPrivacyRules;
+    bio?: AccountPrivacyRules;
+    lastSeen?: AccountPrivacyRules;
+
+    seeProfilePhotos?: AccountPrivacyRules;
+    seeFriends?: AccountPrivacyRules;
+    canBeFriend?: Exclude<AccountPrivacyRules, "friends">;
+    inviteToRoom?: AccountPrivacyRules;
   };
   dev?: DevData;
 }
@@ -82,30 +97,27 @@ export interface AccountToUpdate {
     bio?: string;
   };
   privacy?: {
-    seeLastSeen?: AccountPrivacyRules;
-    seeName?: AccountPrivacyRules;
-    seeBio?: AccountPrivacyRules;
-    addToRoom?: AccountPrivacyRules;
-    seeRoomsContainingUser?: AccountPrivacyRules;
-    seeFriends?: AccountPrivacyRules;
+    name?: AccountPrivacyRules;
+    bio?: AccountPrivacyRules;
+    lastSeen?: AccountPrivacyRules;
+
     seeProfilePhotos?: AccountPrivacyRules;
+    seeFriends?: AccountPrivacyRules;
+    canBeFriend?: Exclude<AccountPrivacyRules, "friends">;
+    inviteToRoom?: AccountPrivacyRules;
   };
 }
 
 export interface AccountUpdateResult {
   general?: {
-    username?: boolean;
-    name?: boolean;
-    bio?: boolean;
+    success: boolean;
+    error?: ZodError;
+    isNotUpdated?: boolean;
   };
   privacy?: {
-    seeLastSeen?: boolean;
-    seeName?: boolean;
-    seeBio?: boolean;
-    addToRoom?: boolean;
-    seeRoomsContainingUser?: boolean;
-    seeFriends?: boolean;
-    seeProfilePhotos?: boolean;
+    success: boolean;
+    error?: ZodError;
+    isNotUpdated?: boolean;
   };
   dev?: DevData;
 }

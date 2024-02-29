@@ -5,6 +5,7 @@ import { friendsKey } from "./friend.constants";
 export const model = (redis: FastifyRedis) => {
   async function add(userId: UserId, toUserId: UserId) {
     const result = await redis.sadd(friendsKey(toUserId), userId);
+    console.log(result);
     if (result === 1) {
       return { success: true as const, alreadyFriend: false as const };
     }

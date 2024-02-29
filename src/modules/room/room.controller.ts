@@ -75,19 +75,12 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
   const internal = () => {
-    const isInviteAllowed = async (
-      initiatorUserId: UserId,
-      targetUserId: UserId
-    ) => {
-      const { properties } = await accountAction.read(
-        initiatorUserId,
+    const isInviteAllowed = async (userId: UserId, targetUserId: UserId) => {
+      return await accountAction.permissionChecker(
+        userId,
         targetUserId,
-        {
-          properties: [accountFields.properties.isCanAddToRoom],
-        }
+        accountFields.permission.isCanInviteToRoom
       );
-      if (properties?.isCanAddToRoom) return true;
-      return false;
     };
 
     const isPublicRoom = async (roomId: RoomId) => {
@@ -310,7 +303,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
         if (!isAllowed) continue;
         const info = await readRoomInfo(roomId, infoToRead);
-        console.log(info);
+
         if (!info.success) continue;
         const message = await messageAction.readLastMessage(roomId);
         const unreadCount = await messageAction.getCountOfUnreadMessages(

@@ -13,6 +13,9 @@ export const valueForReadSelfAccount = "self" as const;
 
 export const accountKey = (userId: UserId) => `user:${userId}:account`;
 
+export const accountPrivacyKey = (userId: UserId) =>
+  `${accountKey(userId)}:privacy`;
+
 export const accountRoomsKey = (userId: UserId) =>
   `${accountKey(userId)}:rooms`;
 
@@ -36,57 +39,6 @@ export const accountUpdated = (data: AccountUpdateResult) => {
   return payload;
 };
 
-export const devMessageReadAccount = (
-  toRead: AccountToRead,
-  relationships: Relationships
-) => {
-  return [
-    `toRead: general: ${toRead.general ? toRead.general : `NO`}`,
-    `toRead: properties: ${toRead.properties ? toRead.properties : "NO"}`,
-    `toRead: privacy: ${toRead.privacy ? toRead.privacy : "NO"}`,
-    `relationships: sameUser: ${relationships.sameUser}`,
-    `relationships: friend: ${relationships.isFriends}`,
-    `relationships: ban: ${relationships.ban}`,
-  ];
-};
-
-export const devMessageWriteAccount = (toUpdate: AccountToUpdate) => {
-  return [
-    `toWrite: general: ${toUpdate.general ? `YES` : `NO`}`,
-    `toWrite: privacy: ${toUpdate.privacy ? `YES` : "NO"}`,
-  ];
-};
-
-export const updateDevMessage = (
-  toRead: AccountToRead,
-  relationships: {
-    sameUser: boolean;
-    friend: boolean;
-    ban: boolean;
-  }
-) => {
-  const generalMessage = `toRead: general: ${toRead.general ? toRead.general : `NO`}`;
-  const propertiesMessage = `toRead: properties: ${toRead.properties ? toRead.properties : "NO"}`;
-  const privacyMessage = `toRead: privacy: ${toRead.privacy ? toRead.privacy : "NO"}`;
-  const sameUserMessage = `relationships: sameUser: ${relationships.sameUser}`;
-  const friendMessage = `relationships: friend: ${relationships.friend}`;
-  const banMessage = `relationships: ban: ${relationships.ban}`;
-  return [
-    generalMessage,
-    propertiesMessage,
-    privacyMessage,
-    sameUserMessage,
-    friendMessage,
-    banMessage,
-  ];
-};
-
-export const devMessageAboutAccountDoesNotExist =
-  "The requested account does not exist";
-
-export const devMessageAboutBadReadPrivacy =
-  "The user cannot read privacy that is not his own";
-
 export const blockedKey = (userId: UserId) => `${accountKey(userId)}:blocked`;
 
 export const accountFields = {
@@ -97,20 +49,23 @@ export const accountFields = {
     lastSeen: "lastSeen" as const,
   },
   properties: {
-    isBlockedYou: "isBlockedYou" as const,
-    isFriend: "isFriend" as const,
-    isCanAddToRoom: "isCanAddToRoom" as const,
-    isCanReadUserRooms: "isCanReadUserRooms" as const,
+    isYouHisFriend: "isYouHisFriend" as const,
+    isYourFriend: "isYourFriend" as const,
+  }, // for external use
+  permission: {
+    isCanInviteToRoom: "isCanInviteToRoom" as const,
     isCanReadFriends: "isCanReadFriends" as const,
-  },
+    isCanBeFriend: "isCanBeFriend" as const,
+  }, // for internal use
   privacy: {
-    seeLastSeen: "seeLastSeen" as const,
-    seeName: "seeName" as const,
-    seeBio: "seeBio" as const,
-    addToRoom: "addToRoom" as const,
-    seeRoomsContainingUser: "seeRoomsContainingUser" as const,
-    seeFriends: "seeFriends" as const,
+    name: "name" as const,
+    bio: "bio" as const,
+    lastSeen: "lastSeen" as const,
+
     seeProfilePhotos: "seeProfilePhotos" as const,
+    seeFriends: "seeFriends" as const,
+    canBeFriend: "canBeFriend" as const,
+    inviteToRoom: "inviteToRoom" as const,
   },
 };
 
@@ -138,30 +93,43 @@ export const blockedField = {
 export const accountPrivacyRules = {
   everybody: "everybody" as const,
   friends: "friends" as const,
+  friendOfFriends: "friendOfFriends" as const,
   nobody: "nobody" as const,
 };
 
 export const accountStartValues = (username: string) => [
   accountFields.general.username,
   username,
+
   accountFields.general.name,
   username,
+
   accountFields.general.bio,
   "empty" as const,
+
   accountFields.general.lastSeen,
   Date.now(),
-  accountFields.privacy.seeLastSeen,
+];
+
+export const accountPrivacyStartValues = [
+  accountFields.privacy.lastSeen,
   accountPrivacyRules.everybody,
-  accountFields.privacy.seeName,
+
+  accountFields.privacy.name,
   accountPrivacyRules.everybody,
-  accountFields.privacy.seeBio,
+
+  accountFields.privacy.bio,
   accountPrivacyRules.everybody,
-  accountFields.privacy.addToRoom,
+
+  accountFields.privacy.inviteToRoom,
   accountPrivacyRules.everybody,
-  accountFields.privacy.seeRoomsContainingUser,
-  accountPrivacyRules.everybody,
+
   accountFields.privacy.seeFriends,
   accountPrivacyRules.everybody,
+
+  accountFields.privacy.canBeFriend,
+  accountPrivacyRules.everybody,
+
   accountFields.privacy.seeProfilePhotos,
   accountPrivacyRules.everybody,
 ];
