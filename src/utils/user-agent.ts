@@ -1,6 +1,9 @@
 import parser from "ua-parser-js";
 
-export async function uaChecker(storedUA: string | null, clientUA: string) {
+export async function userAgentValidator(
+  storedUA: string | null,
+  clientUA: string
+) {
   if (storedUA === null) {
     // When no stored ua
     return null;

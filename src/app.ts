@@ -3,7 +3,7 @@ import fastifyCookie from "@fastify/cookie";
 import fastifyRedis from "@fastify/redis";
 import { fastifyEnv } from "./plugins/env";
 import jwt from "@fastify/jwt";
-import { Token, goodSession } from "./modules/types";
+import { Token, Session } from "./modules/types";
 import {
   clearTokenCookie,
   jwtConfig,
@@ -51,6 +51,11 @@ import {
   blockReadRoute,
   blockRemoveRoute,
 } from "./modules/account/block/block.route";
+import {
+  sessionReadRoute,
+  sessionRemoveRoute,
+  sessionUpdateRoute,
+} from "./modules/auth/session/session.route";
 
 declare module "fastify" {
   export interface FastifyInstance {
@@ -58,7 +63,7 @@ declare module "fastify" {
   }
   export interface FastifyRequest {
     ua: string;
-    session: goodSession;
+    session: Session;
     token: Token;
   }
 }
@@ -132,6 +137,10 @@ const app = async () => {
   await fastify.register(authRegisterRoute);
   await fastify.register(authLoginRoute);
   await fastify.register(authConfirmationCodeRoute);
+
+  await fastify.register(sessionReadRoute);
+  await fastify.register(sessionUpdateRoute);
+  await fastify.register(sessionRemoveRoute);
 
   await fastify.register(accountReadRoute);
   await fastify.register(accountUpdateRoute);

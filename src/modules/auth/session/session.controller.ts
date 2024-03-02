@@ -1,6 +1,11 @@
 import { FastifyRedis } from "@fastify/redis";
-import { UserId } from "../../types";
+import { Session, UserId } from "../../types";
 import { payloadServerError } from "../../constants";
+import { JWT } from "@fastify/jwt";
+import { token } from "../../../utils/token";
+import { model } from "./session.model";
+import { userAgentValidator } from "../../../utils/user-agent";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import {
   payloadBlockedSession,
   payloadNoSession,
@@ -8,48 +13,65 @@ import {
   payloadVerifiedSession,
   sessionStartValues,
   payloadSessionOK,
+  payloadSuccessfullyRead,
+  payloadReadError,
+  payloadSuccessfullyUpdate,
+  payloadUpdateError,
+  payloadRemoveError,
+  payloadSuccessfullyRemove,
+  payloadNotExist,
 } from "./session.constants";
-import { JWT } from "@fastify/jwt";
-import { token } from "../../../utils/token";
-import { model } from "./session.model";
-import { uaChecker } from "../../../utils/user-agent";
-import { FastifyInstance, FastifyRequest } from "fastify";
+import { SessionInfo, UpdateSessionInfo } from "./session.types";
+import { createSessionId } from "../../../utils/hash";
+
+function sessionBypass(session: Session, sessionId: string | "self") {
+  if (sessionId !== "self") {
+    return { userId: session.token.id, sessionId: sessionId };
+  }
+  return {
+    userId: session.token.id,
+    sessionId: createSessionId(session.token.id, session.token.exp),
+  };
+}
 
 export const session = (redis: FastifyRedis, isProd: boolean) => {
-  const m = model(redis);
-  const tokenAction = token();
-
   const internal = () => {
-    async function create(userId: UserId, exp: number, ua: string, ip: string) {
-      const isCreated = await m.createSession(
+    const m = model(redis);
+    const tokenAction = token();
+
+    async function create(
+      userId: UserId,
+      exp: number,
+      userAgent: string,
+      ip: string
+    ) {
+      const sessionId = createSessionId(userId, exp);
+      return await m.createSession(
         userId,
+        sessionId,
         exp,
-        sessionStartValues(ua, ip)
+        sessionStartValues(userAgent, ip)
       );
-      if (isCreated) return true;
-      return false;
     }
 
     async function verifier(fastify: FastifyInstance, request: FastifyRequest) {
-      const remainingTokenSecondsToRefresh =
-        fastify.env.tokenRemainingSecondsToBeUpdated;
       const tokenResult = await tokenAction.check(request, isProd);
 
       if (tokenResult.success) {
-        const sessionResult = await check({
-          id: tokenResult.id,
-          exp: tokenResult.exp,
-          ip: request.ip,
-          ua: request.ua,
-        });
+        const sessionResult = await checkSession(
+          tokenResult.id,
+          tokenResult.exp,
+          request.ip,
+          request.ua
+        );
 
         if (sessionResult.success) {
           const isNeedRefresh = tokenAction.isNeedRefresh(
             tokenResult.exp,
-            remainingTokenSecondsToRefresh
+            fastify.env.tokenRemainingSecondsToBeUpdated
           );
           if (isNeedRefresh) {
-            return await refresh(
+            return await refreshSession(
               fastify.jwt,
               tokenResult,
               request.ip,
@@ -63,113 +85,210 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
       return tokenResult;
     }
 
-    async function check(client: {
-      id: UserId;
-      exp: number;
-      ip: string;
-      ua: string;
-    }) {
-      const sessionFound = await m.isSessionExist(client.id, client.exp);
-      if (!sessionFound) return payloadNoSession(isProd);
+    async function checkSession(
+      userId: UserId,
+      exp: number,
+      ip: string,
+      userAgent: string
+    ) {
+      const sessionId = createSessionId(userId, exp);
 
-      const isBlocked = await m.getSessionData(client.id, client.exp).ban();
-      if (isBlocked) return payloadBlockedSession(isProd);
+      const isFound = await m.isSessionExist(userId, sessionId);
+      if (!isFound) return payloadNoSession(isProd);
 
-      const isEqualIP = await m
-        .isSessionDataEqual(client.id, client.exp)
-        .ip(client.ip);
-      if (!isEqualIP)
-        await m.updateSessionData(client.id, client.exp).ip(client.ip);
+      const isFrozen = await m.isFrozen(userId, sessionId);
+      if (isFrozen) return payloadBlockedSession(isProd);
 
-      const uaIsGood = await uaChecker(
-        await m.getSessionData(client.id, client.exp).ua(),
-        client.ua
+      const isEqualIP = (await m.getIp(userId, sessionId)) === ip;
+      if (!isEqualIP) await m.setIp(userId, sessionId, ip);
+
+      const storedUserAgent = await m.getUserAgent(userId, sessionId);
+
+      const isUserAgentGood = await userAgentValidator(
+        storedUserAgent,
+        userAgent
       );
-      if (!uaIsGood) {
-        await m.updateSessionData(client.id, client.exp).ban(true);
+      if (!isUserAgentGood) {
+        await m.setFrozen(userId, sessionId, true as const);
         return payloadBlockedSession(isProd);
       }
 
-      await m.updateSessionData(client.id, client.exp).ua(client.ua);
-      await m.updateSessionData(client.id, client.exp).online(Date.now());
+      if (storedUserAgent !== userAgent) {
+        await m.setUserAgent(userId, sessionId, userAgent);
+      }
+
+      await m.setLastSeen(userId, sessionId, Date.now());
       return payloadSessionOK(isProd);
     }
 
-    async function refresh(
+    async function refreshSession(
       jwt: JWT,
       oldToken: {
         id: UserId;
         exp: number;
       },
       ip: string,
-      ua: string
+      userAgent: string
     ) {
       const newToken = await tokenAction.create(jwt, oldToken.id);
-      if (newToken) {
-        if (oldToken.id === newToken.id) {
-          const removeOldSessionResult = await m.removeSession(
-            oldToken.id,
-            oldToken.exp
-          );
-          const createNewSessionResult = await create(
-            newToken.id,
-            newToken.exp,
-            ua,
-            ip
-          );
-          if (removeOldSessionResult && createNewSessionResult) {
-            return payloadSessionRefreshed(isProd, newToken);
-          }
+      if (newToken && oldToken.id === newToken.id) {
+        const sessionId = createSessionId(oldToken.id, oldToken.exp);
+
+        const isRemoved = await m.removeSession(oldToken.id, sessionId);
+        const isCreated = await create(
+          newToken.id,
+          newToken.exp,
+          userAgent,
+          ip
+        );
+        if (isRemoved && isCreated) {
+          return payloadSessionRefreshed(isProd, newToken);
         }
       }
       return payloadServerError(isProd);
     }
 
     async function isCodeNeeded(userId: UserId) {
-      const sessionCount = await m.getSessionCountFromSet(userId);
+      const sessionCount = await m.getSessionsCount(userId);
       if (sessionCount === 0) return false as const;
 
-      const sessionsArray = await m.getAllSessionsFromSet(userId);
+      const sessionIdArr = await m.getSessionIdArr(userId);
 
-      const suitableSessionMap = new Map<number, number>();
+      const suitableSessionMap = new Map<string, number>();
 
-      for (const exp of sessionsArray) {
-        const expNumber = Number(exp);
+      for (const sessionId of sessionIdArr) {
+        const sessionFound = await m.isSessionExist(userId, sessionId);
+        const sessionIsFrozen = await m.isFrozen(userId, sessionId);
 
-        const sessionFound = await m.isSessionExist(userId, expNumber);
-        const sessionIsBlocked = await m
-          .getSessionData(userId, expNumber)
-          .ban();
-
-        const sessionGood = sessionFound && !sessionIsBlocked;
+        const sessionGood = sessionFound && !sessionIsFrozen;
         if (!sessionGood) continue;
         // Adding the last access time from this session to Map
-        const online = await m.getSessionData(userId, expNumber).online();
-        suitableSessionMap.set(expNumber, online);
+
+        const lastSeen = await m.getLastSeen(userId, sessionId);
+        suitableSessionMap.set(sessionId, lastSeen);
       }
 
       if (suitableSessionMap.size === 0) return false as const;
 
       // Finding the most recent session from those that are suitable
-      let targetExp = 0;
-      for (const [exp, online] of suitableSessionMap) {
-        if (targetExp === 0) {
+      let targetSessionId = "";
+      for (const [currentId, online] of suitableSessionMap) {
+        if (targetSessionId === "") {
           // First run
-          targetExp = exp;
+          targetSessionId = currentId;
           continue;
         }
 
-        const prevOnline = suitableSessionMap.get(targetExp);
-        if (prevOnline && prevOnline < online) targetExp = exp;
+        const prevOnline = suitableSessionMap.get(targetSessionId);
+        if (prevOnline && prevOnline < online) targetSessionId = currentId;
       }
       return true as const;
     }
 
-    return { verifier, create, isCodeNeeded };
+    async function read(session: Session) {
+      const info = sessionBypass(session, "self" as const);
+
+      const sessionIdArr = await m.getSessionIdArr(info.userId);
+
+      const sessionArr: SessionInfo[] = [];
+      for (const sessionId of sessionIdArr) {
+        const isSessionExist = m.isSessionExist(info.userId, sessionId);
+        if (!isSessionExist) continue;
+
+        const userAgent = await m.getUserAgent(info.userId, sessionId);
+        if (!userAgent) continue;
+        const ip = await m.getIp(info.userId, sessionId);
+        if (!ip) continue;
+
+        const isFrozen = await m.isFrozen(info.userId, sessionId);
+        const lastSeen = await m.getLastSeen(info.userId, sessionId);
+        const deviceName = await m.getDeviceName(info.userId, sessionId);
+
+        const sessionInfo = {
+          sessionId,
+          isFrozen,
+          lastSeen,
+          userAgent,
+          ip,
+          deviceName: deviceName ? deviceName : undefined,
+          isCurrent: info.sessionId === sessionId,
+        };
+        sessionArr.push(sessionInfo);
+      }
+
+      if (sessionArr.length === 0) return { success: false as const };
+      return { success: true as const, sessionArr: sessionArr };
+    }
+
+    async function update(
+      session: Session,
+      sessionId: string | "self",
+      toUpdate: UpdateSessionInfo
+    ) {
+      const info = sessionBypass(session, sessionId);
+
+      const isExist = await m.isSessionExist(info.userId, info.sessionId);
+      if (!isExist) return { success: false as const, isExist: false as const };
+
+      if (toUpdate.frozen) {
+        const result = await m.setFrozen(
+          info.userId,
+          info.sessionId,
+          toUpdate.frozen
+        );
+        if (!result) return { success: false as const, isExist: true as const };
+      }
+      if (toUpdate.deviceName) {
+        const result = await m.setDeviceName(
+          info.userId,
+          info.sessionId,
+          toUpdate.deviceName
+        );
+        if (!result) return { success: false as const, isExist: true as const };
+      }
+      return { success: true as const, isExist: true as const };
+    }
+
+    async function remove(session: Session, sessionId: string | "self") {
+      const info = sessionBypass(session, sessionId);
+
+      const isExist = await m.isSessionExist(info.userId, info.sessionId);
+      if (!isExist) return { success: false as const, isExist: false as const };
+
+      const result = await m.removeSession(info.userId, info.sessionId);
+      if (!result) return { success: false as const, isExist: true as const };
+      return { success: true as const, isExist: true as const };
+    }
+
+    return { verifier, create, isCodeNeeded, read, update, remove };
   };
 
   const external = () => {
-    return {};
+    async function read(session: Session) {
+      const { success, sessionArr } = await internal().read(session);
+      if (!success) return payloadReadError(isProd);
+      return payloadSuccessfullyRead(sessionArr, isProd);
+    }
+
+    async function update(
+      session: Session,
+      sessionId: string | "self",
+      toUpdate: UpdateSessionInfo
+    ) {
+      const result = await internal().update(session, sessionId, toUpdate);
+      if (!result.isExist) return payloadNotExist(isProd);
+      if (!result.success) return payloadUpdateError(isProd);
+      return payloadSuccessfullyUpdate(isProd);
+    }
+
+    async function remove(session: Session, sessionId: string | "self") {
+      const result = await internal().remove(session, sessionId);
+      if (!result.isExist) return payloadNotExist(isProd);
+      if (!result.success) return payloadRemoveError(isProd);
+      return payloadSuccessfullyRemove(isProd);
+    }
+
+    return { read, update, remove };
   };
 
   return {

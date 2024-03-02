@@ -4,7 +4,6 @@ import {
   accountPrivacyKey,
   accountPrivacyStartValues,
   accountStartValues,
-  blockedKey,
   lastSeenMessageKey,
 } from "./account.constants";
 import { RoomId, UserId } from "../types";
@@ -16,10 +15,6 @@ import {
 } from "./account.types";
 
 export const model = (redis: FastifyRedis) => {
-  async function isUserBlockedByUser(userId: UserId, targetUserId: UserId) {
-    return !!(await redis.sismember(blockedKey(targetUserId), userId));
-  }
-
   async function initAccount(userId: UserId, username: string) {
     const generalResult = await redis.hmset(
       accountKey(userId),
@@ -95,7 +90,6 @@ export const model = (redis: FastifyRedis) => {
   }
 
   return {
-    isUserBlockedByUser,
     isAccountExist,
     initAccount,
     getGeneralValue,

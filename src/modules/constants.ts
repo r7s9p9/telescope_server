@@ -1,12 +1,7 @@
 import { FastifyReply } from "fastify";
-import { UserId } from "./types";
 import { EnvValues } from "../plugins/env";
 
 export const envFile = ".env" as const;
-
-export const sessionHashKey = (userId: UserId, tokenExp: number) =>
-  `user:${userId}:sessions:${tokenExp}`;
-export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
 
 export const payloadServerError = (isProd: boolean) => {
   return {

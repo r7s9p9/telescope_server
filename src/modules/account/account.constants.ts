@@ -1,12 +1,9 @@
 import { UserId } from "../types";
 import {
-  AccountToRead,
   AccountReadResult,
-  Relationships,
   AccountReadPayload,
   AccountUpdateResult,
   AccountUpdatePayload,
-  AccountToUpdate,
 } from "./account.types";
 
 export const valueForReadSelfAccount = "self" as const;
@@ -39,8 +36,6 @@ export const accountUpdated = (data: AccountUpdateResult) => {
   return payload;
 };
 
-export const blockedKey = (userId: UserId) => `${accountKey(userId)}:blocked`;
-
 export const accountFields = {
   general: {
     username: "username" as const,
@@ -66,27 +61,6 @@ export const accountFields = {
     seeFriends: "seeFriends" as const,
     canBeFriend: "canBeFriend" as const,
     inviteToRoom: "inviteToRoom" as const,
-  },
-};
-
-export const friendField = {
-  friend: {
-    readFriends: "readFriends" as const,
-    readFriendCount: "readFriendCount" as const,
-  },
-};
-
-export const roomField = {
-  room: {
-    readRooms: "readRooms" as const,
-    readRoomCount: "readRoomCount" as const,
-  },
-};
-
-export const blockedField = {
-  blocked: {
-    readBlocked: "readBlocked" as const,
-    readBlockedCount: "readBlockedCount" as const,
   },
 };
 

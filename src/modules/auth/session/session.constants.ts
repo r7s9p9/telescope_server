@@ -1,19 +1,25 @@
 import { UserId } from "../../types";
+import { SessionInfo } from "./session.types";
+
+export const sessionSetKey = (userId: UserId) => `user:${userId}:sessions:all`;
+export const sessionHashKey = (userId: UserId, sessionId: string) =>
+  `user:${userId}:sessions:${sessionId}`;
 
 export const sessionFields = {
-  ua: "ua" as const,
-  ip: "ip" as const,
-  ban: "ban" as const,
+  userAgent: "ua" as const,
+  deviceIp: "ip" as const,
+  deviceName: "device" as const,
+  frozen: "frozen" as const,
   online: "online" as const,
 };
 
-export const sessionStartValues = (ua: string, ip: string) => [
-  sessionFields.ua,
-  ua,
-  sessionFields.ip,
+export const sessionStartValues = (userAgent: string, ip: string) => [
+  sessionFields.userAgent,
+  userAgent,
+  sessionFields.deviceIp,
   ip,
-  sessionFields.ban,
-  "false",
+  sessionFields.frozen,
+  "false" as const,
   sessionFields.online,
   Date.now(),
 ];
@@ -87,5 +93,87 @@ export const payloadBadUserAgent = (isProd: boolean) => {
     status: 401 as const,
     success: false as const,
     message: !isProd ? (["User Agent is invalid"] as const) : undefined,
+  };
+};
+
+export const payloadSuccessfullyRead = (
+  sessionArr: SessionInfo[],
+  isProd: boolean
+) => {
+  const devMessage = "Your sessions have been read successfully";
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      sessionArr: sessionArr,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
+export const payloadReadError = (isProd: boolean) => {
+  const devMessage = "An error occurred while reading your sessions";
+  return {
+    status: 500 as const,
+    data: {
+      success: false as const,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
+export const payloadSuccessfullyUpdate = (isProd: boolean) => {
+  const devMessage = "Session information successfully updated";
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
+export const payloadUpdateError = (isProd: boolean) => {
+  const devMessage = "An error occurred while updating session information";
+  return {
+    status: 500 as const,
+    data: {
+      success: false as const,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
+export const payloadNotExist = (isProd: boolean) => {
+  const devMessage = "No such session exists";
+  return {
+    status: 200 as const,
+    data: {
+      success: false as const,
+      isExist: false as const,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
+export const payloadSuccessfullyRemove = (isProd: boolean) => {
+  const devMessage = "Session successfully deleted";
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
+export const payloadRemoveError = (isProd: boolean) => {
+  const devMessage = "An error occurred while deleting the session";
+  return {
+    status: 500 as const,
+    data: {
+      success: false as const,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
   };
 };

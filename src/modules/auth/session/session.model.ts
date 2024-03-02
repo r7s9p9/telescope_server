@@ -1,163 +1,183 @@
 import { FastifyRedis } from "@fastify/redis";
-import { sessionFields } from "./session.constants";
+import {
+  sessionFields,
+  sessionHashKey,
+  sessionSetKey,
+} from "./session.constants";
 import { UserId } from "../../types";
-import { sessionHashKey, sessionSetKey } from "../../constants";
 
 const model = (redis: FastifyRedis) => {
-  async function getSessionCountFromSet(userId: UserId) {
+  async function getSessionsCount(userId: UserId) {
     return await redis.scard(sessionSetKey(userId));
   }
 
-  async function getAllSessionsFromSet(userId: UserId) {
+  async function getSessionIdArr(userId: UserId) {
     return await redis.smembers(sessionSetKey(userId));
   }
 
-  async function isSessionExist(userId: UserId, exp: number) {
+  async function isSessionExist(userId: UserId, sessionId: string) {
     const setValueExists =
-      (await redis.sismember(sessionSetKey(userId), exp)) === 1;
+      (await redis.sismember(sessionSetKey(userId), sessionId)) === 1;
     const hashKeyExists =
-      (await redis.exists(sessionHashKey(userId, exp))) === 1;
+      (await redis.exists(sessionHashKey(userId, sessionId))) === 1;
 
     const sessionOk = setValueExists && hashKeyExists;
-    const noSession = !(setValueExists || hashKeyExists);
-    const damagedSession = !sessionOk && !noSession;
+    if (sessionOk) return true as const;
 
-    if (sessionOk) return true;
-    if (noSession) return false;
-    if (damagedSession) {
-      await removeSession(userId, exp);
-      console.log(`DAMAGED SESSION -> ${sessionHashKey(userId, exp)}`);
-    }
-
-    return false;
+    return false as const;
   }
 
-  const getSessionData = (userId: UserId, exp: number) => {
-    async function ua() {
-      return await redis.hget(sessionHashKey(userId, exp), sessionFields.ua);
-    }
-    async function ip() {
-      return await redis.hget(sessionHashKey(userId, exp), sessionFields.ip);
-    }
-    async function ban() {
-      return (
-        (await redis.hget(sessionHashKey(userId, exp), sessionFields.ban)) ===
-        "true"
-      );
-    }
-    async function online() {
-      return Number(
-        await redis.hget(sessionHashKey(userId, exp), sessionFields.online)
-      );
-    }
-    return { ua, ip, ban, online };
-  };
+  async function getDeviceName(userId: UserId, sessionId: string) {
+    return await redis.hget(
+      sessionHashKey(userId, sessionId),
+      sessionFields.deviceName
+    );
+  }
 
-  const isSessionDataEqual = (userId: UserId, exp: number) => {
-    async function ua(value: string) {
-      return value === (await getSessionData(userId, exp).ua());
-    }
-    async function ip(value: string) {
-      return value === (await getSessionData(userId, exp).ip());
-    }
-    return { ua, ip };
-  };
+  async function setDeviceName(
+    userId: UserId,
+    sessionId: string,
+    deviceName: string
+  ) {
+    return await redis.hset(
+      sessionHashKey(userId, sessionId),
+      sessionFields.deviceName,
+      deviceName
+    );
+  }
 
-  const updateSessionData = (userId: UserId, exp: number) => {
-    async function ua(value: string) {
-      const result = await redis.hset(
-        sessionHashKey(userId, exp),
-        sessionFields.ua,
-        value
-      );
-      return result === 1;
-    }
-    async function ip(value: string) {
-      const result = await redis.hset(
-        sessionHashKey(userId, exp),
-        sessionFields.ip,
-        value
-      );
-      return result === 1;
-    }
-    async function ban(value: boolean) {
-      const result = await redis.hset(
-        sessionHashKey(userId, exp),
-        sessionFields.ban,
-        value.toString()
-      );
-      return result === 1;
-    }
+  async function getUserAgent(userId: UserId, sessionId: string) {
+    return await redis.hget(
+      sessionHashKey(userId, sessionId),
+      sessionFields.userAgent
+    );
+  }
 
-    async function online(value: number) {
-      const result = await redis.hset(
-        sessionHashKey(userId, exp),
-        sessionFields.online,
-        value
-      );
-      return result === 1;
-    }
-    return { ua, ip, ban, online };
-  };
+  async function setUserAgent(
+    userId: UserId,
+    sessionId: string,
+    value: string
+  ) {
+    const result = await redis.hset(
+      sessionHashKey(userId, sessionId),
+      sessionFields.userAgent,
+      value
+    );
+    return result === 1;
+  }
+
+  async function getIp(userId: UserId, sessionId: string) {
+    return await redis.hget(
+      sessionHashKey(userId, sessionId),
+      sessionFields.deviceIp
+    );
+  }
+
+  async function setIp(userId: UserId, sessionId: string, value: string) {
+    const result = await redis.hset(
+      sessionHashKey(userId, sessionId),
+      sessionFields.deviceIp,
+      value
+    );
+    return result === 1;
+  }
+
+  async function setFrozen(
+    userId: UserId,
+    sessionId: string,
+    value: boolean | "true" | "false"
+  ) {
+    const result = await redis.hset(
+      sessionHashKey(userId, sessionId),
+      sessionFields.frozen,
+      value.toString()
+    );
+    const done = result === 0 || result === 1;
+    return done;
+  }
+
+  async function isFrozen(userId: UserId, sessionId: string) {
+    return (
+      (await redis.hget(
+        sessionHashKey(userId, sessionId),
+        sessionFields.frozen
+      )) !== ("false" as const)
+    );
+  }
+
+  async function getLastSeen(userId: UserId, sessionId: string) {
+    return Number(
+      await redis.hget(sessionHashKey(userId, sessionId), sessionFields.online)
+    );
+  }
+
+  async function setLastSeen(
+    userId: UserId,
+    sessionId: string,
+    value: string | number
+  ) {
+    const result = await redis.hset(
+      sessionHashKey(userId, sessionId),
+      sessionFields.online,
+      value
+    );
+    return result === 1;
+  }
 
   async function createSession(
     userId: UserId,
+    sessionId: string,
     exp: number,
     sessionHashValues: (string | number)[]
   ) {
-    const createHashResult = await redis.hmset(
-      sessionHashKey(userId, exp),
+    const hashResult = await redis.hmset(
+      sessionHashKey(userId, sessionId),
       sessionHashValues
     );
-    const setupHashExpireResult = await redis.expireat(
-      sessionHashKey(userId, exp),
+    const hashExpireResult = await redis.expireat(
+      sessionHashKey(userId, sessionId),
       exp
     );
 
-    const isSetAlreadyExists = (await getSessionCountFromSet(userId)) !== 0;
+    const isSetExist = (await getSessionsCount(userId)) !== 0;
 
-    const createSetMemberResult = await redis.sadd(sessionSetKey(userId), exp);
-    let setupSetExpireResult: number;
+    const setMemberResult = await redis.sadd(sessionSetKey(userId), sessionId);
+    let setExpireResult: number;
 
-    if (isSetAlreadyExists) {
-      setupSetExpireResult = await redis.expireat(
-        sessionSetKey(userId),
-        exp,
-        "GT"
-      );
+    if (isSetExist) {
+      setExpireResult = await redis.expireat(sessionSetKey(userId), exp, "GT");
     } else {
-      setupSetExpireResult = await redis.expireat(
-        sessionSetKey(userId),
-        exp,
-        "NX"
-      );
+      setExpireResult = await redis.expireat(sessionSetKey(userId), exp, "NX");
     }
 
-    const hashDone = createHashResult === "OK" && setupHashExpireResult === 1;
-    const setDone = createSetMemberResult === 1 && setupSetExpireResult === 1;
+    const hashDone = hashResult === "OK" && hashExpireResult === 1;
+    const setDone = setMemberResult === 1 && setExpireResult === 1;
 
-    if (hashDone && setDone) {
-      return true;
-    }
-    return false;
+    if (hashDone && setDone) return true as const;
+    return false as const;
   }
 
-  async function removeSession(userId: UserId, exp: number) {
-    const hashResult = await redis.del(sessionHashKey(userId, exp));
-    const setResult = await redis.srem(sessionSetKey(userId), exp);
-    if (hashResult === 1 && setResult === 1) {
-      return true;
-    }
-    return false;
+  async function removeSession(userId: UserId, sessionId: string) {
+    const hash = await redis.del(sessionHashKey(userId, sessionId));
+    const set = await redis.srem(sessionSetKey(userId), sessionId);
+    if (hash === 1 && set === 1) return true as const;
+    return false as const;
   }
 
   return {
-    getSessionCountFromSet,
-    getAllSessionsFromSet,
+    getSessionsCount,
+    getSessionIdArr,
+    getDeviceName,
+    setDeviceName,
     isSessionExist,
-    getSessionData,
-    isSessionDataEqual,
-    updateSessionData,
+    getUserAgent,
+    getIp,
+    isFrozen,
+    getLastSeen,
+    setLastSeen,
+    setUserAgent,
+    setIp,
+    setFrozen,
     createSession,
     removeSession,
   };

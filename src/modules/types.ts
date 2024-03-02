@@ -18,7 +18,7 @@ export interface MessageContent {
   text: string;
 }
 
-export type goodSession =
+export type Session =
   | {
       status: 200;
       success: true;

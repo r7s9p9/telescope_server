@@ -29,6 +29,7 @@ import {
   privacyRuleSchema,
   usernameValueSchema,
 } from "./account.schema";
+import { block } from "./block/block.controller";
 
 function generalValidator(key: string | null, value: string | null) {
   let result;
@@ -93,8 +94,9 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
   ): Promise<Relationships> {
     const sameUser = userId === targetUserId;
     const isAccountExist = await m.isAccountExist(targetUserId);
-
-    const isBlocked = await m.isUserBlockedByUser(userId, targetUserId); // move
+    const isBlocked = await block(redis, isProd)
+      .internal()
+      .isBlocked(userId, targetUserId); // move
     const isYourFriend = await friend(redis, isProd)
       .internal()
       .isFriend(userId, targetUserId);

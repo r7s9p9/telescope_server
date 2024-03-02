@@ -113,11 +113,11 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       const user = await selectUserByEmail(email);
       if (!user) return { badAuth: true as const };
 
-      const isPasswordCorrect = verifyPassword({
-        candidatePassword: password,
-        salt: user.salt,
-        hash: user.password,
-      });
+      const isPasswordCorrect = verifyPassword(
+        password,
+        user.salt,
+        user.password
+      );
       if (!isPasswordCorrect) {
         return { success: false as const, badPassword: true as const };
       }

@@ -99,11 +99,14 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
           roomId
         );
         const isCurrentValueGreater =
-          lastCreated &&
-          stored.created &&
           Number(lastCreated) > Number(stored.created);
+
         if (!stored.created || isCurrentValueGreater) {
-          accountAction.setLastMessageCreated(userId, roomId, lastCreated);
+          await accountAction.setLastMessageCreated(
+            userId,
+            roomId,
+            lastCreated
+          );
         }
       }
     }
@@ -121,6 +124,12 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       message.created = touchDate();
       const isAdded = await m.add(roomId, message);
       if (!isAdded) return { success: false as const };
+      // Add success -> record the creation date of the read message to account
+      await accountAction.setLastMessageCreated(
+        userId,
+        roomId,
+        message.created
+      );
       return { success: true as const, created: message.created };
     }
 
@@ -134,9 +143,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
         created: touchDate(),
         authorId: serviceId,
       };
-      if (targetId) {
-        message.targetId = targetId;
-      }
+      if (targetId) message.targetId = targetId;
       return await m.add(roomId, message);
     }
 
@@ -148,7 +155,6 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       }
       // Read success -> record the creation date of the read message to account
       await setLastSeenMessage(userId, roomId, result.messageArr);
-
       return {
         isEmpty: false as const,
         messageArr: result.messageArr,

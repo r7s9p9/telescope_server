@@ -31,7 +31,7 @@ export const block = (redis: FastifyRedis, isProd: boolean) => {
   const internal = () => {
     const m = model(redis);
 
-    async function isBlocked(forUserId: UserId, userId: UserId) {
+    async function isBlocked(userId: UserId, forUserId: UserId) {
       return await m.isBlocked(userId, forUserId);
     }
 
