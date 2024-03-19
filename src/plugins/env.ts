@@ -23,9 +23,9 @@ const envVars = z.object({
 
 type EnvVarsType = z.infer<typeof envVars>;
 
-const config = dotenv.config({ path: envFile, override: false });
+const { parsed } = dotenv.config({ path: envFile, override: false });
 
-const parsedEnvVars = envVars.parse(config.parsed);
+const parsedEnvVars = envVars.parse(parsed);
 
 const converter = (envVars: EnvVarsType) => {
   return {

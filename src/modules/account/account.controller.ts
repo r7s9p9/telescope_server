@@ -1,6 +1,6 @@
 import { FastifyRedis } from "@fastify/redis";
 import { model } from "./account.model";
-import { DevData, RoomId, UserId } from "../types";
+import { RoomId, UserId } from "../types";
 import {
   accountFields,
   accountPrivacyRules,
@@ -13,7 +13,6 @@ import {
   AccountReadResult,
   ReadTargetUserGeneralField,
   ReadTargetUserPrivacyField,
-  WriteTargetUserField,
   Relationships,
   AccountToUpdate,
   AccountUpdateResult,

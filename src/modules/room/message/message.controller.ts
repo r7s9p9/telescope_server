@@ -29,6 +29,7 @@ import {
 import { serviceId } from "../room.constants";
 import { messageSchema } from "./message.schema";
 import { account } from "../../account/account.controller";
+import { accountFields } from "../../account/account.constants";
 
 const touchDate = () => Date.now().toString();
 
@@ -149,10 +150,24 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
       const messageArr = await m.readByRange(roomId, range);
+      // add username
+      // for (const message of messageArr) {
+      //   if (message.authorId === "service") {
+      //   }
+      //   const result = await account(redis, isProd)
+      //     .internal()
+      //     .read(userId, message.authorId, {
+      //       general: [accountFields.general.name],
+      //     });
+      //   message.username = result.general?.username;
+      //   console.log(result);
+      // }
+
       const result = messageArrValidator(messageArr);
       if (!result.messageArr) {
         return { isEmpty: true as const, errorArr: result.errorArr };
       }
+
       // Read success -> record the creation date of the read message to account
       await setLastSeenMessage(userId, roomId, result.messageArr);
       return {

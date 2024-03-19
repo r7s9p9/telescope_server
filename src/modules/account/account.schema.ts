@@ -17,8 +17,8 @@ const userId = z
     return id as UserId;
   });
 
-export const usernameValueSchema = z.string().min(6).max(24).trim();
-export const nameValueSchema = z.string().min(6).max(24).trim();
+export const usernameValueSchema = z.string().min(1).max(24).trim();
+export const nameValueSchema = z.string().min(1).max(24).trim();
 export const bioValueSchema = z.string().min(1).max(80).trim();
 export const lastSeenValueSchema = z.string();
 // Move limits to .env

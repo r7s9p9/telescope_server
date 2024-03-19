@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { Kysely, PostgresDialect } from 'kysely';
 import dotenv from 'dotenv';
 import z from 'zod';
+import { envFile } from '../modules/constants';
 
 const envVars = z.object({
 	DB_HOST: z.string(),
@@ -12,9 +13,7 @@ const envVars = z.object({
 	DB_PASS: z.string(),
 });
 
-const isProduction = process.env.NODE_ENV === 'production';
-
-const config = dotenv.config({ path: isProduction ? '.env' : '.env.local' });
+const config = dotenv.config({ path: envFile });
 
 const environment = envVars.parse(config.parsed);
 
