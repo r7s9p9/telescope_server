@@ -4,6 +4,8 @@ import { UserId } from "../types";
 export const confirmationCodeKey = (userId: UserId) =>
   `${accountKey(userId)}:code`;
 
+export const confirmationCodeMessage = (code: number) => `We have received a request from your account for authorization from another device. Your verification code: ${code}`
+
 export const codeHashFields = {
   code: "code" as const,
   attemptCount: "attemptCount" as const,
@@ -37,6 +39,7 @@ export const payloadVerificationRequired = (isProd: boolean) => {
     status: 201 as const,
     data: {
       success: true as const,
+      code: true as const,
       dev: !isProd
         ? {
             message: [

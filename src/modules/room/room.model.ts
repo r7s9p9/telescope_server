@@ -5,6 +5,7 @@ import {
   roomInfoFields,
   roomInfoKey,
   roomUsersKey,
+  userServiceRoomKey,
 } from "./room.constants";
 import {
   RoomInfoInternal,
@@ -13,7 +14,7 @@ import {
   RoomInfoToRead,
 } from "./room.types";
 import { checkRoomId } from "../../utils/uuid";
-import { accountRoomsKey } from "../account/account.constants";
+import { userRoomsKey } from "./room.constants";
 
 export const model = (redis: FastifyRedis) => {
   async function touchCreatedDate(roomId: RoomId) {
@@ -46,6 +47,19 @@ export const model = (redis: FastifyRedis) => {
     if (userArr.length === 0) return await undoChanges();
 
     return true as const;
+  }
+
+  async function createServiceRoomId(userId: UserId, roomId: RoomId) {
+    const result = await redis.set(userServiceRoomKey(userId), roomId);
+    if (result !== "OK") {
+      await redis.del(userServiceRoomKey(userId), roomId)
+      return false as const;
+    }
+    return true as const;
+  }
+
+  async function readServiceRoomId(userId: UserId) {
+    return await redis.get(userServiceRoomKey(userId));
   }
 
   async function deleteRoom(roomId: RoomId) {
@@ -103,7 +117,7 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function readUserRooms(userId: UserId) {
-    const roomIdArr = await redis.smembers(accountRoomsKey(userId));
+    const roomIdArr = await redis.smembers(userRoomsKey(userId));
     const result: RoomId[] = [];
     for (const roomId of roomIdArr) {
       if (checkRoomId(roomId)) {
@@ -114,7 +128,7 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function isRoomInUserSet(roomId: RoomId, userId: UserId) {
-    return (await redis.sismember(accountRoomsKey(userId), roomId)) === 1;
+    return (await redis.sismember(userRoomsKey(userId), roomId)) === 1;
   }
 
   async function addUsers(roomId: RoomId, userIdArr: UserId[]) {
@@ -123,7 +137,7 @@ export const model = (redis: FastifyRedis) => {
       const addToUserSet =
         (await redis.sadd(roomUsersKey(roomId), userId)) === 1;
       const addToRoomSet =
-        (await redis.sadd(accountRoomsKey(userId), roomId)) === 1;
+        (await redis.sadd(userRoomsKey(userId), roomId)) === 1;
       if (addToUserSet && addToRoomSet) {
         // Already added users will not appear as added (true)
         addedUsers.push(userId);
@@ -138,7 +152,7 @@ export const model = (redis: FastifyRedis) => {
       const remFromRoomSet =
         (await redis.srem(roomUsersKey(roomId), userIdArr)) === 1;
       const remFromUserSet =
-        (await redis.srem(accountRoomsKey(userId), roomId)) === 1;
+        (await redis.srem(userRoomsKey(userId), roomId)) === 1;
       if (remFromRoomSet && remFromUserSet) {
         // Already removed users will not push
         removedUsers.push(userId);
@@ -182,6 +196,8 @@ export const model = (redis: FastifyRedis) => {
 
   return {
     createRoom,
+    createServiceRoomId,
+    readServiceRoomId,
     deleteRoom,
     readRoomInfo,
     updateRoomInfo,

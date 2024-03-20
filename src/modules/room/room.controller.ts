@@ -57,7 +57,7 @@ import {
 } from "./room.types";
 import { randomUUID } from "crypto";
 import { payloadServerError } from "../constants";
-import { checkUserId } from "../../utils/uuid";
+import { checkRoomId, checkUserId } from "../../utils/uuid";
 import { message } from "./message/message.controller";
 import { readRoomInfoSchema } from "./room.schema";
 
@@ -143,6 +143,14 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const roomId = randomUUID();
       const success = await m.createRoom(roomId, [userId], roomInfo);
       if (!success) return false as const;
+
+      // To find the service roomId when receiving a confirmation code:
+      const roomIdResult = await m.createServiceRoomId(userId, roomId);
+      if (!roomIdResult) {
+        await m.deleteRoom(roomId);
+        return false as const;
+      }
+
       await messageAction.addByService(roomId, welcomeServiceRoomMessage);
       return true as const;
     }
@@ -158,6 +166,14 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       if (!success) return false as const;
       await messageAction.addByService(roomId, welcomeSingleRoomMessage);
       return true as const;
+    }
+
+    async function readServiceRoomId(userId: UserId) {
+      const roomId = await m.readServiceRoomId(userId);
+      if (!checkRoomId(roomId)) {
+        return { success: false as const}
+      }
+      return { success: true as const, roomId: roomId}
     }
 
     async function createRegularRoom(
@@ -351,6 +367,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       createSingleRoom,
       createRegularRoom,
       createServiceRoom,
+      readServiceRoomId,
       createRoom,
       invite,
       readRoomInfo,

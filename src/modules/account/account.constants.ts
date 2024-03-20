@@ -13,12 +13,6 @@ export const accountKey = (userId: UserId) => `user:${userId}:account`;
 export const accountPrivacyKey = (userId: UserId) =>
   `${accountKey(userId)}:privacy`;
 
-export const accountRoomsKey = (userId: UserId) =>
-  `${accountKey(userId)}:rooms`;
-
-export const accountRoomsSetKey = (userId: UserId) =>
-  `${accountRoomsKey(userId)}:roomIdSet`;
-
 export const lastSeenMessageKey = (userId: UserId) =>
   `${accountKey(userId)}:lastSeenMessage`;
 

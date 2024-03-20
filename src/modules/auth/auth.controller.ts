@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyRedis } from "@fastify/redis";
 import { payloadServerError } from "../constants";
 import {
+  confirmationCodeMessage,
   payloadAccountCreated,
   payloadBadUserAgent,
   payloadEmailExists,
@@ -23,18 +24,29 @@ import { session } from "./session/session.controller";
 import { token } from "../../utils/token";
 import { JWT } from "@fastify/jwt";
 import { UserId } from "../types";
+import { message } from "../room/message/message.controller";
+import { room } from "../room/room.controller";
 
 export const auth = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
   const accountAction = account(redis, isProd).internal();
   const sessionAction = session(redis, isProd).internal();
+  const roomAction = room(redis, isProd).internal();
+  const messageAction = message(redis, isProd).internal();
   const tokenAction = token();
 
   const internal = () => {
     async function createCode(userId: UserId, userAgent: string) {
       await m.removeCode(userId);
+
       const code = Math.floor(100000 + Math.random() * 900000);
-      return await m.writeCode(userId, code, userAgent);
+      const codeSuccess = await m.writeCode(userId, code, userAgent);
+      if (!codeSuccess) return false as const;
+
+      const {success, roomId} = await roomAction.readServiceRoomId(userId);
+      if (!success) return false as const;
+      
+      return await messageAction.addByService(roomId, confirmationCodeMessage(code));
     }
 
     async function compareCode(
@@ -125,7 +137,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       const isCodeNeeded = await sessionAction.isCodeNeeded(user.id);
       if (isCodeNeeded) {
         const success = await createCode(user.id, userAgent);
-        if (!success) return { success: false as const, code: true as const };
+        if (!success) return { success: false as const };
         return { success: true as const, code: true as const };
       }
 
@@ -181,16 +193,10 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       try {
         const result = await internal().login(jwt, ip, ua, email, password);
 
-        if (result.badAuth || result.badPassword) {
-          return { payload: payloadInvalidEmailOrPassword(isProd) };
-        }
-        if (result.code) {
-          return { payload: payloadVerificationRequired(isProd) };
-        }
-        if (!result.success) {
-          return { payload: payloadServerError(isProd) };
-        }
-
+        if (result.badAuth || result.badPassword) return { payload: payloadInvalidEmailOrPassword(isProd) };
+        if (result.code) return { payload: payloadVerificationRequired(isProd) };
+        if (!result.success) return { payload: payloadServerError(isProd) };
+        
         return {
           payload: payloadLoginSuccessful(result.tokenData.raw, isProd),
           tokenData: result.tokenData,

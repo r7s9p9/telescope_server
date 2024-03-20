@@ -29,7 +29,6 @@ import {
 import { serviceId } from "../room.constants";
 import { messageSchema } from "./message.schema";
 import { account } from "../../account/account.controller";
-import { accountFields } from "../../account/account.constants";
 
 const touchDate = () => Date.now().toString();
 

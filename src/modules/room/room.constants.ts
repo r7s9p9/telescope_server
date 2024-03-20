@@ -5,6 +5,7 @@ import {
   RoomInfoValues,
   ReadRoomResult,
 } from "./room.types";
+import { accountKey } from "../account/account.constants";
 
 export const roomTypeValues = {
   public: "public" as const,
@@ -66,6 +67,11 @@ export const userUnblockedMessage = "is no longer banned in this room";
 export const userInvitedMessage = "has been invited to this room";
 export const userJoinedMessage = "joined the room";
 export const userLeavedMessage = "left the room";
+
+export const userRoomsKey = (userId: UserId) =>
+  `${accountKey(userId)}:rooms`;
+export const userServiceRoomKey = (userId: UserId) =>
+`${userRoomsKey(userId)}:serviceRoomId`;
 
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;
