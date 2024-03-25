@@ -235,9 +235,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
           if (info.codeResult?.badAttemptCount) {
             return { payload: payloadTooManyAttemptsToConfirmCode(isProd) };
           }
-          if (!info.success) {
-            return { payload: payloadServerError(isProd) };
-          }
+          return { payload: payloadServerError(isProd) };
         }
 
         return {

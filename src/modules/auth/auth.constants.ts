@@ -56,6 +56,7 @@ export const payloadUsernameExists = (isProd: boolean) => {
     status: 400 as const,
     data: {
       success: false as const,
+      errorCode: "USERNAME_ALREADY_EXISTS" as const,
       dev: !isProd
         ? { message: ["This username already exists"] as const }
         : undefined,
@@ -68,6 +69,7 @@ export const payloadEmailExists = (isProd: boolean) => {
     status: 400 as const,
     data: {
       success: false as const,
+      errorCode: "EMAIL_ALREADY_EXISTS" as const,
       dev: !isProd
         ? { message: ["This account already exists"] as const }
         : undefined,
