@@ -311,16 +311,17 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         roomInfoFields.about,
         roomInfoFields.type,
       ];
-      if (roomIdArr.length === 0) return { isEmpty: true as const };
+      if (roomIdArr.length === 0 as const) return { allCount: roomIdArr.length };
 
       // Get roomId, roomInfo, lastMessage using roomIdArr
       const roomDataArr: ReadRoomResult[] = [];
       for (const roomId of roomIdArr) {
         const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
         if (!isAllowed) continue;
-        const info = await readRoomInfo(roomId, infoToRead);
 
+        const info = await readRoomInfo(roomId, infoToRead);
         if (!info.success) continue;
+
         const message = await messageAction.readLastMessage(roomId);
         const unreadCount = await messageAction.getCountOfUnreadMessages(
           userId,
@@ -335,7 +336,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         roomDataArr.push(roomData);
       }
 
-      if (roomDataArr.length === 0) return { isEmpty: true as const };
+      const allCount = roomDataArr.length; 
+      if (allCount === 0 as const) return { allCount };
 
       function roomDateComparator(a: ReadRoomResult, b: ReadRoomResult) {
         const aCreated = a.lastMessage?.created;
@@ -353,9 +355,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         if (!aExist && bExist) return 1;
         return 0;
       }
-
+      // Sort and slice by range
       roomDataArr.sort(roomDateComparator);
-      return { isEmpty: false as const, roomDataArr: roomDataArr.slice(Number(range.min), Number(range.max)) };
+      return { allCount, roomDataArr: roomDataArr.slice(Number(range.min), Number(range.max)) };
     }
 
     return {
@@ -525,9 +527,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       userId: UserId,
       range: { min: string; max: string }
     ) {
-      const result = await internal().roomsOverview(userId, range);
-      if (result.isEmpty) return payloadNoRoomsFound(isProd);
-      return payloadSuccessfulReadMyRooms(result.roomDataArr, isProd);
+      const { roomDataArr, allCount} = await internal().roomsOverview(userId, range);
+      if (allCount === 0) return payloadNoRoomsFound(isProd)
+      return payloadSuccessfulReadMyRooms(roomDataArr, allCount, isProd);
     }
 
     return {

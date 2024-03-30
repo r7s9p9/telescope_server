@@ -621,15 +621,16 @@ export const payloadSuccessfulReadUserRooms = (
 };
 
 export const payloadSuccessfulReadMyRooms = (
-  roomDataArr: ReadRoomResult[],
+  roomDataArr: ReadRoomResult[] | undefined,
+  allCount: number,
   isProd: boolean
 ) => {
   return {
     status: 200 as const,
     data: {
       success: true as const,
-      isEmpty: false as const,
-      roomDataArr: roomDataArr,
+      allCount,
+      roomDataArr,
       dev: !isProd
         ? { message: ["You have successfully read self rooms"] }
         : undefined,
@@ -642,7 +643,7 @@ export const payloadNoRoomsFound = (isProd: boolean) => {
     status: 200 as const,
     data: {
       success: true as const,
-      isEmpty: true as const,
+      allCount: 0 as const,
       dev: !isProd
         ? { message: ["There are no rooms in this range"] }
         : undefined,
