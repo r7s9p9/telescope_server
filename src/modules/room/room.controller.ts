@@ -337,7 +337,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
 
       if (roomDataArr.length === 0) return { isEmpty: true as const };
 
-      function roomDataComparator(a: ReadRoomResult, b: ReadRoomResult) {
+      function roomDateComparator(a: ReadRoomResult, b: ReadRoomResult) {
         const aCreated = a.lastMessage?.created;
         const bCreated = b.lastMessage?.created;
         const aExist = !!aCreated;
@@ -354,10 +354,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         return 0;
       }
 
-      roomDataArr.sort(roomDataComparator);
-      roomDataArr.slice(Number(range.min), Number(range.max));
-
-      return { isEmpty: false as const, roomDataArr: roomDataArr };
+      roomDataArr.sort(roomDateComparator);
+      return { isEmpty: false as const, roomDataArr: roomDataArr.slice(Number(range.min), Number(range.max)) };
     }
 
     return {
