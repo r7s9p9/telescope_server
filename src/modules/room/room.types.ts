@@ -24,7 +24,7 @@ export type RoomState = {
 
 export type ReadRoomResult = {
   roomId: RoomId;
-  roomInfo: ReadRoomInfoResult;
+  roomName: ReadRoomInfoResult["name"];
   unreadCount: number;
   lastMessage?: Message;
 };

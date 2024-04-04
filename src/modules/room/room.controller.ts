@@ -300,17 +300,11 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
 
     async function roomsOverview(
       userId: UserId,
-      range: { min: string; max: string }
+      range: { min: string; max: string },
+      roomIdToCheck?: RoomId[]
     ) {
       // Find out what rooms the user has
       const roomIdArr = await m.readUserRooms(userId);
-      const infoToRead = [
-        roomInfoFields.name,
-        roomInfoFields.creatorId,
-        roomInfoFields.created,
-        roomInfoFields.about,
-        roomInfoFields.type,
-      ];
       if (roomIdArr.length === 0 as const) return { allCount: roomIdArr.length };
 
       // Get roomId, roomInfo, lastMessage using roomIdArr
@@ -319,7 +313,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
         if (!isAllowed) continue;
 
-        const info = await readRoomInfo(roomId, infoToRead);
+        const info = await readRoomInfo(roomId, [ roomInfoFields.name ]);
         if (!info.success) continue;
 
         const message = await messageAction.readLastMessage(roomId);
@@ -329,7 +323,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         );
         const roomData = {
           roomId,
-          roomInfo: info.data,
+          roomName: info.data.name,
           unreadCount: unreadCount,
           lastMessage: message,
         };
