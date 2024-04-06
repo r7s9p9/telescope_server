@@ -9,6 +9,7 @@ export const roomMessagesKey = (roomId: RoomId) =>
 export const messageDateSize = 13;
 
 export const messageFields = {
+  username: "username" as const,
   content: "content" as const,
   created: "created" as const,
   modified: "modified" as const,

@@ -301,7 +301,6 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     async function roomsOverview(
       userId: UserId,
       range: { min: string; max: string },
-      roomIdToCheck?: RoomId[]
     ) {
       // Find out what rooms the user has
       const roomIdArr = await m.readUserRooms(userId);

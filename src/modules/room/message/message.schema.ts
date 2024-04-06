@@ -18,7 +18,8 @@ const roomId = z
   });
 
 const messageContent = z.object({ text: z.string().min(1) });
-const messageAuthorId = userId.or(z.literal(serviceId));
+const messageAuthorId = userId.or(z.literal(serviceId)).or(z.literal("self"));
+const messageUsername = z.string().optional();
 const messageReplyTo = userId.optional();
 const messageTargetId = userId.optional(); // For Service Message
 const messageCreated = z.string().length(messageDateSize);
@@ -29,6 +30,7 @@ export const messageSchema = z.object({
   authorId: messageAuthorId,
   replyTo: messageReplyTo,
   targetId: messageTargetId, // For Service Message
+  username: messageUsername,
   created: messageCreated,
   modified: messageModified,
 });

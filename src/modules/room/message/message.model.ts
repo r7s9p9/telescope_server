@@ -7,6 +7,7 @@ import {
   ServiceMessage,
 } from "./message.types";
 import { roomMessagesKey } from "./message.constants";
+import { accountFields } from "../../account/account.constants";
 
 const stringify = (message: AddMessage | ServiceMessage) => {
   return JSON.stringify(message);
@@ -93,7 +94,7 @@ export const model = (redis: FastifyRedis) => {
     return false;
   }
 
-  async function update(roomId: RoomId, message: Message) {
+  async function update(roomId: RoomId, message: Omit<Message, typeof accountFields.general.username>) {
     const removeSuccess = await remove(roomId, message.created);
     if (!removeSuccess) return false;
     const addSuccess = await add(roomId, message);

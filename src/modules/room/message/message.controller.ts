@@ -29,6 +29,7 @@ import {
 import { serviceId } from "../room.constants";
 import { messageSchema } from "./message.schema";
 import { account } from "../../account/account.controller";
+import { accountFields } from "../../account/account.constants";
 
 const touchDate = () => Date.now().toString();
 
@@ -149,18 +150,22 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
       const messageArr = await m.readByRange(roomId, range);
-      // add username
-      // for (const message of messageArr) {
-      //   if (message.authorId === "service") {
-      //   }
-      //   const result = await account(redis, isProd)
-      //     .internal()
-      //     .read(userId, message.authorId, {
-      //       general: [accountFields.general.name],
-      //     });
-      //   message.username = result.general?.username;
-      //   console.log(result);
-      // }
+
+      // Add username && remove self userId
+      for (const message of messageArr) {
+        if (message.authorId !== "service") {
+          if (message.authorId === userId) {
+            message.authorId = "self";
+          }
+
+          const result = await account(redis, isProd)
+          .internal()
+          .read(userId, message.authorId, {
+            general: [accountFields.general.username],
+          });
+        message.username = result.general?.username;
+        }
+      }
 
       const result = messageArrValidator(messageArr);
       if (!result.messageArr) {
@@ -204,7 +209,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       message: UpdateMessage
     ) {
-      const readyMessage: Message = {
+      const readyMessage: Omit<Message, typeof accountFields.general.username> = {
         ...message,
         modified: touchDate(),
         authorId: userId,
