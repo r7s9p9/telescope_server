@@ -149,15 +149,15 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
+      // Read from db
       const messageArr = await m.readByRange(roomId, range);
 
-      // Add username && remove self userId
+      // Add username && replace userId if self message exist in result
       for (const message of messageArr) {
         if (message.authorId !== "service") {
           if (message.authorId === userId) {
-            message.authorId = "self";
+            message.authorId = "self" as const;
           }
-
           const result = await account(redis, isProd)
           .internal()
           .read(userId, message.authorId, {
@@ -167,6 +167,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
         }
       }
 
+      // Validation
       const result = messageArrValidator(messageArr);
       if (!result.messageArr) {
         return { isEmpty: true as const, errorArr: result.errorArr };
@@ -181,13 +182,25 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       };
     }
 
-    async function readLastMessage(roomId: RoomId) {
+    async function readLastMessage(userId: UserId, roomId: RoomId) {
       const attemptCount = 3; // TODO move to .env
 
       for (let i = 0; i < attemptCount; i++) {
         const message = await m.readMessageByRevRange(roomId, i);
         const { success, data } = messageValidator(message);
         if (!success) continue;
+
+        if (data.authorId !== "service") {
+          if (message.authorId === userId) {
+            message.authorId = "self" as const;
+          }
+          const result = await account(redis, isProd)
+          .internal()
+          .read(userId, message.authorId, {
+            general: [accountFields.general.username],
+          });
+        message.username = result.general?.username;
+        }
         return data;
       }
     }

@@ -10,7 +10,7 @@ export interface Message {
   [messageFields.content]: {
     [contentFields.text]?: string;
   };
-  [messageFields.authorId]: UserId;
+  [messageFields.authorId]: UserId | "service" | "self";
   [messageFields.username]: string;
   [messageFields.replyTo]?: UserId;
   [messageFields.created]: string;

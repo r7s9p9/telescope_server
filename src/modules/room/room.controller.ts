@@ -315,7 +315,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         const info = await readRoomInfo(roomId, [ roomInfoFields.name ]);
         if (!info.success) continue;
 
-        const message = await messageAction.readLastMessage(roomId);
+        const message = await messageAction.readLastMessage(userId, roomId);
         const unreadCount = await messageAction.getCountOfUnreadMessages(
           userId,
           roomId
