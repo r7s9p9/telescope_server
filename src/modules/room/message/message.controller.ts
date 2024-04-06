@@ -196,10 +196,10 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
           }
           const result = await account(redis, isProd)
           .internal()
-          .read(userId, message.authorId, {
+          .read(userId, data.authorId, {
             general: [accountFields.general.username],
           });
-        message.username = result.general?.username;
+        data.username = result.general?.username;
         }
         return data;
       }

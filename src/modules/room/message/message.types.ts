@@ -11,7 +11,7 @@ export interface Message {
     [contentFields.text]?: string;
   };
   [messageFields.authorId]: UserId | "service" | "self";
-  [messageFields.username]: string;
+  [messageFields.username]?: string;
   [messageFields.replyTo]?: UserId;
   [messageFields.created]: string;
   [messageFields.modified]?: string;
