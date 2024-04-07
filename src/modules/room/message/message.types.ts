@@ -43,8 +43,8 @@ export type UpdateMessage = {
 };
 
 export interface MessageRange {
-  minCreated: Message["created"];
-  maxCreated: Message["created"];
+  min: number,
+  max: number,
 }
 
 export interface MessageDate {

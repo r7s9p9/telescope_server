@@ -40,12 +40,13 @@ export const model = (redis: FastifyRedis) => {
 
   async function readByRange(
     roomId: RoomId,
-    range: { minCreated: string | number; maxCreated: string | number }
+    min: number, max: number 
   ) {
-    const messageArr = await redis.zrangebyscore(
+    const messageArr = await redis.zrange(
       roomMessagesKey(roomId),
-      range.minCreated,
-      range.maxCreated
+      min,
+      max,
+      "REV"
     );
     return parseArr(messageArr);
   }

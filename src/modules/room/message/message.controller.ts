@@ -150,7 +150,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
       // Read from db
-      const messageArr = await m.readByRange(roomId, range);
+      const messageArr = await m.readByRange(roomId, range.min, range.max);
 
       // Add username && replace userId if self message exist in result
       for (const message of messageArr) {
