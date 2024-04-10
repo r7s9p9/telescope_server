@@ -38,7 +38,7 @@ function messageValidator(message: any) {
   if (!result.success) {
     return { success: false as const, error: result.error };
   }
-  return { success: true as const, data: result.data as Message };
+  return { success: true as const, data: result.data };
 }
 
 function messageArrValidator(messageArr: any[]) {
@@ -54,8 +54,8 @@ function messageArrValidator(messageArr: any[]) {
     dataArr.push(result.data);
   }
   return {
-    messageArr: dataArr.length !== 0 ? dataArr : (false as const),
-    errorArr: errorArr.length !== 0 ? errorArr : (false as const),
+    messages: dataArr.length !== 0 ? dataArr : undefined,
+    errors: errorArr.length !== 0 ? errorArr : undefined,
   };
 }
 
@@ -149,36 +149,42 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     }
 
     async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
-      // Read from db
-      const messageArr = await m.readByRange(roomId, range.min, range.max);
+      // Get message count
+      const allCount = await m.getCount(roomId);
+      if (allCount === 0)
+        return { isEmpty: true as const, allCount: 0 as const };
+
+      const messages = await m.readByRange(roomId, range.min, range.max);
 
       // Add username && replace userId if self message exist in result
-      for (const message of messageArr) {
+
+      for (const message of messages) {
         if (message.authorId !== "service") {
           if (message.authorId === userId) {
             message.authorId = "self" as const;
           }
           const result = await account(redis, isProd)
-          .internal()
-          .read(userId, message.authorId, {
-            general: [accountFields.general.username],
-          });
-        message.username = result.general?.username;
+            .internal()
+            .read(userId, message.authorId, {
+              general: [accountFields.general.username],
+            });
+          message.username = result.general?.username;
         }
       }
 
       // Validation
-      const result = messageArrValidator(messageArr);
-      if (!result.messageArr) {
-        return { isEmpty: true as const, errorArr: result.errorArr };
+      const result = messageArrValidator(messages);
+      if (!result.messages) {
+        return { allCount, isEmpty: true as const, errors: result.errors };
       }
 
       // Read success -> record the creation date of the read message to account
-      await setLastSeenMessage(userId, roomId, result.messageArr);
+      await setLastSeenMessage(userId, roomId, result.messages);
       return {
+        allCount,
         isEmpty: false as const,
-        messageArr: result.messageArr,
-        errorArr: result.errorArr,
+        messages: result.messages,
+        errors: result.errors,
       };
     }
 
@@ -195,11 +201,11 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
             message.authorId = "self" as const;
           }
           const result = await account(redis, isProd)
-          .internal()
-          .read(userId, data.authorId, {
-            general: [accountFields.general.username],
-          });
-        data.username = result.general?.username;
+            .internal()
+            .read(userId, data.authorId, {
+              general: [accountFields.general.username],
+            });
+          data.username = result.general?.username;
         }
         return data;
       }
@@ -222,11 +228,12 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       message: UpdateMessage
     ) {
-      const readyMessage: Omit<Message, typeof accountFields.general.username> = {
-        ...message,
-        modified: touchDate(),
-        authorId: userId,
-      };
+      const readyMessage: Omit<Message, typeof accountFields.general.username> =
+        {
+          ...message,
+          modified: touchDate(),
+          authorId: userId,
+        };
       const success = await m.update(roomId, readyMessage);
       if (!success) return { success: false as const };
       return {
@@ -239,14 +246,14 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       return await m.remove(roomId, created);
     }
 
-    async function compare(roomId: RoomId, clientDatesArr: MessageDate[]) {
-      const storedMessageArr = await m.readArrByCreated(roomId, clientDatesArr);
-      if (storedMessageArr.length === 0) return { toRemove: clientDatesArr };
+    async function compare(roomId: RoomId, clientDates: MessageDate[]) {
+      const storedMessageArr = await m.readArrByCreated(roomId, clientDates);
+      if (storedMessageArr.length === 0) return { toRemove: clientDates };
 
-      const { messageArr } = messageArrValidator(storedMessageArr);
-      if (!messageArr) return { toRemove: clientDatesArr };
+      const { messages } = messageArrValidator(storedMessageArr);
+      if (!messages) return { toRemove: clientDates };
 
-      const { toUpdate, toRemove } = calcDatesDiff(clientDatesArr, messageArr);
+      const { toUpdate, toRemove } = calcDatesDiff(clientDates, messages);
       return { toUpdate, toRemove };
     }
 
@@ -280,19 +287,21 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedBySoftRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
+      if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
 
-      const { messageArr, errorArr, isEmpty } = await internal().read(
+      const { messages, errors, isEmpty, allCount } = await internal().read(
         userId,
         roomId,
         range
       );
-      if (isEmpty) return payloadNoOneMessageReaded(roomId, errorArr, isProd);
+      if (isEmpty)
+        return payloadNoOneMessageReaded(isProd, roomId, allCount, errors);
       return payloadSuccessfulReadMessages(
+        isProd,
         roomId,
-        messageArr,
-        errorArr,
-        isProd
+        messages,
+        allCount,
+        errors
       );
     }
 
@@ -342,7 +351,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedBySoftRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedReadMessages(roomId, isProd);
+      if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
 
       const { toUpdate, toRemove } = await internal().compare(
         roomId,

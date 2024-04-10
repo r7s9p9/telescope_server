@@ -48,39 +48,45 @@ export const payloadSuccessfulAddMessage = (
 };
 
 export const payloadSuccessfulReadMessages = (
+  isProd: boolean,
   roomId: RoomId,
-  messageArr: Message[],
-  errorArr: ZodError[] | false,
-  isProd: boolean
+  messages: Message[],
+  allCount: number,
+  errors?: ZodError[]
 ) => {
   const devMessage = "The messages was successfully readed" as const;
   return {
     status: 200 as const,
     data: {
+      access: true as const,
       success: true as const,
-      roomId: roomId,
-      messageArr: messageArr,
+      roomId,
+      allCount,
+      messages,
       dev: !isProd
-        ? { message: [devMessage], error: errorArr ? errorArr : undefined }
+        ? { message: [devMessage], error: errors ? errors : undefined }
         : undefined,
     },
   };
 };
 
 export const payloadNoOneMessageReaded = (
+  isProd: boolean,
   roomId: RoomId,
-  errorArr: ZodError[] | false,
-  isProd: boolean
+  allCount: number,
+  errors?: ZodError[]
 ) => {
-  const devMessage = "There are no messages" as const;
+  const devMessage = "There are no messages for this request" as const;
   return {
     status: 200 as const,
     data: {
+      access: true as const,
       success: true as const,
-      empty: true as const,
-      roomId: roomId,
+      isEmpty: true as const,
+      roomId,
+      allCount,
       dev: !isProd
-        ? { message: [devMessage], error: errorArr ? errorArr : undefined }
+        ? { message: [devMessage], error: errors ? errors : undefined }
         : undefined,
     },
   };
@@ -173,14 +179,15 @@ export const payloadNotAllowedAddMessages = (
 };
 
 export const payloadNotAllowedReadMessages = (
-  roomId: RoomId,
-  isProd: boolean
+  isProd: boolean,
+  roomId: RoomId
 ) => {
   const devMessage =
     "You are not allowed to read messages in this room" as const;
   return {
     status: 403 as const,
     data: {
+      access: false as const,
       success: false as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,

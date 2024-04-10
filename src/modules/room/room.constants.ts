@@ -68,10 +68,9 @@ export const userInvitedMessage = "has been invited to this room";
 export const userJoinedMessage = "joined the room";
 export const userLeavedMessage = "left the room";
 
-export const userRoomsKey = (userId: UserId) =>
-  `${accountKey(userId)}:rooms`;
+export const userRoomsKey = (userId: UserId) => `${accountKey(userId)}:rooms`;
 export const userServiceRoomKey = (userId: UserId) =>
-`${userRoomsKey(userId)}:serviceRoomId`;
+  `${userRoomsKey(userId)}:serviceRoomId`;
 
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;
@@ -621,7 +620,7 @@ export const payloadSuccessfulReadUserRooms = (
 };
 
 export const payloadSuccessfulReadMyRooms = (
-  roomDataArr: ReadRoomResult[] | undefined,
+  rooms: ReadRoomResult[] | undefined,
   allCount: number,
   isProd: boolean
 ) => {
@@ -630,7 +629,7 @@ export const payloadSuccessfulReadMyRooms = (
     data: {
       success: true as const,
       allCount,
-      roomDataArr,
+      rooms,
       dev: !isProd
         ? { message: ["You have successfully read self rooms"] }
         : undefined,

@@ -171,9 +171,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     async function readServiceRoomId(userId: UserId) {
       const roomId = await m.readServiceRoomId(userId);
       if (!checkRoomId(roomId)) {
-        return { success: false as const}
+        return { success: false as const };
       }
-      return { success: true as const, roomId: roomId}
+      return { success: true as const, roomId: roomId };
     }
 
     async function createRegularRoom(
@@ -300,19 +300,20 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
 
     async function roomsOverview(
       userId: UserId,
-      range: { min: string; max: string },
+      range: { min: string; max: string }
     ) {
       // Find out what rooms the user has
       const roomIdArr = await m.readUserRooms(userId);
-      if (roomIdArr.length === 0 as const) return { allCount: roomIdArr.length };
+      if (roomIdArr.length === (0 as const))
+        return { allCount: roomIdArr.length };
 
       // Get roomId, roomInfo, lastMessage using roomIdArr
-      const roomDataArr: ReadRoomResult[] = [];
+      const rooms: ReadRoomResult[] = [];
       for (const roomId of roomIdArr) {
         const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
         if (!isAllowed) continue;
 
-        const info = await readRoomInfo(roomId, [ roomInfoFields.name ]);
+        const info = await readRoomInfo(roomId, [roomInfoFields.name]);
         if (!info.success) continue;
 
         const message = await messageAction.readLastMessage(userId, roomId);
@@ -326,11 +327,11 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
           unreadCount: unreadCount,
           lastMessage: message,
         };
-        roomDataArr.push(roomData);
+        rooms.push(roomData);
       }
 
-      const allCount = roomDataArr.length; 
-      if (allCount === 0 as const) return { allCount };
+      const allCount = rooms.length;
+      if (allCount === (0 as const)) return { allCount };
 
       function roomDateComparator(a: ReadRoomResult, b: ReadRoomResult) {
         const aCreated = a.lastMessage?.created;
@@ -349,8 +350,11 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         return 0;
       }
       // Sort and slice by range
-      roomDataArr.sort(roomDateComparator);
-      return { allCount, roomDataArr: roomDataArr.slice(Number(range.min), Number(range.max)) };
+      rooms.sort(roomDateComparator);
+      return {
+        allCount,
+        rooms: rooms.slice(Number(range.min), Number(range.max)),
+      };
     }
 
     return {
@@ -520,9 +524,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       userId: UserId,
       range: { min: string; max: string }
     ) {
-      const { roomDataArr, allCount} = await internal().roomsOverview(userId, range);
-      if (allCount === 0) return payloadNoRoomsFound(isProd)
-      return payloadSuccessfulReadMyRooms(roomDataArr, allCount, isProd);
+      const { rooms, allCount } = await internal().roomsOverview(userId, range);
+      if (allCount === 0) return payloadNoRoomsFound(isProd);
+      return payloadSuccessfulReadMyRooms(rooms, allCount, isProd);
     }
 
     return {

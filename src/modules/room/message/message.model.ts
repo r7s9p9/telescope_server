@@ -38,10 +38,7 @@ export const model = (redis: FastifyRedis) => {
     return false as const;
   }
 
-  async function readByRange(
-    roomId: RoomId,
-    min: number, max: number 
-  ) {
+  async function readByRange(roomId: RoomId, min: number, max: number) {
     const messageArr = await redis.zrange(
       roomMessagesKey(roomId),
       min,
@@ -49,6 +46,10 @@ export const model = (redis: FastifyRedis) => {
       "REV"
     );
     return parseArr(messageArr);
+  }
+
+  async function getCount(roomId: RoomId) {
+    return await redis.zcount(roomMessagesKey(roomId), "-inf", "+inf");
   }
 
   async function readByCreated(roomId: RoomId, created: string) {
@@ -95,7 +96,10 @@ export const model = (redis: FastifyRedis) => {
     return false;
   }
 
-  async function update(roomId: RoomId, message: Omit<Message, typeof accountFields.general.username>) {
+  async function update(
+    roomId: RoomId,
+    message: Omit<Message, typeof accountFields.general.username>
+  ) {
     const removeSuccess = await remove(roomId, message.created);
     if (!removeSuccess) return false;
     const addSuccess = await add(roomId, message);
@@ -108,6 +112,7 @@ export const model = (redis: FastifyRedis) => {
   }
 
   return {
+    getCount,
     readByRange,
     add,
     remove,
