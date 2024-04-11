@@ -289,7 +289,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
     async function setLastMessageCreated(
       userId: UserId,
       roomId: RoomId,
-      created: string
+      created: number
     ) {
       return await m.setLastSeenMessageCreated(userId, roomId, created);
     }

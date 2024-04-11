@@ -1,12 +1,4 @@
 import { FastifyRedis } from "@fastify/redis";
-import {
-  AddMessage,
-  Message,
-  MessageDate,
-  MessageRange,
-  ServiceMessage,
-  UpdateMessage,
-} from "./message.types";
 import { RoomId, UserId } from "../../types";
 import { room } from "../room.controller";
 import { ZodError } from "zod";
@@ -27,11 +19,18 @@ import {
   payloadUpdatedMessages,
 } from "./message.constants";
 import { serviceId } from "../room.constants";
-import { messageSchema } from "./message.schema";
+import {
+  AddMessage,
+  MessageDates,
+  Message,
+  ServiceMessage,
+  UpdateMessage,
+  messageSchema,
+} from "./message.schema";
 import { account } from "../../account/account.controller";
 import { accountFields } from "../../account/account.constants";
 
-const touchDate = () => Date.now().toString();
+const touchDate = () => Date.now();
 
 function messageValidator(message: any) {
   const result = messageSchema.safeParse(message);
@@ -60,16 +59,15 @@ function messageArrValidator(messageArr: any[]) {
 }
 
 function calcDatesDiff(
-  clientDatesArr: MessageDate[],
+  clientDatesArr: MessageDates[],
   storedMessageArr: Message[]
 ) {
   const toUpdate: Message[] = [];
-  const toRemove: MessageDate[] = [];
+  const toRemove: Message["created"][] = [];
 
   for (const client of clientDatesArr) {
     let clientCreatedFound = false;
     for (const stored of storedMessageArr) {
-      console.log(stored, client);
       if (stored.created !== client.created) continue;
       clientCreatedFound = true;
       if (stored.modified || client.modified) {
@@ -78,7 +76,7 @@ function calcDatesDiff(
         }
       }
     }
-    if (!clientCreatedFound) toRemove.push(client);
+    if (!clientCreatedFound) toRemove.push(client.created);
   }
   return { toUpdate, toRemove };
 }
@@ -117,21 +115,30 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       if (!stored.created) return 0 as const;
       // the model returns a number including the date of the message the user last read,
       // so we need to subtract one.
-      return (await m.getMessageCountByCreated(roomId, stored.created)) - 1;
+      const unreadedCount =
+        (await m.getMessageCountByCreated(roomId, stored.created)) - 1;
+      if (unreadedCount >= 0) return unreadedCount;
+      // BUG
+      // if the last message read by the user does not exist, then unreadCount will become -1
+      return 0 as const;
     }
 
     async function add(userId: UserId, roomId: RoomId, message: AddMessage) {
-      message.authorId = userId;
-      message.created = touchDate();
-      const isAdded = await m.add(roomId, message);
-      if (!isAdded) return { success: false as const };
+      const newMessage: Message = Object.create(null);
+      newMessage.authorId = userId;
+      newMessage.content = message.content;
+      newMessage.created = touchDate();
+      if (message.replyTo) newMessage.replyTo = message.replyTo;
+
+      const success = await m.add(roomId, newMessage);
+      if (!success) return { success: false as const };
       // Add success -> record the creation date of the read message to account
       await accountAction.setLastMessageCreated(
         userId,
         roomId,
-        message.created
+        newMessage.created
       );
-      return { success: true as const, created: message.created };
+      return { success: true as const, created: newMessage.created };
     }
 
     async function addByService(
@@ -148,7 +155,11 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       return await m.add(roomId, message);
     }
 
-    async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
+    async function read(
+      userId: UserId,
+      roomId: RoomId,
+      range: { min: number; max: number }
+    ) {
       // Get message count
       const allCount = await m.getCount(roomId);
       if (allCount === 0)
@@ -157,7 +168,6 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const messages = await m.readByRange(roomId, range.min, range.max);
 
       // Add username && replace userId if self message exist in result
-
       for (const message of messages) {
         if (message.authorId !== "service") {
           if (message.authorId === userId) {
@@ -168,7 +178,11 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
             .read(userId, message.authorId, {
               general: [accountFields.general.username],
             });
-          message.username = result.general?.username;
+          if (!result.general?.username) {
+            message.username = "DELETED ACCOUNT" as const;
+          } else {
+            message.username = result.general?.username;
+          }
         }
       }
 
@@ -211,7 +225,11 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       }
     }
 
-    async function getInfo(userId: UserId, roomId: RoomId, created: string) {
+    async function getInfo(
+      userId: UserId,
+      roomId: RoomId,
+      created: Message["created"]
+    ) {
       const message = await m.readByCreated(roomId, created);
       const { success, data } = messageValidator(message);
       if (!success) {
@@ -228,32 +246,59 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       message: UpdateMessage
     ) {
-      const readyMessage: Omit<Message, typeof accountFields.general.username> =
-        {
-          ...message,
-          modified: touchDate(),
-          authorId: userId,
-        };
-      const success = await m.update(roomId, readyMessage);
+      const updatedMessage: Message = {
+        ...message,
+        modified: touchDate(),
+        authorId: userId,
+      };
+      const success = await m.update(roomId, updatedMessage);
       if (!success) return { success: false as const };
       return {
         success: true as const,
-        dates: { created: message.created, modified: message.modified },
+        dates: { created: message.created, modified: updatedMessage.modified },
       };
     }
 
-    async function remove(roomId: RoomId, created: string) {
+    async function remove(roomId: RoomId, created: Message["created"]) {
       return await m.remove(roomId, created);
     }
 
-    async function compare(roomId: RoomId, clientDates: MessageDate[]) {
-      const storedMessageArr = await m.readArrByCreated(roomId, clientDates);
-      if (storedMessageArr.length === 0) return { toRemove: clientDates };
+    async function compare(
+      userId: UserId,
+      roomId: RoomId,
+      dates: MessageDates[]
+    ) {
+      const makeCreatedArray = (dates: MessageDates[]) => {
+        return dates.map(({ modified, ...dates }) => dates.created);
+      };
 
-      const { messages } = messageArrValidator(storedMessageArr);
-      if (!messages) return { toRemove: clientDates };
+      const storedMessages = await m.readArrByCreated(roomId, dates);
+      if (storedMessages.length === 0)
+        return { toRemove: makeCreatedArray(dates) };
 
-      const { toUpdate, toRemove } = calcDatesDiff(clientDates, messages);
+      // Add username && replace userId if self message exist in result
+      for (const message of storedMessages) {
+        if (message.authorId !== "service") {
+          if (message.authorId === userId) {
+            message.authorId = "self" as const;
+          }
+          const result = await account(redis, isProd)
+            .internal()
+            .read(userId, message.authorId, {
+              general: [accountFields.general.username],
+            });
+          if (!result.general?.username) {
+            message.username = "DELETED ACCOUNT" as const;
+          } else {
+            message.username = result.general?.username;
+          }
+        }
+      }
+
+      const { messages } = messageArrValidator(storedMessages);
+      if (!messages) return { toRemove: makeCreatedArray(dates) };
+
+      const { toUpdate, toRemove } = calcDatesDiff(dates, messages);
       return { toUpdate, toRemove };
     }
 
@@ -283,7 +328,11 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       return payloadSuccessfulAddMessage(roomId, result.created, isProd);
     }
 
-    async function read(userId: UserId, roomId: RoomId, range: MessageRange) {
+    async function read(
+      userId: UserId,
+      roomId: RoomId,
+      range: { min: number; max: number }
+    ) {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedBySoftRule(roomId, userId);
@@ -328,7 +377,11 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       return payloadMessageUpdatedSuccessfully(roomId, dates, isProd);
     }
 
-    async function remove(userId: UserId, roomId: RoomId, created: string) {
+    async function remove(
+      userId: UserId,
+      roomId: RoomId,
+      created: Message["created"]
+    ) {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedByHardRule(roomId, userId);
@@ -346,7 +399,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     async function compare(
       userId: UserId,
       roomId: RoomId,
-      toCompare: MessageDate[]
+      toCompare: MessageDates[]
     ) {
       const isAllow = await room(redis, isProd)
         .internal()
@@ -354,6 +407,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
 
       const { toUpdate, toRemove } = await internal().compare(
+        userId,
         roomId,
         toCompare
       );

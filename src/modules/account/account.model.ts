@@ -72,7 +72,7 @@ export const model = (redis: FastifyRedis) => {
   async function setLastSeenMessageCreated(
     userId: UserId,
     roomId: RoomId,
-    created: string
+    created: number
   ) {
     const result = await redis.hset(
       lastSeenMessageKey(userId),
@@ -84,9 +84,9 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function getLastSeenMessageCreated(userId: UserId, roomId: RoomId) {
-    const result = await redis.hget(lastSeenMessageKey(userId), roomId);
-    if (!result) return { success: false as const };
-    return { success: true as const, created: result };
+    const created = await redis.hget(lastSeenMessageKey(userId), roomId);
+    if (!created) return { success: false as const };
+    return { success: true as const, created: Number(created) };
   }
 
   return {

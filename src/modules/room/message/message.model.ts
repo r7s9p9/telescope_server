@@ -1,15 +1,10 @@
 import { FastifyRedis } from "@fastify/redis";
-import { RoomId, UserId } from "../../types";
-import {
-  AddMessage,
-  Message,
-  MessageDate,
-  ServiceMessage,
-} from "./message.types";
+import { RoomId } from "../../types";
 import { roomMessagesKey } from "./message.constants";
 import { accountFields } from "../../account/account.constants";
+import { Message, MessageDates, ServiceMessage } from "./message.schema";
 
-const stringify = (message: AddMessage | ServiceMessage) => {
+const stringify = (message: Message | ServiceMessage) => {
   return JSON.stringify(message);
 };
 
@@ -21,13 +16,14 @@ const parse = (message?: string | null) => {
 const parseArr = (messageArr: string[]) => {
   const result: any[] = [];
   for (const message of messageArr) {
-    result.push(parse(message));
+    const parsedMessage = parse(message);
+    if (parsedMessage) result.push(parsedMessage);
   }
   return result;
 };
 
 export const model = (redis: FastifyRedis) => {
-  async function add(roomId: RoomId, message: AddMessage | ServiceMessage) {
+  async function add(roomId: RoomId, message: Message | ServiceMessage) {
     if (!message.created) return false as const;
     const result = await redis.zadd(
       roomMessagesKey(roomId),
@@ -52,7 +48,7 @@ export const model = (redis: FastifyRedis) => {
     return await redis.zcount(roomMessagesKey(roomId), "-inf", "+inf");
   }
 
-  async function readByCreated(roomId: RoomId, created: string) {
+  async function readByCreated(roomId: RoomId, created: Message["created"]) {
     const [message] = await redis.zrange(
       roomMessagesKey(roomId),
       created,
@@ -65,11 +61,12 @@ export const model = (redis: FastifyRedis) => {
 
   async function readArrByCreated(
     roomId: RoomId,
-    messageDatesArr: MessageDate[]
+    messageDatesArr: MessageDates[]
   ) {
     const messageArr: any[] = [];
     for (const messageDates of messageDatesArr) {
       const message = await readByCreated(roomId, messageDates.created);
+      if (!message) continue;
       messageArr.push(message);
     }
     return messageArr;
@@ -107,7 +104,10 @@ export const model = (redis: FastifyRedis) => {
     return true;
   }
 
-  async function getMessageCountByCreated(roomId: RoomId, minCreated: string) {
+  async function getMessageCountByCreated(
+    roomId: RoomId,
+    minCreated: Message["created"]
+  ) {
     return await redis.zcount(roomMessagesKey(roomId), minCreated, "+inf");
   }
 

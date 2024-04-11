@@ -1,7 +1,7 @@
 import { roomKey } from "../room.constants";
 import { RoomId } from "../../types";
-import { Message, MessageDate } from "./message.types";
 import { ZodError } from "zod";
+import { Message, MessageDates } from "./message.schema";
 
 export const roomMessagesKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:messages`;
@@ -147,7 +147,7 @@ export const payloadMessageNotUpdated = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadMessageUpdatedSuccessfully = (
   roomId: RoomId,
-  dates: MessageDate,
+  dates: MessageDates,
   isProd: boolean
 ) => {
   const devMessage = "The message has been successfully modified" as const;
@@ -240,7 +240,7 @@ export const payloadMessageWasNotDeleted = (
 export const payloadUpdatedMessages = (
   roomId: RoomId,
   isProd: boolean,
-  toRemove: MessageDate[],
+  toRemove: Message["created"][],
   toUpdate?: Message[]
 ) => {
   const devMessageToUpdate =
@@ -249,22 +249,23 @@ export const payloadUpdatedMessages = (
     "Successfully sent creation dates for already deleted messages" as const;
   const devMessageAllEqual = "All messages are relevant" as const;
 
-  const isToUpdate = toUpdate && toUpdate.length !== 0;
-  const isToRemove = toRemove.length !== 0;
-  const isEqual = !isToUpdate && !isToRemove;
+  const isUpdate = toUpdate && toUpdate.length !== 0;
+  const isRemove = toRemove.length !== 0;
+  const isEqual = !isUpdate && !isRemove;
 
   const devMessage: string[] = [];
-  if (isToUpdate) devMessage.push(devMessageToUpdate);
-  if (isToRemove) devMessage.push(devMessageToRemove);
+  if (isUpdate) devMessage.push(devMessageToUpdate);
+  if (isRemove) devMessage.push(devMessageToRemove);
   if (isEqual) devMessage.push(devMessageAllEqual);
   return {
     status: 200 as const,
     data: {
+      access: true as const,
       success: true as const,
-      toUpdate: isToUpdate ? toUpdate : undefined,
-      toRemove: isToRemove ? toRemove : undefined,
-      isEqual: isEqual,
-      roomId: roomId,
+      toUpdate: isUpdate ? toUpdate : undefined,
+      toRemove: isRemove ? toRemove : undefined,
+      isEqual,
+      roomId,
       dev: !isProd ? { message: devMessage } : undefined,
     },
   };
