@@ -16,7 +16,8 @@ import {
   payloadNotAuthorOfMessage,
   payloadSuccessfulAddMessage,
   payloadSuccessfulReadMessages,
-  payloadUpdatedMessages,
+  payloadComparedMessages,
+  payloadReadBadRequest,
 } from "./message.constants";
 import { serviceId } from "../room.constants";
 import {
@@ -158,14 +159,25 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     async function read(
       userId: UserId,
       roomId: RoomId,
-      range: { min: number; max: number }
+      indexRange?: { min: number; max: number },
+      createdRange?: { min: number; max?: number }
     ) {
       // Get message count
       const allCount = await m.getCount(roomId);
       if (allCount === 0)
         return { isEmpty: true as const, allCount: 0 as const };
 
-      const messages = await m.readByRange(roomId, range.min, range.max);
+      let messages = [];
+      if (indexRange) {
+        messages = await m.readByRange(roomId, indexRange.min, indexRange.max);
+      }
+      if (createdRange) {
+        messages = await m.readByCreatedRange(
+          roomId,
+          createdRange.min,
+          createdRange.max
+        );
+      }
 
       // Add username && replace userId if self message exist in result
       for (const message of messages) {
@@ -331,20 +343,28 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
     async function read(
       userId: UserId,
       roomId: RoomId,
-      range: { min: number; max: number }
+      indexRange?: { min: number; max: number },
+      createdRange?: { min: number; max?: number }
     ) {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedBySoftRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
 
+      const isBadRequest =
+        (indexRange && createdRange) || (!indexRange && !createdRange);
+      if (isBadRequest)
+        return payloadReadBadRequest(isProd, roomId, indexRange, createdRange);
+
       const { messages, errors, isEmpty, allCount } = await internal().read(
         userId,
         roomId,
-        range
+        indexRange,
+        createdRange
       );
-      if (isEmpty)
+      if (isEmpty) {
         return payloadNoOneMessageReaded(isProd, roomId, allCount, errors);
+      }
       return payloadSuccessfulReadMessages(
         isProd,
         roomId,
@@ -406,13 +426,13 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
         .isAllowedBySoftRule(roomId, userId);
       if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
 
-      const { toUpdate, toRemove } = await internal().compare(
+      const { toRemove, toUpdate } = await internal().compare(
         userId,
         roomId,
         toCompare
       );
 
-      return payloadUpdatedMessages(roomId, isProd, toRemove, toUpdate);
+      return payloadComparedMessages(roomId, isProd, toRemove, toUpdate);
     }
 
     return {

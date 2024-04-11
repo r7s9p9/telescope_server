@@ -23,7 +23,8 @@ export async function messageReadRoute(fastify: FastifyInstance) {
       const result = await messageAction.read(
         req.session.token.id,
         req.body.roomId,
-        req.body.range
+        req.body.indexRange,
+        req.body.createdRange
       );
       return rep.code(result.status).send(result.data);
     },

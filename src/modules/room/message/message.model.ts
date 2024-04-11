@@ -72,6 +72,20 @@ export const model = (redis: FastifyRedis) => {
     return messageArr;
   }
 
+  async function readByCreatedRange(
+    roomId: RoomId,
+    minCreated: number,
+    maxCreated?: number
+  ) {
+    const messages = await redis.zrange(
+      roomMessagesKey(roomId),
+      minCreated,
+      maxCreated ? maxCreated : "+inf",
+      "BYSCORE"
+    );
+    return parseArr(messages);
+  }
+
   async function readMessageByRevRange(roomId: RoomId, index: number) {
     const [message] = await redis.zrevrange(
       roomMessagesKey(roomId),
@@ -119,6 +133,7 @@ export const model = (redis: FastifyRedis) => {
     update,
     readByCreated,
     readArrByCreated,
+    readByCreatedRange,
     readMessageByRevRange,
     getMessageCountByCreated,
   };

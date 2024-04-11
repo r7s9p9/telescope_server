@@ -70,6 +70,33 @@ export const payloadSuccessfulReadMessages = (
   };
 };
 
+export const payloadReadBadRequest = (
+  isProd: boolean,
+  roomId: RoomId,
+  indexRange?: { min: number; max: number },
+  createdRange?: { min: number; max?: number }
+) => {
+  let devMessage = "Invalid request. " as const;
+
+  if (indexRange && createdRange) {
+    devMessage +=
+      "Messages are requested through both indexRange and createdRange" as const;
+  }
+  if (!indexRange && !createdRange) {
+    devMessage += "Messages requested without indexRange or createdRange";
+  }
+
+  return {
+    status: 400 as const,
+    data: {
+      access: true as const,
+      success: false as const,
+      roomId,
+      dev: !isProd ? { message: [devMessage] } : undefined,
+    },
+  };
+};
+
 export const payloadNoOneMessageReaded = (
   isProd: boolean,
   roomId: RoomId,
@@ -237,7 +264,7 @@ export const payloadMessageWasNotDeleted = (
   };
 };
 
-export const payloadUpdatedMessages = (
+export const payloadComparedMessages = (
   roomId: RoomId,
   isProd: boolean,
   toRemove: Message["created"][],
@@ -249,21 +276,21 @@ export const payloadUpdatedMessages = (
     "Successfully sent creation dates for already deleted messages" as const;
   const devMessageAllEqual = "All messages are relevant" as const;
 
-  const isUpdate = toUpdate && toUpdate.length !== 0;
-  const isRemove = toRemove.length !== 0;
-  const isEqual = !isUpdate && !isRemove;
+  const isToUpdate = toUpdate && toUpdate.length !== 0;
+  const isToRemove = toRemove.length !== 0;
+  const isEqual = !isToUpdate && !isToRemove;
 
   const devMessage: string[] = [];
-  if (isUpdate) devMessage.push(devMessageToUpdate);
-  if (isRemove) devMessage.push(devMessageToRemove);
+  if (isToUpdate) devMessage.push(devMessageToUpdate);
+  if (isToRemove) devMessage.push(devMessageToRemove);
   if (isEqual) devMessage.push(devMessageAllEqual);
   return {
     status: 200 as const,
     data: {
       access: true as const,
       success: true as const,
-      toUpdate: isUpdate ? toUpdate : undefined,
-      toRemove: isRemove ? toRemove : undefined,
+      toUpdate: isToUpdate ? toUpdate : undefined,
+      toRemove: isToRemove ? toRemove : undefined,
       isEqual,
       roomId,
       dev: !isProd ? { message: devMessage } : undefined,

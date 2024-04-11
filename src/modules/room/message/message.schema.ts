@@ -81,10 +81,18 @@ export const routeSchema = () => {
   const read = {
     body: z.object({
       roomId: roomId,
-      range: z.object({
-        min: z.number(),
-        max: z.number(),
-      }),
+      indexRange: z
+        .object({
+          min: z.number(),
+          max: z.number(),
+        })
+        .optional(),
+      createdRange: z
+        .object({
+          min: z.number(),
+          max: z.number().optional(),
+        })
+        .optional(),
     }),
   };
 
