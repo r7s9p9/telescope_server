@@ -7,21 +7,16 @@ import {
   roomUsersKey,
   userServiceRoomKey,
 } from "./room.constants";
-import {
-  RoomInfoInternal,
-  ReadRoomInfoResult,
-  RoomInfoToUpdate,
-  RoomInfoToRead,
-} from "./room.types";
 import { checkRoomId } from "../../utils/uuid";
 import { userRoomsKey } from "./room.constants";
+import { InfoType } from "./room.schema";
 
 export const model = (redis: FastifyRedis) => {
   async function touchCreatedDate(roomId: RoomId) {
     const result = await redis.hset(
       roomInfoKey(roomId),
       roomInfoFields.created,
-      Number(Date.now())
+      Date.now()
     );
     if (result === 1) return true as const;
     return false as const;
@@ -29,8 +24,8 @@ export const model = (redis: FastifyRedis) => {
 
   async function createRoom(
     roomId: RoomId,
-    userIdArr: UserId[],
-    roomInfo: RoomInfoInternal
+    userIds: UserId[],
+    info: Omit<InfoType, "created" | "userCount">
   ) {
     const undoChanges = async () => {
       await deleteRoom(roomId);
@@ -40,10 +35,10 @@ export const model = (redis: FastifyRedis) => {
     const dateSuccess = await touchCreatedDate(roomId);
     if (!dateSuccess) return await undoChanges();
 
-    const infoSuccess = await updateRoomInfo(roomId, roomInfo);
+    const infoSuccess = await updateRoomInfo(roomId, info);
     if (!infoSuccess) return await undoChanges();
 
-    const userArr = await addUsers(roomId, userIdArr);
+    const userArr = await addUsers(roomId, userIds);
     if (userArr.length === 0) return await undoChanges();
 
     return true as const;
@@ -52,7 +47,7 @@ export const model = (redis: FastifyRedis) => {
   async function createServiceRoomId(userId: UserId, roomId: RoomId) {
     const result = await redis.set(userServiceRoomKey(userId), roomId);
     if (result !== "OK") {
-      await redis.del(userServiceRoomKey(userId), roomId)
+      await redis.del(userServiceRoomKey(userId), roomId);
       return false as const;
     }
     return true as const;
@@ -76,29 +71,39 @@ export const model = (redis: FastifyRedis) => {
 
   async function readRoomInfo(
     roomId: RoomId,
-    toRead: RoomInfoToRead
-  ): Promise<ReadRoomInfoResult> {
+    fields: Array<keyof Omit<InfoType, "userCount">>
+  ): Promise<InfoType> {
     const result = Object.create(null);
-    for (const field of toRead) {
+
+    for (const field of fields) {
       const value = await redis.hget(roomInfoKey(roomId), field);
       if (!value) continue;
-      result[field] = value;
+      if (field === "created") {
+        result[field] = Number(value);
+      } else {
+        result[field] = value;
+      }
     }
-    result.roomId = roomId;
+
     return result;
   }
 
-  async function updateRoomInfo(roomId: RoomId, roomInfo: RoomInfoToUpdate) {
-    let success = true;
-    let key: string;
-    let value: keyof RoomInfoToUpdate;
-    for ([key, value] of Object.entries(roomInfo)) {
-      const result = await redis.hset(roomInfoKey(roomId), key, value);
+  async function getUserCount(roomId: RoomId) {
+    return await redis.scard(roomUsersKey(roomId));
+  }
+
+  async function updateRoomInfo(
+    roomId: RoomId,
+    info: Partial<Omit<InfoType, "created" | "userCount">>
+  ) {
+    let field: string;
+    let value: string;
+    for ([field, value] of Object.entries(info)) {
+      const result = await redis.hset(roomInfoKey(roomId), field, value);
       if (result === 1 || result === 0) continue;
-      success = false;
-      break;
+      return false as const;
     }
-    return success;
+    return true as const;
   }
 
   async function isCreator(roomId: RoomId, userId: UserId) {
@@ -131,67 +136,67 @@ export const model = (redis: FastifyRedis) => {
     return (await redis.sismember(userRoomsKey(userId), roomId)) === 1;
   }
 
-  async function addUsers(roomId: RoomId, userIdArr: UserId[]) {
-    const addedUsers: UserId[] = [];
-    for (const userId of userIdArr) {
+  async function addUsers(roomId: RoomId, userIds: UserId[]) {
+    const addedUserIds: UserId[] = [];
+    for (const userId of userIds) {
       const addToUserSet =
         (await redis.sadd(roomUsersKey(roomId), userId)) === 1;
       const addToRoomSet =
         (await redis.sadd(userRoomsKey(userId), roomId)) === 1;
       if (addToUserSet && addToRoomSet) {
         // Already added users will not appear as added (true)
-        addedUsers.push(userId);
+        addedUserIds.push(userId);
       }
     }
-    return addedUsers;
+    return addedUserIds;
   }
 
-  async function removeUsers(roomId: RoomId, userIdArr: UserId[]) {
-    const removedUsers: UserId[] = [];
-    for (const userId of userIdArr) {
+  async function removeUsers(roomId: RoomId, userIds: UserId[]) {
+    const removedUserIds: UserId[] = [];
+    for (const userId of userIds) {
       const remFromRoomSet =
-        (await redis.srem(roomUsersKey(roomId), userIdArr)) === 1;
+        (await redis.srem(roomUsersKey(roomId), userIds)) === 1;
       const remFromUserSet =
         (await redis.srem(userRoomsKey(userId), roomId)) === 1;
       if (remFromRoomSet && remFromUserSet) {
         // Already removed users will not push
-        removedUsers.push(userId);
+        removedUserIds.push(userId);
       }
     }
-    return removedUsers;
+    return removedUserIds;
   }
 
   async function isUserBlocked(roomId: RoomId, userId: UserId) {
     return !!(await redis.sismember(roomBlockedUsersKey(roomId), userId));
   }
 
-  async function blockUsers(roomId: RoomId, userIdArr: UserId[]) {
+  async function blockUsers(roomId: RoomId, userIds: UserId[]) {
     const { creatorId } = await readRoomInfo(roomId, [
       roomInfoFields.creatorId,
     ]);
-    const blockedUsers: UserId[] = [];
+    const blockedUserIds: UserId[] = [];
 
-    for (const userId of userIdArr) {
+    for (const userId of userIds) {
       if (userId === creatorId) continue;
       const success =
-        (await redis.sadd(roomBlockedUsersKey(roomId), userIdArr)) === 1;
+        (await redis.sadd(roomBlockedUsersKey(roomId), userIds)) === 1;
       if (!success) continue;
       // Already blocked users will not appear as added (true)
-      blockedUsers.push(userId);
+      blockedUserIds.push(userId);
     }
-    return blockedUsers;
+    return blockedUserIds;
   }
 
-  async function unblockUsers(roomId: RoomId, userIdArr: UserId[]) {
-    const unblockedUsers: UserId[] = [];
-    for (const userId of userIdArr) {
+  async function unblockUsers(roomId: RoomId, userIds: UserId[]) {
+    const unblockedUserIds: UserId[] = [];
+    for (const userId of userIds) {
       const success =
-        (await redis.srem(roomBlockedUsersKey(roomId), userIdArr)) === 1;
+        (await redis.srem(roomBlockedUsersKey(roomId), userIds)) === 1;
       if (!success) continue;
       // Already unblocked users will not appear as added (true)
-      unblockedUsers.push(userId);
+      unblockedUserIds.push(userId);
     }
-    return unblockedUsers;
+    return unblockedUserIds;
   }
 
   return {
@@ -200,6 +205,7 @@ export const model = (redis: FastifyRedis) => {
     readServiceRoomId,
     deleteRoom,
     readRoomInfo,
+    getUserCount,
     updateRoomInfo,
     isCreator,
     readUsers,

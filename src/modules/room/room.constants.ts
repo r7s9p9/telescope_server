@@ -1,11 +1,11 @@
 import { ZodError } from "zod";
 import { RoomId, UserId } from "../types";
-import {
-  ReadRoomInfoResult,
-  RoomInfoValues,
-  ReadRoomResult,
-} from "./room.types";
 import { accountKey } from "../account/account.constants";
+import { InfoType } from "./room.schema";
+import { Message } from "./message/message.schema";
+
+export const serviceId = "service" as const;
+export const selfId = "self" as const;
 
 export const roomTypeValues = {
   public: "public" as const,
@@ -20,21 +20,14 @@ export const roomInfoFields = {
   type: "type" as const,
   about: "about" as const,
   created: "created" as const,
+  userCount: "userCount" as const,
 };
-
-export const roomInfoFieldsAllArr = [
-  roomInfoFields.name,
-  roomInfoFields.creatorId,
-  roomInfoFields.type,
-  roomInfoFields.about,
-  roomInfoFields.created,
-];
 
 export const roomInfoStartValues = (
   roomInfoValues: {
-    name: RoomInfoValues["name"];
-    type: (typeof roomTypeValues)["public" | "private" | "single"];
-    about: RoomInfoValues["about"];
+    name: InfoType["name"];
+    type: InfoType["type"];
+    about: InfoType["about"];
   },
   creatorId: UserId
 ) => [
@@ -47,9 +40,9 @@ export const roomInfoStartValues = (
   roomInfoFields.creatorId,
   creatorId,
 ];
+
 export const serviceRoomName = "Telescope" as const;
 export const serviceRoomAbout = "Service notifications" as const;
-export const serviceId = "service" as const;
 export const personalRoomName = "Saved Messages";
 export const roomKeyPart = "room";
 export const internalRoomsKeyPart = "rooms:internal";
@@ -78,26 +71,6 @@ export const roomUsersKey = (roomId: RoomId) => `${roomKey(roomId)}:users`;
 export const roomBlockedUsersKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:blockedUsers`;
 
-export const payloadSuccessfulReadInfo = (
-  info: ReadRoomInfoResult[],
-  isProd: boolean
-) => {
-  return {
-    status: 200 as const,
-    data: {
-      success: true as const,
-      info: info,
-      dev: !isProd
-        ? {
-            message: [
-              "You have successfully read the room information",
-            ] as const,
-          }
-        : undefined,
-    },
-  };
-};
-
 export const payloadSuccessOfCreatingRoom = (
   roomId: RoomId,
   isProd: boolean
@@ -116,7 +89,7 @@ export const payloadSuccessOfCreatingRoom = (
 
 export const payloadSuccessOfReadRoomInfo = (
   roomId: RoomId,
-  roomInfo: ReadRoomInfoResult,
+  info: InfoType,
   isProd: boolean
 ) => {
   return {
@@ -124,7 +97,7 @@ export const payloadSuccessOfReadRoomInfo = (
     data: {
       success: true as const,
       roomId: roomId,
-      roomInfo: roomInfo,
+      info,
       dev: !isProd
         ? { message: ["The room info has been successfully readed"] as const }
         : undefined,
@@ -254,7 +227,7 @@ export const payloadSuccessOfLeave = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadSuccessfulKickUsers = (
   roomId: RoomId,
-  userIdArr: UserId[],
+  users: UserId[],
   isProd: boolean
 ) => {
   const devMessage =
@@ -263,8 +236,8 @@ export const payloadSuccessfulKickUsers = (
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
-      userIdArr: userIdArr,
+      roomId,
+      users,
       dev: !isProd
         ? {
             message: [devMessage],
@@ -279,7 +252,7 @@ export const payloadNoOneKicked = (roomId: RoomId, isProd: boolean) => {
     status: 409 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: ["No users were kicked out of the room"] as const,
@@ -297,7 +270,7 @@ export const payloadYouAreNoLongerInRoom = (
     status: 409 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? { message: ["You were no longer in this room"] as const }
         : undefined,
@@ -307,7 +280,7 @@ export const payloadYouAreNoLongerInRoom = (
 
 export const payloadSuccessOfInvite = (
   roomId: RoomId,
-  userIdArr: UserId[],
+  users: UserId[],
   isProd: boolean
 ) => {
   const devMessage = "You have successfully invite user/s to room" as const;
@@ -315,8 +288,8 @@ export const payloadSuccessOfInvite = (
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
-      userIdArr: userIdArr,
+      roomId,
+      users,
       dev: !isProd
         ? {
             message: [devMessage],
@@ -328,7 +301,7 @@ export const payloadSuccessOfInvite = (
 
 export const payloadSuccessfulBlockUsers = (
   roomId: RoomId,
-  userIdArr: UserId[],
+  users: UserId[],
   isProd: boolean
 ) => {
   const devMessage =
@@ -338,7 +311,7 @@ export const payloadSuccessfulBlockUsers = (
     data: {
       success: true as const,
       roomId: roomId,
-      userIdArr: userIdArr,
+      users,
       dev: !isProd
         ? {
             message: [devMessage],
@@ -353,7 +326,7 @@ export const payloadNoOneBlocked = (roomId: RoomId, isProd: boolean) => {
     status: 409 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: ["No users were banned from the room"] as const,
@@ -365,7 +338,7 @@ export const payloadNoOneBlocked = (roomId: RoomId, isProd: boolean) => {
 
 export const payloadSuccessfulUnblockUsers = (
   roomId: RoomId,
-  userIdArr: UserId[],
+  users: UserId[],
   isProd: boolean
 ) => {
   const devMessage =
@@ -374,8 +347,8 @@ export const payloadSuccessfulUnblockUsers = (
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
-      userIdArr: userIdArr,
+      roomId,
+      users,
       dev: !isProd
         ? {
             message: [devMessage],
@@ -390,7 +363,7 @@ export const payloadNoOneUnblocked = (roomId: RoomId, isProd: boolean) => {
     status: 409 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: ["No users were unblocked from the room"] as const,
@@ -408,7 +381,7 @@ export const payloadSuccessfulDeleteRoom = (
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? { message: ["You have successfully deleted the room"] as const }
         : undefined,
@@ -435,7 +408,7 @@ export const payloadRoomNotCompletelyDeleted = (
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             error: devError,
@@ -450,7 +423,7 @@ export const payloadNoOneInvited = (roomId: RoomId, isProd: boolean) => {
     status: 409 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: ["No users were invited to the room"] as const,
@@ -512,7 +485,7 @@ export const payloadLackOfPermissionToUpdate = (
     status: 403 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: [
@@ -574,7 +547,7 @@ export const payloadLackOfPermissionToJoin = (
     status: 403 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: ["You can't enter the room"] as const,
@@ -589,7 +562,7 @@ export const payloadNoJoined = (roomId: RoomId, isProd: boolean) => {
     status: 403 as const,
     data: {
       success: false as const,
-      roomId: roomId,
+      roomId,
       dev: !isProd
         ? {
             message: ["You're already in the room"] as const,
@@ -599,28 +572,14 @@ export const payloadNoJoined = (roomId: RoomId, isProd: boolean) => {
   };
 };
 
-export const payloadSuccessfulReadUserRooms = (
-  userId: UserId | "self",
-  roomIdArr: RoomId[],
-  isProd: boolean
-) => {
-  return {
-    status: 200 as const,
-    data: {
-      success: false as const,
-      userId: userId,
-      roomIdArr: roomIdArr,
-      dev: !isProd
-        ? {
-            message: ["You have successfully read this user's rooms"] as const,
-          }
-        : undefined,
-    },
-  };
-};
-
 export const payloadSuccessfulReadMyRooms = (
-  rooms: ReadRoomResult[] | undefined,
+  items: Array<
+    InfoType & {
+      roomId: RoomId;
+      unreadCount: number;
+      lastMessage?: Message;
+    }
+  >,
   allCount: number,
   isProd: boolean
 ) => {
@@ -629,7 +588,7 @@ export const payloadSuccessfulReadMyRooms = (
     data: {
       success: true as const,
       allCount,
-      rooms,
+      items,
       dev: !isProd
         ? { message: ["You have successfully read self rooms"] }
         : undefined,

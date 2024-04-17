@@ -11,13 +11,12 @@ import {
   payloadMessageWasNotDeleted,
   payloadNoMessageWasAdded,
   payloadNoOneMessageReaded,
-  payloadNotAllowedAddMessages,
-  payloadNotAllowedReadMessages,
   payloadNotAuthorOfMessage,
   payloadSuccessfulAddMessage,
   payloadSuccessfulReadMessages,
   payloadComparedMessages,
   payloadReadBadRequest,
+  payloadNotAllowed,
 } from "./message.constants";
 import { serviceId } from "../room.constants";
 import {
@@ -132,14 +131,18 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       if (message.replyTo) newMessage.replyTo = message.replyTo;
 
       const success = await m.add(roomId, newMessage);
-      if (!success) return { success: false as const };
+      if (!success) return { success: false as const, access: true as const };
       // Add success -> record the creation date of the read message to account
       await accountAction.setLastMessageCreated(
         userId,
         roomId,
         newMessage.created
       );
-      return { success: true as const, created: newMessage.created };
+      return {
+        success: true as const,
+        access: true as const,
+        created: newMessage.created,
+      };
     }
 
     async function addByService(
@@ -223,8 +226,8 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
         if (!success) continue;
 
         if (data.authorId !== "service") {
-          if (message.authorId === userId) {
-            message.authorId = "self" as const;
+          if (data.authorId === userId) {
+            data.authorId = "self" as const;
           }
           const result = await account(redis, isProd)
             .internal()
@@ -302,7 +305,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
           if (!result.general?.username) {
             message.username = "DELETED ACCOUNT" as const;
           } else {
-            message.username = result.general?.username;
+            message.username = result.general.username;
           }
         }
       }
@@ -333,7 +336,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedByHardRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
+      if (!isAllow) return payloadNotAllowed(roomId, isProd);
 
       const result = await internal().add(userId, roomId, message);
       if (!result.success) return payloadNoMessageWasAdded(roomId, isProd);
@@ -349,7 +352,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedBySoftRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
+      if (!isAllow) return payloadNotAllowed(roomId, isProd);
 
       const isBadRequest =
         (indexRange && createdRange) || (!indexRange && !createdRange);
@@ -382,7 +385,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedByHardRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
+      if (!isAllow) return payloadNotAllowed(roomId, isProd);
 
       const info = await internal().getInfo(userId, roomId, message.created);
       if (!info.isExist) return payloadMessageDoesNotExist(roomId, isProd);
@@ -405,7 +408,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedByHardRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedAddMessages(roomId, isProd);
+      if (!isAllow) return payloadNotAllowed(roomId, isProd);
 
       const info = await internal().getInfo(userId, roomId, created);
       if (!info.isExist) return payloadMessageDoesNotExist(roomId, isProd);
@@ -424,7 +427,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       const isAllow = await room(redis, isProd)
         .internal()
         .isAllowedBySoftRule(roomId, userId);
-      if (!isAllow) return payloadNotAllowedReadMessages(isProd, roomId);
+      if (!isAllow) return payloadNotAllowed(roomId, isProd);
 
       const { toRemove, toUpdate } = await internal().compare(
         userId,

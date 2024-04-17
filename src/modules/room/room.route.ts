@@ -78,7 +78,7 @@ export async function roomUpdateRoute(fastify: FastifyInstance) {
       const result = await roomAction.updateRoomInfo(
         req.session.token.id,
         req.body.roomId,
-        req.body.toWrite
+        req.body.info
       );
       return rep.code(result.status).send(result.data);
     },
@@ -117,7 +117,7 @@ export async function roomKickUsersRoute(fastify: FastifyInstance) {
       const result = await roomAction.kickUsers(
         req.session.token.id,
         req.body.roomId,
-        req.body.toKick
+        req.body.userIds
       );
       return rep.code(result.status).send(result.data);
     },
@@ -137,7 +137,7 @@ export async function roomBlockUsersRoute(fastify: FastifyInstance) {
       const result = await roomAction.blockUsers(
         req.session.token.id,
         req.body.roomId,
-        req.body.toBlock
+        req.body.userIds
       );
       return rep.code(result.status).send(result.data);
     },
@@ -157,7 +157,7 @@ export async function roomUnblockUsersRoute(fastify: FastifyInstance) {
       const result = await roomAction.unblockUsers(
         req.session.token.id,
         req.body.roomId,
-        req.body.toUnblock
+        req.body.userIds
       );
       return rep.code(result.status).send(result.data);
     },
@@ -215,7 +215,7 @@ export async function roomInviteUsersRoute(fastify: FastifyInstance) {
       const result = await roomAction.inviteUsers(
         req.session.token.id,
         req.body.roomId,
-        req.body.toInvite
+        req.body.userIds
       );
       return rep.code(result.status).send(result.data);
     },

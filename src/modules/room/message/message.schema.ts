@@ -1,6 +1,5 @@
 import z from "zod";
 import { RoomId, UserId } from "../../types";
-import { messageDateSize } from "./message.constants";
 import { serviceId } from "../room.constants";
 
 const userId = z

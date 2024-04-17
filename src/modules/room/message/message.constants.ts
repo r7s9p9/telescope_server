@@ -40,6 +40,7 @@ export const payloadSuccessfulAddMessage = (
     status: 200 as const,
     data: {
       success: true as const,
+      access: true as const,
       roomId: roomId,
       created: created,
       dev: !isProd ? { message: [devMessage] } : undefined,
@@ -119,16 +120,14 @@ export const payloadNoOneMessageReaded = (
   };
 };
 
-export const payloadNotAllowedUpdateMessages = (
-  roomId: RoomId,
-  isProd: boolean
-) => {
+export const payloadNotAllowed = (roomId: RoomId, isProd: boolean) => {
   const devMessage =
-    "You are not allowed to update messages in this room" as const;
+    "You are not allowed to carry out any activities in this room." as const;
   return {
     status: 403 as const,
     data: {
-      success: false as const,
+      success: true as const,
+      access: false as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -141,6 +140,7 @@ export const payloadMessageDoesNotExist = (roomId: RoomId, isProd: boolean) => {
     status: 403 as const,
     data: {
       success: false as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -154,6 +154,7 @@ export const payloadNotAuthorOfMessage = (roomId: RoomId, isProd: boolean) => {
     status: 403 as const,
     data: {
       success: false as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -189,45 +190,13 @@ export const payloadMessageUpdatedSuccessfully = (
   };
 };
 
-export const payloadNotAllowedAddMessages = (
-  roomId: RoomId,
-  isProd: boolean
-) => {
-  const devMessage =
-    "You are not allowed to post messages in this room" as const;
-  return {
-    status: 403 as const,
-    data: {
-      success: false as const,
-      roomId: roomId,
-      dev: !isProd ? { message: [devMessage] } : undefined,
-    },
-  };
-};
-
-export const payloadNotAllowedReadMessages = (
-  isProd: boolean,
-  roomId: RoomId
-) => {
-  const devMessage =
-    "You are not allowed to read messages in this room" as const;
-  return {
-    status: 403 as const,
-    data: {
-      access: false as const,
-      success: false as const,
-      roomId: roomId,
-      dev: !isProd ? { message: [devMessage] } : undefined,
-    },
-  };
-};
-
 export const payloadNoMessageWasAdded = (roomId: RoomId, isProd: boolean) => {
   const devError = "Message not added" as const;
   return {
     status: 409 as const,
     data: {
       success: false as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd ? { error: [devError] } : undefined,
     },
@@ -243,6 +212,7 @@ export const payloadMessageSuccessfullyDeleted = (
     status: 200 as const,
     data: {
       success: true as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -257,7 +227,8 @@ export const payloadMessageWasNotDeleted = (
   return {
     status: 200 as const,
     data: {
-      success: true as const,
+      success: false as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
