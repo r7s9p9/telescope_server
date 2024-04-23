@@ -53,6 +53,8 @@ export const welcomeSingleRoomMessage =
   "The single room has been successfully created. They are not visible to anyone except you.";
 export const welcomeRegularRoomMessage =
   "The room has been successfully created";
+export const roomInfoUpdatedMessage =
+  "Room information has been successfully updated";
 
 export const userKickedOutMessage = "was kicked out of this room";
 export const userBlockedMessage = "was banned from this room";
@@ -164,7 +166,7 @@ export const payloadRoomInfoNotUpdated = (roomId: RoomId, isProd: boolean) => {
   return {
     status: 200 as const,
     data: {
-      success: true as const,
+      success: false as const,
       roomId: roomId,
       dev: !isProd
         ? { error: ["The room was not updated successfully"] as const }

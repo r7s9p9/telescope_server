@@ -41,6 +41,7 @@ import {
   payloadSuccessOfReadRoomInfo,
   payloadLackOfPermissionToReadRoomInfo,
   payloadNoSuccessfulReadRoomInfo,
+  roomInfoUpdatedMessage,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -260,7 +261,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     ) {
       const success = await m.updateRoomInfo(roomId, info);
       if (success) {
-        await messageAction.addByService(roomId, welcomeRegularRoomMessage);
+        await messageAction.addByService(roomId, roomInfoUpdatedMessage);
         return true as const;
       }
       return false as const;
@@ -377,6 +378,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       }
       // Sort and slice by range
       rooms.sort(roomDateComparator);
+
       return {
         allCount,
         rooms: rooms.slice(range.min, range.max),

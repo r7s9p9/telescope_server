@@ -2,6 +2,7 @@ import { roomKey } from "../room.constants";
 import { RoomId } from "../../types";
 import { ZodError } from "zod";
 import { Message, MessageDates } from "./message.schema";
+import { access } from "fs";
 
 export const roomMessagesKey = (roomId: RoomId) =>
   `${roomKey(roomId)}:messages`;
@@ -167,6 +168,7 @@ export const payloadMessageNotUpdated = (roomId: RoomId, isProd: boolean) => {
     status: 403 as const,
     data: {
       success: false as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
@@ -182,9 +184,10 @@ export const payloadMessageUpdatedSuccessfully = (
   return {
     status: 200 as const,
     data: {
+      access: true as const,
       success: true as const,
-      dates: dates,
-      roomId: roomId,
+      dates,
+      roomId,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
   };

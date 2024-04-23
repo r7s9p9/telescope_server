@@ -47,7 +47,7 @@ export const infoSchema = z.object({
   ]),
   [roomInfoFields.created]: createdSchema,
   [roomInfoFields.type]: typeSchema,
-  [roomInfoFields.about]: aboutSchema,
+  [roomInfoFields.about]: aboutSchema.optional(),
   [roomInfoFields.userCount]: userCountSchema,
 });
 

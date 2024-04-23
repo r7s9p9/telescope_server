@@ -195,9 +195,9 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
             });
           if (!result.general?.username) {
             message.username = "DELETED ACCOUNT" as const;
-          } else {
-            message.username = result.general?.username;
+            continue;
           }
+          message.username = result.general?.username;
         }
       }
 
