@@ -39,16 +39,14 @@ const aboutSchema = z.string();
 const userCountSchema = z.number();
 
 export const infoSchema = z.object({
-  [roomInfoFields.name]: nameSchema,
-  [roomInfoFields.creatorId]: z.union([
-    userIdSchema,
-    serviceIdSchema,
-    maskedUserIdSchema,
-  ]),
-  [roomInfoFields.created]: createdSchema,
-  [roomInfoFields.type]: typeSchema,
+  [roomInfoFields.name]: nameSchema.optional(),
+  [roomInfoFields.creatorId]: z
+    .union([userIdSchema, serviceIdSchema, maskedUserIdSchema])
+    .optional(),
+  [roomInfoFields.created]: createdSchema.optional(),
+  [roomInfoFields.type]: typeSchema.optional(),
   [roomInfoFields.about]: aboutSchema.optional(),
-  [roomInfoFields.userCount]: userCountSchema,
+  [roomInfoFields.userCount]: userCountSchema.optional(),
 });
 
 export type InfoType = z.infer<typeof infoSchema>;
@@ -61,7 +59,13 @@ const createRoomInfoSchema = z.object({
 
 const updateRoomInfoSchema = z.object({
   name: nameSchema.optional(),
-  type: typeSchema.optional(),
+  type: z
+    .union([
+      z.literal(roomTypeValues.public),
+      z.literal(roomTypeValues.private),
+      z.literal(roomTypeValues.single),
+    ])
+    .optional(),
   about: aboutSchema.optional(),
   creatorId: userIdSchema.optional(),
 });
@@ -79,6 +83,14 @@ export const routeSchema = () => {
   const readRoomInfo = {
     body: z.object({
       roomId: roomIdSchema,
+    }),
+  };
+
+  const searchRooms = {
+    body: z.object({
+      limit: z.number().finite(),
+      offset: z.number().finite(),
+      q: z.string().optional(),
     }),
   };
 
@@ -150,6 +162,7 @@ export const routeSchema = () => {
 
   return {
     readMyRooms,
+    searchRooms,
     readRoomInfo,
     updateRoomInfo,
     createRoom,

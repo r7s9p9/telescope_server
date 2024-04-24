@@ -1,6 +1,7 @@
 import { FastifyRedis } from "@fastify/redis";
 import { RoomId, UserId } from "../types";
 import {
+  allRoomsKey,
   roomBlockedUsersKey,
   roomInfoFields,
   roomInfoKey,
@@ -10,6 +11,7 @@ import {
 import { checkRoomId } from "../../utils/uuid";
 import { userRoomsKey } from "./room.constants";
 import { InfoType } from "./room.schema";
+import { roomMessagesKey } from "./message/message.constants";
 
 export const model = (redis: FastifyRedis) => {
   async function touchCreatedDate(roomId: RoomId) {
@@ -31,6 +33,9 @@ export const model = (redis: FastifyRedis) => {
       await deleteRoom(roomId);
       return false as const;
     };
+
+    const setResult = await redis.sadd(allRoomsKey(), roomId);
+    if (setResult !== 1) return await undoChanges();
 
     const dateSuccess = await touchCreatedDate(roomId);
     if (!dateSuccess) return await undoChanges();
@@ -58,13 +63,17 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function deleteRoom(roomId: RoomId) {
+    const setResult = (await redis.srem(allRoomsKey(), roomId)) === 1;
     const infoResult = (await redis.del(roomInfoKey(roomId))) === 1;
     const usersResult = (await redis.del(roomUsersKey(roomId))) === 1;
+    const messagesResult = (await redis.del(roomMessagesKey(roomId))) === 1;
     //const blockedResult = (await redis.del(roomBlockedUsersKey(roomId))) === 1;
     // TODO need to know if there no blocked key (no banned users)
     return {
+      set: setResult,
       info: infoResult,
       users: usersResult,
+      messages: messagesResult,
       //blocked: blockedResult,
     };
   }
@@ -86,6 +95,10 @@ export const model = (redis: FastifyRedis) => {
     }
 
     return result;
+  }
+
+  async function scanRoomIds(cursor?: string) {
+    return await redis.sscan(allRoomsKey(), cursor ? cursor : "0");
   }
 
   async function getUserCount(roomId: RoomId) {
@@ -202,6 +215,7 @@ export const model = (redis: FastifyRedis) => {
   return {
     createRoom,
     createServiceRoomId,
+    scanRoomIds,
     readServiceRoomId,
     deleteRoom,
     readRoomInfo,

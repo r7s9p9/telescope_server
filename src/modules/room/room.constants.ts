@@ -67,6 +67,7 @@ export const userRoomsKey = (userId: UserId) => `${accountKey(userId)}:rooms`;
 export const userServiceRoomKey = (userId: UserId) =>
   `${userRoomsKey(userId)}:serviceRoomId`;
 
+export const allRoomsKey = () => `${roomKeyPart}:all`;
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;
 export const roomUsersKey = (roomId: RoomId) => `${roomKey(roomId)}:users`;
@@ -604,6 +605,36 @@ export const payloadNoRoomsFound = (isProd: boolean) => {
     data: {
       success: true as const,
       allCount: 0 as const,
+      dev: !isProd
+        ? { message: ["There are no rooms in this range"] }
+        : undefined,
+    },
+  };
+};
+
+export const payloadSearch = (
+  rooms: InfoType[] & { roomId: RoomId }[],
+  isProd: boolean
+) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      isEmpty: false as const,
+      rooms,
+      dev: !isProd
+        ? { message: ["There are no rooms in this range"] }
+        : undefined,
+    },
+  };
+};
+
+export const payloadSearchEmpty = (isProd: boolean) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      isEmpty: true as const,
       dev: !isProd
         ? { message: ["There are no rooms in this range"] }
         : undefined,

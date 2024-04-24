@@ -42,11 +42,7 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       const code = Math.floor(100000 + Math.random() * 900000);
       const codeSuccess = await m.writeCode(userId, code, userAgent);
       if (!codeSuccess) return false as const;
-
-      const {success, roomId} = await roomAction.readServiceRoomId(userId);
-      if (!success) return false as const;
-      
-      return await messageAction.addByService(roomId, confirmationCodeMessage(code));
+      return await roomAction.handleCodeRequest(userId, code);
     }
 
     async function compareCode(
@@ -193,10 +189,12 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
       try {
         const result = await internal().login(jwt, ip, ua, email, password);
 
-        if (result.badAuth || result.badPassword) return { payload: payloadInvalidEmailOrPassword(isProd) };
-        if (result.code) return { payload: payloadVerificationRequired(isProd) };
+        if (result.badAuth || result.badPassword)
+          return { payload: payloadInvalidEmailOrPassword(isProd) };
+        if (result.code)
+          return { payload: payloadVerificationRequired(isProd) };
         if (!result.success) return { payload: payloadServerError(isProd) };
-        
+
         return {
           payload: payloadLoginSuccessful(result.tokenData.raw, isProd),
           tokenData: result.tokenData,
