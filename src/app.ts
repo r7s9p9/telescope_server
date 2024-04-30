@@ -129,10 +129,7 @@ const app = async () => {
   );
 
   await fastify.register(fastifyRedis, {
-    host: "localhost",
-    //password: 'your strong password here',
-    //port: 6379,
-    //family: 4   // (IPv4) or 6 (IPv6)
+    host: 'redis'
   });
 
   await fastify.register(authRegisterRoute);
@@ -174,7 +171,7 @@ const app = async () => {
   await fastify.register(messageRemoveRoute);
   await fastify.register(messageCompareRoute);
 
-  fastify.listen({ port: parseInt(fastify.env.appPort) }, function (err) {
+  fastify.listen({ host: fastify.env.appHost, port: parseInt(fastify.env.appPort) }, function (err) {
     if (err) {
       fastify.log.error(err);
       process.exit(1);

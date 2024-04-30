@@ -37,6 +37,7 @@ const typeSchema = z.union([
 const aboutSchema = z.string();
 
 const userCountSchema = z.number();
+const isMemberSchema = z.boolean();
 
 export const infoSchema = z.object({
   [roomInfoFields.name]: nameSchema.optional(),
@@ -47,6 +48,7 @@ export const infoSchema = z.object({
   [roomInfoFields.type]: typeSchema.optional(),
   [roomInfoFields.about]: aboutSchema.optional(),
   [roomInfoFields.userCount]: userCountSchema.optional(),
+  [roomInfoFields.isMember]: isMemberSchema.optional(),
 });
 
 export type InfoType = z.infer<typeof infoSchema>;

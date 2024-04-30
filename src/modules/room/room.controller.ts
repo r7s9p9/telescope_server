@@ -78,6 +78,10 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       );
     };
 
+    const isMember = async (roomId: RoomId, userId: UserId) => {
+      return await m.isUserInRoomSet(roomId, userId);
+    };
+
     const isPublicRoom = async (roomId: RoomId) => {
       const { success, data } = await readInfo(roomId, [roomInfoFields.type]);
       if (success && data.type === roomTypeValues.public) return true as const;
@@ -91,8 +95,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const isPublic = await isPublicRoom(roomId);
       if (isPublic) return true as const;
 
-      const isMember = await m.isUserInRoomSet(roomId, userId);
-      if (isMember) return true as const;
+      const isUserMember = await isMember(roomId, userId);
+      if (isUserMember) return true as const;
 
       const isCreator = await m.isCreator(roomId, userId);
       if (isCreator) return true as const;
@@ -104,8 +108,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const isBlocked = await m.isUserBlocked(userId, roomId);
       if (isBlocked) return false as const;
 
-      const isMember = await m.isUserInRoomSet(roomId, userId);
-      if (isMember) return true as const;
+      const isUserMember = await isMember(roomId, userId);
+      if (isUserMember) return true as const;
+
       return false as const;
     };
 
@@ -314,6 +319,10 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         info.userCount = await m.getUserCount(roomId);
       }
 
+      if (toRead.includes("isMember") && userId) {
+        info.isMember = await isMember(roomId, userId);
+      }
+
       // Mask creatorId if user is creator
       if (userId && toRead.includes("creatorId") && info.creatorId === userId) {
         info.creatorId = "self";
@@ -404,6 +413,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
             roomInfoFields.creatorId,
             roomInfoFields.about,
             roomInfoFields.userCount,
+            roomInfoFields.isMember,
           ],
           userId
         );
@@ -454,6 +464,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
 
     return {
       handleCodeRequest,
+      isMember,
       isAllowedBySoftRule,
       isAllowedByHardRule,
       getReadyToInviteUserIdArr,
@@ -518,6 +529,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
           roomInfoFields.type,
           roomInfoFields.about,
           roomInfoFields.userCount,
+          roomInfoFields.isMember,
         ],
         userId
       );

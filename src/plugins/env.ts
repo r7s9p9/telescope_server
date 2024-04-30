@@ -14,7 +14,10 @@ declare module "fastify" {
 
 const envVars = z.object({
   APP_IS_PROD: z.union([z.literal("true"), z.literal("false")]),
+  APP_HOST: z.string(),
   APP_PORT: z.string(),
+  REDIS_HOST: z.string(),
+  REDIS_PORT: z.string(),
   TOKEN_SECRET: z.string(),
   TOKEN_ALG: z.enum(jwtAlgorithms),
   TOKEN_EXPIRATION: z.string().min(2),
@@ -30,7 +33,10 @@ const parsedEnvVars = envVars.parse(parsed);
 const converter = (envVars: EnvVarsType) => {
   return {
     isProd: envVars.APP_IS_PROD === "true" ? true : false,
+    appHost: envVars.APP_HOST,
     appPort: envVars.APP_PORT,
+    redisHost: envVars.REDIS_HOST,
+    redisPort: envVars.REDIS_PORT,
     tokenSecret: envVars.TOKEN_SECRET,
     tokenAlg: envVars.TOKEN_ALG,
     tokenSecondsExpiration: dateConverter(envVars.TOKEN_EXPIRATION),

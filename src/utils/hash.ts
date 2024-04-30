@@ -12,6 +12,7 @@ export function hashPassword(password: string) {
   const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
   const hash = createHash(password, salt);
 
+  
   return { hash, salt };
 }
 

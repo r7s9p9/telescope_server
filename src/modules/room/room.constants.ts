@@ -21,6 +21,7 @@ export const roomInfoFields = {
   about: "about" as const,
   created: "created" as const,
   userCount: "userCount" as const,
+  isMember: "isMember" as const,
 };
 
 export const roomInfoStartValues = (
@@ -99,7 +100,7 @@ export const payloadSuccessOfReadRoomInfo = (
     status: 200 as const,
     data: {
       success: true as const,
-      roomId: roomId,
+      roomId,
       info,
       dev: !isProd
         ? { message: ["The room info has been successfully readed"] as const }

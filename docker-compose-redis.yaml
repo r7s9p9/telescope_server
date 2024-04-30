@@ -1,0 +1,15 @@
+services:
+  redis:
+    container_name: redis
+    image: redis:alpine
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--bind", "redis", "--port", "6379"]
+    privileged: true
+    volumes:
+      - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - '6379:6379'
+    restart: unless-stopped
+volumes:
+  redis-data:
+  redis-conf:

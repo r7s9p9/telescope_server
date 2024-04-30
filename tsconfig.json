@@ -15,5 +15,5 @@
     "sourceMap": true,
     "lib": ["es2022"]
   },
-  "exclude": ["node_modules", "wwwroot"]
+  "exclude": ["node_modules", "dist", "wwwroot"]
 }

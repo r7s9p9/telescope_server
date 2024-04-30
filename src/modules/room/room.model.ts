@@ -107,7 +107,7 @@ export const model = (redis: FastifyRedis) => {
 
   async function updateRoomInfo(
     roomId: RoomId,
-    info: Partial<Omit<InfoType, "created" | "userCount">>
+    info: Partial<Omit<InfoType, "created" | "userCount" | "isMember">>
   ) {
     let field: string;
     let value: string;
