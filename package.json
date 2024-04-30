@@ -8,6 +8,7 @@
     "build": "tsc --build --verbose",
     "dev": "ts-node src/app.ts",
     "migrate": "ts-node src/scripts/migrator.ts",
+    "docker:dev:build": "docker compose -f docker-compose-dev.yaml build",
     "docker:dev:up": "docker compose -f docker-compose-dev.yaml up",
     "docker:dev:watch": "docker compose -f docker-compose-dev.yaml watch",
     "docker:dev:down": "docker compose -f docker-compose-dev.yaml down",
