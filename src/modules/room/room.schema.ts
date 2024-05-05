@@ -92,7 +92,7 @@ export const routeSchema = () => {
     body: z.object({
       limit: z.number().finite(),
       offset: z.number().finite(),
-      q: z.string().optional(),
+      q: z.string(),
     }),
   };
 

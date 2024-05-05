@@ -1,7 +1,7 @@
 import { FastifyRedis } from "@fastify/redis";
 import { RoomId, UserId } from "../types";
 import {
-  allRoomsKey,
+  publicRoomsKey,
   roomBlockedUsersKey,
   roomInfoFields,
   roomInfoKey,
@@ -34,9 +34,6 @@ export const model = (redis: FastifyRedis) => {
       return false as const;
     };
 
-    const setResult = await redis.sadd(allRoomsKey(), roomId);
-    if (setResult !== 1) return await undoChanges();
-
     const dateSuccess = await touchCreatedDate(roomId);
     if (!dateSuccess) return await undoChanges();
 
@@ -63,7 +60,7 @@ export const model = (redis: FastifyRedis) => {
   }
 
   async function deleteRoom(roomId: RoomId) {
-    const setResult = (await redis.srem(allRoomsKey(), roomId)) === 1;
+    const setResult = removeRoomId(roomId);
     const infoResult = (await redis.del(roomInfoKey(roomId))) === 1;
     const usersResult = (await redis.del(roomUsersKey(roomId))) === 1;
     const messagesResult = (await redis.del(roomMessagesKey(roomId))) === 1;
@@ -97,8 +94,16 @@ export const model = (redis: FastifyRedis) => {
     return result;
   }
 
+  async function addRoomId(roomId: RoomId) {
+    return (await redis.sadd(publicRoomsKey(), roomId)) === 1;
+  }
+
+  async function removeRoomId(roomId: RoomId) {
+    return (await redis.srem(publicRoomsKey(), roomId)) === 1;
+  }
+
   async function scanRoomIds(cursor?: string) {
-    return await redis.sscan(allRoomsKey(), cursor ? cursor : "0");
+    return await redis.sscan(publicRoomsKey(), cursor ? cursor : "0");
   }
 
   async function getUserCount(roomId: RoomId) {
@@ -215,6 +220,8 @@ export const model = (redis: FastifyRedis) => {
   return {
     createRoom,
     createServiceRoomId,
+    addRoomId,
+    removeRoomId,
     scanRoomIds,
     readServiceRoomId,
     deleteRoom,

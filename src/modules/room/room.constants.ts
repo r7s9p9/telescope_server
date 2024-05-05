@@ -68,7 +68,7 @@ export const userRoomsKey = (userId: UserId) => `${accountKey(userId)}:rooms`;
 export const userServiceRoomKey = (userId: UserId) =>
   `${userRoomsKey(userId)}:serviceRoomId`;
 
-export const allRoomsKey = () => `${roomKeyPart}:all`;
+export const publicRoomsKey = () => `${roomKeyPart}:all`;
 export const roomKey = (roomId: RoomId) => `${roomKeyPart}:${roomId}`;
 export const roomInfoKey = (roomId: RoomId) => `${roomKey(roomId)}:info`;
 export const roomUsersKey = (roomId: RoomId) => `${roomKey(roomId)}:users`;
@@ -208,6 +208,7 @@ export const payloadSuccessOfJoining = (roomId: RoomId, isProd: boolean) => {
     status: 200 as const,
     data: {
       success: true as const,
+      access: true as const,
       roomId: roomId,
       dev: !isProd
         ? { message: ["You have successfully joined the room"] as const }
@@ -550,7 +551,8 @@ export const payloadLackOfPermissionToJoin = (
   return {
     status: 403 as const,
     data: {
-      success: false as const,
+      success: true as const,
+      access: false as const,
       roomId,
       dev: !isProd
         ? {
@@ -566,6 +568,7 @@ export const payloadNoJoined = (roomId: RoomId, isProd: boolean) => {
     status: 403 as const,
     data: {
       success: false as const,
+      access: true as const,
       roomId,
       dev: !isProd
         ? {

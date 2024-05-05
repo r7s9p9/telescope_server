@@ -130,6 +130,11 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return result;
     };
 
+    async function changeVisibility(roomId: RoomId, type: InfoType["type"]) {
+      if (type === roomTypeValues.public) await m.addRoomId(roomId);
+      if (type !== roomTypeValues.public) await m.removeRoomId(roomId);
+    }
+
     async function handleCodeRequest(userId: UserId, code: number) {
       const { success, roomId } = await readServiceRoomId(userId);
       if (!success) return false as const;
@@ -224,6 +229,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         creatorId,
       });
       if (!success) return false as const;
+      // add roomId to public set
+      if (info.type === roomTypeValues.public) await m.addRoomId(roomId);
       await messageAction.addByService(roomId, welcomeRegularRoomMessage);
       return true as const;
     }
@@ -256,10 +263,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       userId: UserId,
       limit: number,
       offset: number,
-      q?: string
+      q: string
     ) {
       const roomIds = await getRoomIds();
-
       const result: InfoType[] & { roomId: RoomId }[] = [];
       let count = 0;
       for (const roomId of roomIds) {
@@ -274,13 +280,10 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
           roomInfoFields.userCount,
         ]);
         if (!success) continue;
-        if (q && data.name?.includes(q)) {
+        if (data.name?.includes(q)) {
           result.push({ ...data, roomId });
+          count++;
         }
-        if (!q) {
-          result.push({ ...data, roomId });
-        }
-        count++;
         if (count >= limit + offset) break;
       }
       return result;
@@ -337,6 +340,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     ) {
       const success = await m.updateRoomInfo(roomId, info);
       if (success) {
+        if (info.type) changeVisibility(roomId, info.type);
         await messageAction.addByService(roomId, roomInfoUpdatedMessage);
         return true as const;
       }
@@ -646,7 +650,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       userId: UserId,
       limit: number,
       offset: number,
-      q?: string
+      q: string
     ) {
       const rooms = await internal().search(userId, limit, offset, q);
       if (rooms.length === 0 || !rooms) return payloadSearchEmpty(isProd);

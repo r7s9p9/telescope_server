@@ -5,15 +5,15 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.dev
     ports:
-      - '3000:3000'
+      - "3000:3000"
     develop:
       watch:
         - action: sync+restart
           path: .
           target: /src
-          ignore: 
+          ignore:
             - node_modules
     depends_on:
       - redis
