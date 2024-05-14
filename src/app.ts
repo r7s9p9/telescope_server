@@ -64,6 +64,9 @@ declare module "fastify" {
   }
   export interface FastifyRequest {
     ua: string;
+    // The type of session value that goes into the controller
+    // will always be exactly this, because if the session check fails,
+    // the response to the client will be sent before the controller is executed
     session: Session;
     token: Token;
   }
@@ -81,10 +84,9 @@ const app = async () => {
   fastify.addHook(
     "preSerialization",
     async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
-      if (!fastify.env.isProd) {
-        if (request.session && payload.dev) {
-          payload.dev.session = request.session;
-        }
+      if (!fastify.env.isProd && request.session && payload.dev) {
+        // Session info in dev
+        payload.dev.session = request.session;
       }
       return payload;
     }
@@ -116,20 +118,24 @@ const app = async () => {
           clearTokenCookie(reply);
           return reply
             .code(sessionData.status)
-            .send(!fastify.env.isProd ? sessionData : undefined);
+            .send(!fastify.env.isProd ? sessionData : {});
         }
         if (sessionData.token.isNew) {
           setTokenCookie(reply, sessionData.token);
         }
         request.session = sessionData;
       } catch (e) {
-        if (!fastify.env.isProd) return reply.send(e);
+        if (!fastify.env.isProd) {
+          return reply.send(e);
+        } else {
+          return reply.code(500).send({});
+        }
       }
     }
   );
 
   await fastify.register(fastifyRedis, {
-    host: 'redis'
+    host: "redis",
   });
 
   await fastify.register(authRegisterRoute);
@@ -171,12 +177,15 @@ const app = async () => {
   await fastify.register(messageRemoveRoute);
   await fastify.register(messageCompareRoute);
 
-  fastify.listen({ host: fastify.env.appHost, port: parseInt(fastify.env.appPort) }, function (err) {
-    if (err) {
-      fastify.log.error(err);
-      process.exit(1);
+  fastify.listen(
+    { host: fastify.env.appHost, port: parseInt(fastify.env.appPort) },
+    function (err) {
+      if (err) {
+        fastify.log.error(err);
+        process.exit(1);
+      }
     }
-  });
+  );
 };
 
 app();

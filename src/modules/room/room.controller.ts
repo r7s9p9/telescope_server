@@ -64,6 +64,26 @@ function infoValidator(info: object) {
   return { success: result.success, data: result.data as InfoType };
 }
 
+function datesComparator(
+  a: { lastMessage?: Message },
+  b: { lastMessage?: Message }
+) {
+  const aCreated = a.lastMessage?.created;
+  const bCreated = b.lastMessage?.created;
+  const aExist = !!aCreated;
+  const bExist = !!bCreated;
+  if (aExist && bExist) {
+    if (aCreated > bCreated) {
+      return -1;
+    } else {
+      return 1;
+    }
+  }
+  if (aExist && !bExist) return -1;
+  if (!aExist && bExist) return 1;
+  return 0;
+}
+
 export const room = (redis: FastifyRedis, isProd: boolean) => {
   const accountAction = account(redis, isProd).internal();
   const messageAction = message(redis, isProd).internal();
@@ -438,27 +458,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       const allCount = rooms.length;
       if (allCount === 0) return { allCount };
 
-      function roomDateComparator(
-        a: { lastMessage?: Message },
-        b: { lastMessage?: Message }
-      ) {
-        const aCreated = a.lastMessage?.created;
-        const bCreated = b.lastMessage?.created;
-        const aExist = !!aCreated;
-        const bExist = !!bCreated;
-        if (aExist && bExist) {
-          if (aCreated > bCreated) {
-            return -1;
-          } else {
-            return 1;
-          }
-        }
-        if (aExist && !bExist) return -1;
-        if (!aExist && bExist) return 1;
-        return 0;
-      }
       // Sort and slice by range
-      rooms.sort(roomDateComparator);
+      rooms.sort(datesComparator);
 
       return {
         allCount,

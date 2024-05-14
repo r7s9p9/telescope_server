@@ -62,8 +62,6 @@ export interface AccountReadResult {
     lastSeen?: string;
   };
   properties?: {
-    //???
-    //isBlockedYou?: boolean;
     isYouHisFriend?: boolean;
     isYourFriend?: boolean;
   };

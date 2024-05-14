@@ -92,15 +92,12 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       messageArr: Message[]
     ) {
       const lastCreated = messageArr.at(-1)?.created;
-      if (lastCreated) {
+      if (messageArr.length > 0 && lastCreated) {
         const stored = await accountAction.getLastMessageCreated(
           userId,
           roomId
         );
-        const isCurrentValueGreater =
-          Number(lastCreated) > Number(stored.created);
-
-        if (!stored.created || isCurrentValueGreater) {
+        if (!stored.created || lastCreated > stored.created) {
           await accountAction.setLastMessageCreated(
             userId,
             roomId,

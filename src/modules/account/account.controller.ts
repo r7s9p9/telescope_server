@@ -272,6 +272,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
         relationships,
         toRead.general
       );
+
       if (relationships.sameUser) {
         result.privacy = await readPrivacy(internalTarget, toRead.privacy);
       }

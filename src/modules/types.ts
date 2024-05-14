@@ -23,7 +23,7 @@ export type Session =
       status: 200;
       success: true;
       token: {
-        isNew: false;
+        isNew: boolean;
         id: UserId;
         exp: number;
       };
