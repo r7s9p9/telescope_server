@@ -86,13 +86,15 @@ export interface AccountReadResult {
 export type WriteTargetUserField = (typeof accountFields)["general"][
   | "username"
   | "name"
-  | "bio"];
+  | "bio"
+  | "lastSeen"];
 
 export interface AccountToUpdate {
   general?: {
     username?: string;
     name?: string;
     bio?: string;
+    lastSeen?: AccountPrivacyRules;
   };
   privacy?: {
     name?: AccountPrivacyRules;

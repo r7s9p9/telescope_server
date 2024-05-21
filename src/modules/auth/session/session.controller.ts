@@ -23,6 +23,7 @@ import {
 } from "./session.constants";
 import { SessionInfo, UpdateSessionInfo } from "./session.types";
 import { createSessionId } from "../../../utils/hash";
+import { account } from "../../account/account.controller";
 
 function sessionBypass(session: Session, sessionId: string | "self") {
   if (sessionId !== "self") {
@@ -36,6 +37,7 @@ function sessionBypass(session: Session, sessionId: string | "self") {
 
 export const session = (redis: FastifyRedis, isProd: boolean) => {
   const internal = () => {
+    const accountAction = account(redis, isProd).internal();
     const m = model(redis);
     const tokenAction = token();
 
@@ -116,8 +118,13 @@ export const session = (redis: FastifyRedis, isProd: boolean) => {
       if (storedUserAgent !== userAgent) {
         await m.setUserAgent(userId, sessionId, userAgent);
       }
-
+      // update session lastSeen
       await m.setLastSeen(userId, sessionId, Date.now());
+
+      // update account lastSeen
+      // with some chance
+      if (Math.random() < 0.25) accountAction.updateLastSeen(userId);
+
       return payloadSessionOK(isProd);
     }
 

@@ -182,6 +182,14 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       return await accessChecker(userId, relationships, toCheck);
     }
 
+    async function updateLastSeen(userId: UserId) {
+      await m.setGeneralValue(
+        userId,
+        accountFields.general.lastSeen,
+        Date.now().toString()
+      );
+    }
+
     async function readGeneral(
       userId: UserId,
       relationships: Relationships,
@@ -309,6 +317,7 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
 
     return {
       permissionChecker, // for controllers
+      updateLastSeen, // for session controller
       read,
       update,
       create,
