@@ -2,7 +2,7 @@ import { FastifyRedis } from "@fastify/redis";
 import { UserId, RoomId } from "../types";
 import {
   payloadLackOfPermissionToJoin,
-  payloadLackOfPermissionToReadUsers,
+  payloadLackOfPermissionToGetMembers,
   payloadLackOfPermissionToUpdate,
   payloadNoCreator,
   payloadNoOneBlocked,
@@ -12,7 +12,7 @@ import {
   payloadSuccessOfJoining,
   payloadSuccessOfLeave,
   payloadSuccessOfUpdateRoom,
-  payloadSuccessfulReadUsers,
+  payloadSuccessfulGetMembers,
   payloadSuccessfulBlockUsers,
   payloadYouAreNoLongerInRoom,
   roomInfoFields,
@@ -44,6 +44,7 @@ import {
   roomInfoUpdatedMessage,
   payloadSearchEmpty,
   payloadSearch,
+  payloadNoMembers,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -55,6 +56,7 @@ import { message } from "./message/message.controller";
 import { InfoType, infoSchema } from "./room.schema";
 import { Message } from "./message/message.schema";
 import { confirmationCodeMessage } from "../auth/auth.constants";
+import { AccountReadResult } from "../account/account.types";
 
 function infoValidator(info: object) {
   const result = infoSchema.safeParse(info);
@@ -467,6 +469,28 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       };
     }
 
+    async function getMembers(userId: UserId, roomId: RoomId) {
+      const userIds = await m.readUsers(roomId);
+      if (userIds.length === 0) return { isEmpty: true as const };
+
+      const users: AccountReadResult[] = [];
+      for (const targetUserId of userIds) {
+        if (checkUserId(targetUserId)) {
+          const info = await accountAction.read(userId, targetUserId, {
+            general: [
+              accountFields.general.username,
+              accountFields.general.name,
+              accountFields.general.lastSeen,
+            ],
+          });
+          users.push(info);
+        }
+      }
+      if (users.length === 0) return { isEmpty: true as const };
+
+      return { users, isEmpty: false as const };
+    }
+
     return {
       handleCodeRequest,
       isMember,
@@ -488,6 +512,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       join,
       leave,
       overview,
+      getMembers,
     };
   };
 
@@ -609,18 +634,14 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return payloadSuccessOfInvite(roomId, result.userIds, isProd);
     }
 
-    async function readUsers(userId: UserId, roomId: RoomId) {
+    async function getMembers(userId: UserId, roomId: RoomId) {
       const permission = await internal().isAllowedByHardRule(roomId, userId);
-      if (!permission) return payloadLackOfPermissionToReadUsers(isProd);
+      if (!permission) return payloadLackOfPermissionToGetMembers(isProd);
 
-      const result = await m.readUsers(roomId);
-      const userIds: UserId[] = [];
-      for (const userId of result) {
-        if (checkUserId(userId)) {
-          userIds.push(userId);
-        }
-      }
-      return payloadSuccessfulReadUsers(roomId, result.length, userIds, isProd);
+      const { isEmpty, users } = await internal().getMembers(userId, roomId);
+      if (isEmpty) return payloadNoMembers(roomId, isProd);
+
+      return payloadSuccessfulGetMembers(roomId, users, isProd);
     }
 
     async function joinRoom(userId: UserId, roomId: RoomId) {
@@ -668,7 +689,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       deleteRoom,
       createRoom,
       updateRoomInfo,
-      readUsers,
+      getMembers,
       joinRoom,
       leaveRoom,
       kickUsers,

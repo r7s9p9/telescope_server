@@ -111,12 +111,12 @@ export async function roomReadUsersRoute(fastify: FastifyInstance) {
   fastify.setSerializerCompiler(serializerCompiler);
   fastify.withTypeProvider<ZodTypeProvider>().route({
     method: ["POST"],
-    url: "/api/room/users",
-    schema: routeSchema().getUsers,
+    url: "/api/room/members",
+    schema: routeSchema().getMembers,
     preHandler: [fastify.sessionVerifier],
     handler: async (req, rep) => {
       const roomAction = room(fastify.redis, fastify.env.isProd).external();
-      const result = await roomAction.readUsers(
+      const result = await roomAction.getMembers(
         req.session.token.id,
         req.body.roomId
       );

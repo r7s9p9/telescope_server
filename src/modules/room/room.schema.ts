@@ -116,7 +116,7 @@ export const routeSchema = () => {
     }),
   };
 
-  const getUsers = {
+  const getMembers = {
     body: z.object({
       roomId: roomIdSchema,
     }),
@@ -169,7 +169,7 @@ export const routeSchema = () => {
     updateRoomInfo,
     createRoom,
     deleteRoom,
-    getUsers,
+    getMembers,
     joinRoom,
     leaveRoom,
     kickUsers,
