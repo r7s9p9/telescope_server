@@ -77,8 +77,9 @@ function privacyRuleValidator(key: string | null, value: string | null) {
 }
 
 const userIdSwitch = (userId: UserId, targetUserId: UserId | "self") => {
-  // Masking your own Id for requests to your own account
-  if (targetUserId === "self") {
+  // Masking your own userId when making requests to your own account
+  // and appearing your account data in the results of other controllers
+  if (targetUserId === "self" || userId === targetUserId) {
     return { externalTarget: "self" as const, internalTarget: userId };
   }
   return { externalTarget: targetUserId, internalTarget: targetUserId };
