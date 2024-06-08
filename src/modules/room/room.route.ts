@@ -145,6 +145,25 @@ export async function roomKickUsersRoute(fastify: FastifyInstance) {
   });
 }
 
+export async function roomBlockedUsersRoute(fastify: FastifyInstance) {
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+  fastify.withTypeProvider<ZodTypeProvider>().route({
+    method: ["POST"],
+    url: "/api/room/blocked-users",
+    schema: routeSchema().getBlockedUsers,
+    preHandler: [fastify.sessionVerifier],
+    handler: async (req, rep) => {
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      const result = await roomAction.getBlockedUsers(
+        req.session.token.id,
+        req.body.roomId
+      );
+      return rep.code(result.status).send(result.data);
+    },
+  });
+}
+
 export async function roomBlockUsersRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);

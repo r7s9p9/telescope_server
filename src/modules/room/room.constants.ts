@@ -208,8 +208,50 @@ export const payloadSuccessfulGetMembers = (
   };
 };
 
+export const payloadSuccessfulGetBlockedUsers = (
+  roomId: RoomId,
+  users: AccountReadResult[],
+  isProd: boolean
+) => {
+  const devMessage =
+    "You have successfully read the room blocked users" as const;
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      access: true as const,
+      isEmpty: false as const,
+      roomId,
+      users,
+      dev: !isProd
+        ? {
+            message: [devMessage],
+          }
+        : undefined,
+    },
+  };
+};
+
 export const payloadNoMembers = (roomId: RoomId, isProd: boolean) => {
   const devMessage = "There are no members in this room" as const;
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      access: true as const,
+      isEmpty: true as const,
+      roomId,
+      dev: !isProd
+        ? {
+            message: [devMessage],
+          }
+        : undefined,
+    },
+  };
+};
+
+export const payloadNoBlockedUsers = (roomId: RoomId, isProd: boolean) => {
+  const devMessage = "There are no blocked users in this room" as const;
   return {
     status: 200 as const,
     data: {
@@ -548,6 +590,23 @@ export const payloadLackOfPermissionToGetMembers = (isProd: boolean) => {
       dev: !isProd
         ? {
             message: ["You don't have the right to get room members"] as const,
+          }
+        : undefined,
+    },
+  };
+};
+
+export const payloadLackOfPermissionToGetBlockedUsers = (isProd: boolean) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      access: false as const,
+      dev: !isProd
+        ? {
+            message: [
+              "You do not have permission to see blocked users in this room",
+            ] as const,
           }
         : undefined,
     },

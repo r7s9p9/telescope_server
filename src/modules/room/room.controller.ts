@@ -45,6 +45,9 @@ import {
   payloadSearchEmpty,
   payloadSearch,
   payloadNoMembers,
+  payloadLackOfPermissionToGetBlockedUsers,
+  payloadNoBlockedUsers,
+  payloadSuccessfulGetBlockedUsers,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -104,6 +107,10 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return await m.isUserInRoomSet(roomId, userId);
     };
 
+    const isCreator = async (roomId: RoomId, userId: UserId) => {
+      return await m.isCreator(roomId, userId);
+    };
+
     const isPublicRoom = async (roomId: RoomId) => {
       const { success, data } = await readInfo(roomId, [roomInfoFields.type]);
       if (success && data.type === roomTypeValues.public) return true as const;
@@ -111,23 +118,19 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     };
 
     const isAllowedBySoftRule = async (roomId: RoomId, userId: UserId) => {
-      const isBlocked = await m.isUserBlocked(userId, roomId);
-      if (isBlocked) return false as const;
+      if (await m.isUserBlocked(roomId, userId)) return false as const;
 
-      const isPublic = await isPublicRoom(roomId);
-      if (isPublic) return true as const;
+      if (await isPublicRoom(roomId)) return true as const;
 
-      const isUserMember = await isMember(roomId, userId);
-      if (isUserMember) return true as const;
+      if (await isMember(roomId, userId)) return true as const;
 
-      const isCreator = await m.isCreator(roomId, userId);
-      if (isCreator) return true as const;
+      if (await isCreator(roomId, userId)) return true as const;
 
       return false as const;
     };
 
     const isAllowedByHardRule = async (roomId: RoomId, userId: UserId) => {
-      const isBlocked = await m.isUserBlocked(userId, roomId);
+      const isBlocked = await m.isUserBlocked(roomId, userId);
       if (isBlocked) return false as const;
 
       const isUserMember = await isMember(roomId, userId);
@@ -378,13 +381,38 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return { success: true as const, userIds: result };
     }
 
+    async function getBlockedUsers(roomId: RoomId, userId: UserId) {
+      const userIds = await m.getBlockedUsers(roomId);
+      if (userIds.length === 0) return { isEmpty: true as const };
+
+      const users: AccountReadResult[] = [];
+      for (const targetUserId of userIds) {
+        if (checkUserId(targetUserId)) {
+          const info = await accountAction.read(userId, targetUserId, {
+            general: [
+              accountFields.general.username,
+              accountFields.general.name,
+              accountFields.general.lastSeen,
+            ],
+          });
+          users.push(info);
+        }
+      }
+      if (users.length === 0) return { isEmpty: true as const };
+
+      return { users, isEmpty: false as const };
+    }
+
     async function block(roomId: RoomId, userIdArr: UserId[]) {
-      const result = await m.blockUsers(roomId, userIdArr);
-      if (result.length === 0) return { success: false as const };
+      const kickResult = await m.removeUsers(roomId, userIdArr);
+      const blockResult = await m.blockUsers(roomId, userIdArr);
+      if (kickResult.length !== blockResult.length)
+        return { success: false as const };
+      if (blockResult.length === 0) return { success: false as const };
       for (const userId of userIdArr) {
         await messageAction.addByService(roomId, userBlockedMessage, userId);
       }
-      return { success: true as const, userIdArr: result };
+      return { success: true as const, userIdArr: blockResult };
     }
 
     async function unblock(roomId: RoomId, userIdArr: UserId[]) {
@@ -494,6 +522,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     return {
       handleCodeRequest,
       isMember,
+      isCreator,
       isAllowedBySoftRule,
       isAllowedByHardRule,
       getReadyToInviteUserIdArr,
@@ -507,6 +536,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       readInfo,
       updateInfo,
       kick,
+      getBlockedUsers,
       block,
       unblock,
       join,
@@ -644,6 +674,19 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return payloadSuccessfulGetMembers(roomId, users, isProd);
     }
 
+    async function getBlockedUsers(userId: UserId, roomId: RoomId) {
+      const permission = await internal().isCreator(roomId, userId);
+      if (!permission) return payloadLackOfPermissionToGetBlockedUsers(isProd);
+
+      const { isEmpty, users } = await internal().getBlockedUsers(
+        roomId,
+        userId
+      );
+      if (isEmpty) return payloadNoBlockedUsers(roomId, isProd);
+
+      return payloadSuccessfulGetBlockedUsers(roomId, users, isProd);
+    }
+
     async function joinRoom(userId: UserId, roomId: RoomId) {
       const isAllowed = await internal().isAllowedBySoftRule(roomId, userId);
       if (!isAllowed) return payloadLackOfPermissionToJoin(roomId, isProd);
@@ -690,6 +733,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       createRoom,
       updateRoomInfo,
       getMembers,
+      getBlockedUsers,
       joinRoom,
       leaveRoom,
       kickUsers,

@@ -173,7 +173,7 @@ export const model = (redis: FastifyRedis) => {
     const removedUserIds: UserId[] = [];
     for (const userId of userIds) {
       const remFromRoomSet =
-        (await redis.srem(roomUsersKey(roomId), userIds)) === 1;
+        (await redis.srem(roomUsersKey(roomId), userId)) === 1;
       const remFromUserSet =
         (await redis.srem(userRoomsKey(userId), roomId)) === 1;
       if (remFromRoomSet && remFromUserSet) {
@@ -188,6 +188,10 @@ export const model = (redis: FastifyRedis) => {
     return !!(await redis.sismember(roomBlockedUsersKey(roomId), userId));
   }
 
+  async function getBlockedUsers(roomId: RoomId) {
+    return await redis.smembers(roomBlockedUsersKey(roomId));
+  }
+
   async function blockUsers(roomId: RoomId, userIds: UserId[]) {
     const { creatorId } = await readRoomInfo(roomId, [
       roomInfoFields.creatorId,
@@ -197,7 +201,7 @@ export const model = (redis: FastifyRedis) => {
     for (const userId of userIds) {
       if (userId === creatorId) continue;
       const success =
-        (await redis.sadd(roomBlockedUsersKey(roomId), userIds)) === 1;
+        (await redis.sadd(roomBlockedUsersKey(roomId), userId)) === 1;
       if (!success) continue;
       // Already blocked users will not appear as added (true)
       blockedUserIds.push(userId);
@@ -209,7 +213,7 @@ export const model = (redis: FastifyRedis) => {
     const unblockedUserIds: UserId[] = [];
     for (const userId of userIds) {
       const success =
-        (await redis.srem(roomBlockedUsersKey(roomId), userIds)) === 1;
+        (await redis.srem(roomBlockedUsersKey(roomId), userId)) === 1;
       if (!success) continue;
       // Already unblocked users will not appear as added (true)
       unblockedUserIds.push(userId);
@@ -236,6 +240,7 @@ export const model = (redis: FastifyRedis) => {
     addUsers,
     removeUsers,
     isUserBlocked,
+    getBlockedUsers,
     blockUsers,
     unblockUsers,
   };
