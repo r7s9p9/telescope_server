@@ -4,6 +4,7 @@ import {
   accountPrivacyKey,
   accountPrivacyStartValues,
   accountStartValues,
+  allAccountsKey,
   lastSeenMessageKey,
 } from "./account.constants";
 import { RoomId, UserId } from "../types";
@@ -24,7 +25,9 @@ export const model = (redis: FastifyRedis) => {
       accountPrivacyKey(userId),
       accountPrivacyStartValues
     );
-    const done = generalResult === "OK" && privacyResult === "OK";
+    const globalResult = await redis.sadd(allAccountsKey(), userId);
+    const done =
+      generalResult === "OK" && privacyResult === "OK" && globalResult === 1;
     if (done) return true as const;
     return false as const;
   }
@@ -89,6 +92,10 @@ export const model = (redis: FastifyRedis) => {
     return { success: true as const, created: Number(created) };
   }
 
+  async function scanUserIds(cursor?: string) {
+    return await redis.sscan(allAccountsKey(), cursor ? cursor : "0");
+  }
+
   return {
     isAccountExist,
     initAccount,
@@ -98,5 +105,6 @@ export const model = (redis: FastifyRedis) => {
     setPrivacyValue,
     setLastSeenMessageCreated,
     getLastSeenMessageCreated,
+    scanUserIds,
   };
 };

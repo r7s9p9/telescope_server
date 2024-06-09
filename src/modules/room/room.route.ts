@@ -242,6 +242,28 @@ export async function roomLeaveRoute(fastify: FastifyInstance) {
   });
 }
 
+export async function roomSearchUsersToInvite(fastify: FastifyInstance) {
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+  fastify.withTypeProvider<ZodTypeProvider>().route({
+    method: ["POST"],
+    url: "/api/room/search-users-to-invite",
+    schema: routeSchema().searchUsersToInvite,
+    preHandler: [fastify.sessionVerifier],
+    handler: async (req, rep) => {
+      const roomAction = room(fastify.redis, fastify.env.isProd).external();
+      const result = await roomAction.searchUsersToInvite(
+        req.session.token.id,
+        req.body.roomId,
+        req.body.limit,
+        req.body.offset,
+        req.body.q
+      );
+      return rep.code(result.status).send(result.data);
+    },
+  });
+}
+
 export async function roomInviteUsersRoute(fastify: FastifyInstance) {
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);

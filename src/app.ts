@@ -35,6 +35,7 @@ import {
   roomOverviewMyRoomsRoute,
   roomSearchRoute,
   roomBlockedUsersRoute,
+  roomSearchUsersToInvite,
 } from "./modules/room/room.route";
 import {
   messageAddRoute,
@@ -170,6 +171,7 @@ const app = async () => {
   await fastify.register(roomUnblockUsersRoute);
   await fastify.register(roomJoinRoute);
   await fastify.register(roomLeaveRoute);
+  await fastify.register(roomSearchUsersToInvite);
   await fastify.register(roomInviteUsersRoute);
   await fastify.register(roomDeleteRoute);
 

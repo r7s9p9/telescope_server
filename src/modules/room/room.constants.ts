@@ -596,6 +596,25 @@ export const payloadLackOfPermissionToGetMembers = (isProd: boolean) => {
   };
 };
 
+export const payloadLackOfPermissionToSearchUsersToInvite = (
+  isProd: boolean
+) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      access: false as const,
+      dev: !isProd
+        ? {
+            message: [
+              "You do not have permission to search users to invite in this room",
+            ] as const,
+          }
+        : undefined,
+    },
+  };
+};
+
 export const payloadLackOfPermissionToGetBlockedUsers = (isProd: boolean) => {
   return {
     status: 200 as const,
@@ -707,6 +726,7 @@ export const payloadNoRoomsFound = (isProd: boolean) => {
     status: 200 as const,
     data: {
       success: true as const,
+      access: true as const,
       allCount: 0 as const,
       dev: !isProd
         ? { message: ["There are no rooms in this range"] }
@@ -723,11 +743,10 @@ export const payloadSearch = (
     status: 200 as const,
     data: {
       success: true as const,
+      access: true as const,
       isEmpty: false as const,
       rooms,
-      dev: !isProd
-        ? { message: ["There are no rooms in this range"] }
-        : undefined,
+      dev: !isProd ? { message: ["Rooms  successfully found"] } : undefined,
     },
   };
 };
@@ -737,9 +756,40 @@ export const payloadSearchEmpty = (isProd: boolean) => {
     status: 200 as const,
     data: {
       success: true as const,
+      access: true as const,
       isEmpty: true as const,
       dev: !isProd
         ? { message: ["There are no rooms in this range"] }
+        : undefined,
+    },
+  };
+};
+
+export const payloadSearchUsersToInvite = (
+  users: AccountReadResult[],
+  isProd: boolean
+) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      access: true as const,
+      isEmpty: false as const,
+      users,
+      dev: !isProd ? { message: ["Users successfully found"] } : undefined,
+    },
+  };
+};
+
+export const payloadNoUsersToInvite = (isProd: boolean) => {
+  return {
+    status: 200 as const,
+    data: {
+      success: true as const,
+      access: true as const,
+      isEmpty: true as const,
+      dev: !isProd
+        ? { message: ["There are no users in this range"] }
         : undefined,
     },
   };

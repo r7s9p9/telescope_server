@@ -29,6 +29,7 @@ import {
   usernameValueSchema,
 } from "./account.schema";
 import { block } from "./block/block.controller";
+import { checkUserId } from "../../utils/uuid";
 
 function generalValidator(key: string | null, value: string | null) {
   let result;
@@ -87,6 +88,27 @@ const userIdSwitch = (userId: UserId, targetUserId: UserId | "self") => {
 
 export const account = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
+
+  async function getUserIds() {
+    const userIds: Set<UserId> = new Set();
+    let [cursor, elements] = await m.scanUserIds();
+
+    // Add userIds from first response
+    for (const userId of elements) {
+      if (!checkUserId(userId)) continue;
+      userIds.add(userId);
+    }
+    if (cursor === "0") return userIds;
+    // Until the cursor becomes 0, add roomIds
+    while (cursor !== "0") {
+      [cursor, elements] = await m.scanUserIds(cursor);
+      for (const userId of elements) {
+        if (!checkUserId(userId)) continue;
+        userIds.add(userId);
+      }
+    }
+    return userIds;
+  }
 
   async function checkRelationships(
     userId: UserId,
@@ -316,14 +338,45 @@ export const account = (redis: FastifyRedis, isProd: boolean) => {
       return isInitDone && isRoomDone;
     }
 
+    async function search(
+      userId: UserId,
+      limit: number,
+      offset: number,
+      q: string,
+      toRead: AccountToRead, // Must contain username for correct work
+      permission?: ReadTargetUserAccess
+    ) {
+      const userIds = await getUserIds();
+      const result: AccountReadResult[] = [];
+      let count = 0;
+      for (const targetUserId of userIds) {
+        if (permission) {
+          const access = await permissionChecker(
+            userId,
+            targetUserId,
+            permission
+          );
+          if (!access) continue;
+        }
+        const account = await read(userId, targetUserId, toRead);
+        if (account.general?.username?.includes(q)) {
+          result.push(account);
+          count++;
+        }
+        if (count >= limit + offset) break;
+      }
+      return result;
+    }
+
     return {
-      permissionChecker, // for controllers
+      permissionChecker, // for controllers and search
       updateLastSeen, // for session controller
       read,
       update,
       create,
       setLastMessageCreated,
       getLastMessageCreated,
+      search,
     };
   };
 

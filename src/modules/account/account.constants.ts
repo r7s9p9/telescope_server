@@ -8,6 +8,8 @@ import {
 
 export const valueForReadSelfAccount = "self" as const;
 
+export const allAccountsKey = () => `user:all` as const;
+
 export const accountKey = (userId: UserId) => `user:${userId}:account`;
 
 export const accountPrivacyKey = (userId: UserId) =>

@@ -168,6 +168,15 @@ export const routeSchema = () => {
     }),
   };
 
+  const searchUsersToInvite = {
+    body: z.object({
+      roomId: roomIdSchema,
+      limit: z.number().finite(),
+      offset: z.number().finite(),
+      q: z.string(),
+    }),
+  };
+
   return {
     readMyRooms,
     searchRooms,
@@ -183,5 +192,6 @@ export const routeSchema = () => {
     blockUsers,
     unblockUsers,
     inviteUsers,
+    searchUsersToInvite,
   };
 };

@@ -46,8 +46,11 @@ import {
   payloadSearch,
   payloadNoMembers,
   payloadLackOfPermissionToGetBlockedUsers,
+  payloadLackOfPermissionToSearchUsersToInvite,
   payloadNoBlockedUsers,
   payloadSuccessfulGetBlockedUsers,
+  payloadNoUsersToInvite,
+  payloadSearchUsersToInvite,
 } from "./room.constants";
 import { account } from "../account/account.controller";
 import { accountFields } from "../account/account.constants";
@@ -103,6 +106,10 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       );
     };
 
+    const isBlocked = async (roomId: RoomId, userId: UserId) => {
+      return await m.isUserBlocked(roomId, userId);
+    };
+
     const isMember = async (roomId: RoomId, userId: UserId) => {
       return await m.isUserInRoomSet(roomId, userId);
     };
@@ -118,7 +125,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     };
 
     const isAllowedBySoftRule = async (roomId: RoomId, userId: UserId) => {
-      if (await m.isUserBlocked(roomId, userId)) return false as const;
+      if (await isBlocked(roomId, userId)) return false as const;
 
       if (await isPublicRoom(roomId)) return true as const;
 
@@ -130,11 +137,9 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
     };
 
     const isAllowedByHardRule = async (roomId: RoomId, userId: UserId) => {
-      const isBlocked = await m.isUserBlocked(roomId, userId);
-      if (isBlocked) return false as const;
+      if (await isBlocked(roomId, userId)) return false as const;
 
-      const isUserMember = await isMember(roomId, userId);
-      if (isUserMember) return true as const;
+      if (await isMember(roomId, userId)) return true as const;
 
       return false as const;
     };
@@ -314,6 +319,40 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return result;
     }
 
+    async function searchUsersToInvite(
+      roomId: RoomId,
+      userId: UserId,
+      limit: number,
+      offset: number,
+      q: string
+    ) {
+      const users = await accountAction.search(
+        userId,
+        limit,
+        offset,
+        q,
+        {
+          general: [
+            accountFields.general.username,
+            accountFields.general.name,
+            accountFields.general.lastSeen,
+          ],
+        },
+        accountFields.permission.isCanInviteToRoom
+      );
+
+      const result: AccountReadResult[] = [];
+
+      for (const user of users) {
+        if (await isBlocked(roomId, user.targetUserId as UserId)) {
+          continue;
+        }
+        result.push(user);
+      }
+
+      return result;
+    }
+
     async function invite(
       roomId: RoomId,
       initiatorUserId: UserId,
@@ -323,7 +362,17 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
         initiatorUserId,
         userIds
       );
-      const addedUserIds = await m.addUsers(roomId, allowedUserIds);
+
+      const notBlockedUserIds: UserId[] = [];
+
+      for (const userId of allowedUserIds) {
+        if (await isBlocked(roomId, userId as UserId)) {
+          continue;
+        }
+        notBlockedUserIds.push(userId);
+      }
+
+      const addedUserIds = await m.addUsers(roomId, notBlockedUserIds);
       if (addedUserIds.length === 0) return { success: false as const };
       for (const userId of addedUserIds) {
         await messageAction.addByService(roomId, userInvitedMessage, userId);
@@ -543,6 +592,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       leave,
       overview,
       getMembers,
+      searchUsersToInvite,
     };
   };
 
@@ -722,10 +772,33 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
       return payloadSearch(rooms, isProd);
     }
 
+    async function searchUsersToInvite(
+      userId: UserId,
+      roomId: RoomId,
+      limit: number,
+      offset: number,
+      q: string
+    ) {
+      const permission = await internal().isCreator(roomId, userId);
+      if (!permission)
+        return payloadLackOfPermissionToSearchUsersToInvite(isProd);
+
+      const result = await internal().searchUsersToInvite(
+        roomId,
+        userId,
+        limit,
+        offset,
+        q
+      );
+      if (result.length === 0 || !result) return payloadNoUsersToInvite(isProd);
+      return payloadSearchUsersToInvite(result, isProd);
+    }
+
     return {
       search,
       roomsOverview,
       readRoomInfo,
+      searchUsersToInvite,
       inviteUsers,
       blockUsers,
       unblockUsers,
