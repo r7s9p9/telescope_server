@@ -2,6 +2,7 @@ import Fastify, { FastifyRequest, FastifyReply } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyRedis from "@fastify/redis";
 import { fastifyEnv } from "./plugins/env";
+import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import { Token, Session } from "./modules/types";
 import {
@@ -135,6 +136,24 @@ const app = async () => {
       }
     }
   );
+
+  await fastify.register(cors, {
+    credentials: true,
+    origin: (origin, cb) => {
+      if (!fastify.env.isProd) {
+        cb(null, true);
+        return;
+      }
+
+      const hostname = new URL(origin as string).hostname;
+      if (hostname === fastify.env.prodAllowedRequestOrigin) {
+        cb(null, true);
+        return;
+      }
+      // Generate an error on other origins, disabling access
+      cb(new Error("Not allowed"), false);
+    },
+  });
 
   await fastify.register(fastifyRedis, {
     host: "redis",

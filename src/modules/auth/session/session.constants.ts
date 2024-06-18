@@ -162,6 +162,7 @@ export const payloadSuccessfullyRemove = (isProd: boolean) => {
     status: 200 as const,
     data: {
       success: true as const,
+      isExist: true as const,
       dev: !isProd ? { message: [devMessage] } : undefined,
     },
   };

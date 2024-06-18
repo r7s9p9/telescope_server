@@ -20,6 +20,7 @@ const envVars = z.object({
   TOKEN_ALG: z.enum(jwtAlgorithms),
   TOKEN_EXPIRATION: z.string().min(2),
   TOKEN_REMAINING_TIME_TO_BE_UPDATED: z.string(),
+  PROD_ALLOWED_REQUEST_ORIGIN: z.string(),
 });
 
 type EnvVarsType = z.infer<typeof envVars>;
@@ -39,6 +40,7 @@ const converter = (envVars: EnvVarsType) => {
     tokenRemainingSecondsToBeUpdated: dateConverter(
       envVars.TOKEN_REMAINING_TIME_TO_BE_UPDATED
     ),
+    prodAllowedRequestOrigin: envVars.PROD_ALLOWED_REQUEST_ORIGIN,
   };
 };
 
