@@ -91,7 +91,7 @@ export const message = (redis: FastifyRedis, isProd: boolean) => {
       roomId: RoomId,
       messageArr: Message[]
     ) {
-      const lastCreated = messageArr.at(-1)?.created;
+      const lastCreated = messageArr.at(0)?.created;
       if (messageArr.length > 0 && lastCreated) {
         const stored = await accountAction.getLastMessageCreated(
           userId,
