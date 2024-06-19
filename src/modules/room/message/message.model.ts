@@ -83,7 +83,7 @@ export const model = (redis: FastifyRedis) => {
       maxCreated ? maxCreated : "+inf",
       "BYSCORE"
     );
-    return parseArr(messages);
+    return parseArr(messages.reverse());
   }
 
   async function readMessageByRevRange(roomId: RoomId, index: number) {
