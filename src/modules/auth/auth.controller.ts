@@ -8,7 +8,6 @@ import { hashPassword, verifyPassword } from "../../utils/hash";
 import { FastifyRedis } from "@fastify/redis";
 import { payloadServerError } from "../constants";
 import {
-  confirmationCodeMessage,
   payloadAccountCreated,
   payloadBadUserAgent,
   payloadEmailExists,
@@ -24,7 +23,6 @@ import { session } from "./session/session.controller";
 import { token } from "../../utils/token";
 import { JWT } from "@fastify/jwt";
 import { UserId } from "../types";
-import { message } from "../room/message/message.controller";
 import { room } from "../room/room.controller";
 
 export const auth = (redis: FastifyRedis, isProd: boolean) => {
@@ -32,7 +30,6 @@ export const auth = (redis: FastifyRedis, isProd: boolean) => {
   const accountAction = account(redis, isProd).internal();
   const sessionAction = session(redis, isProd).internal();
   const roomAction = room(redis, isProd).internal();
-  const messageAction = message(redis, isProd).internal();
   const tokenAction = token();
 
   const internal = () => {

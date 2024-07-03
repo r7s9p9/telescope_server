@@ -98,7 +98,7 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
   const m = model(redis);
 
   const internal = () => {
-    const isInviteAllowed = async (userId: UserId, targetUserId: UserId) => {
+    const isInviteAllowed = async (targetUserId: UserId, userId: UserId) => {
       return await accountAction.permissionChecker(
         userId,
         targetUserId,
@@ -716,7 +716,8 @@ export const room = (redis: FastifyRedis, isProd: boolean) => {
 
     async function getMembers(userId: UserId, roomId: RoomId) {
       const permission = await internal().isAllowedByHardRule(roomId, userId);
-      if (!permission) return payloadLackOfPermissionToGetMembers(isProd);
+      if (!permission)
+        return payloadLackOfPermissionToGetMembers(roomId, isProd);
 
       const { isEmpty, users } = await internal().getMembers(userId, roomId);
       if (isEmpty) return payloadNoMembers(roomId, isProd);

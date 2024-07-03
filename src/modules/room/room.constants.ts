@@ -581,12 +581,16 @@ export const payloadLackOfPermissionToUpdate = (
   };
 };
 
-export const payloadLackOfPermissionToGetMembers = (isProd: boolean) => {
+export const payloadLackOfPermissionToGetMembers = (
+  roomId: RoomId,
+  isProd: boolean
+) => {
   return {
     status: 200 as const,
     data: {
       success: true as const,
       access: false as const,
+      roomId,
       dev: !isProd
         ? {
             message: ["You don't have the right to get room members"] as const,
