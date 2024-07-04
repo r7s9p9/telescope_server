@@ -77,17 +77,21 @@ export const jwtConfig = (env: EnvValues) => {
   };
 };
 
-// export const setTokenCookie = (
-//   reply: FastifyReply,
-//   token: { raw: string; exp: number }
-// ) =>
-//   reply.setCookie(tokenName, token.raw, {
-//     maxAge: token.exp - Math.round(Date.now() / 1000),
-//     path: "/",
-//     secure: true as const,
-//     httpOnly: true as const,
-//     sameSite: true as const,
-//   });
+export const setTokenCookie = (
+  reply: FastifyReply,
+  token: { raw: string; exp: number }
+) =>
+  // migrator.ts produce error without that
+  // @ts-ignore
+  reply.setCookie(tokenName, token.raw, {
+    maxAge: token.exp - Math.round(Date.now() / 1000),
+    path: "/",
+    secure: true as const,
+    httpOnly: true as const,
+    sameSite: true as const,
+  });
 
-// export const clearTokenCookie = (reply: FastifyReply) =>
-//   reply.clearCookie(tokenName);
+export const clearTokenCookie = (reply: FastifyReply) =>
+  // migrator.ts produce error without that
+  // @ts-ignore
+  reply.clearCookie(tokenName);
