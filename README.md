@@ -1,7 +1,7 @@
 ## Telescope Messenger Server
 
 This is a backend for exchanging messages within rooms that are created and managed by users.  
-If you need a client, then go [here](https://github.com/r7s9p9/telescope_client).
+If you need a client, then go [here](https://github.com/r7s9p9/telescope-client).
 
 ## Stack
 
@@ -26,6 +26,8 @@ To get the telescope server running locally:
 - Prod  
   4. `npm run docker:prod:build`  
   5. `npm run docker:prod:up`
+
+6. If this is the first launch, you need to run `npm run migrate`
 
 ## Features
 
