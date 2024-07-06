@@ -1,7 +1,7 @@
 ## Telescope Messenger Server
 
 This is a backend for exchanging messages within rooms that are created and managed by users.  
-If you need a client, then go [here](https://github.com/r7s9p9/telescope-client).
+If you need a client, then go [here](https://github.com/r7s9p9/telescope_client).
 
 ## Stack
 
